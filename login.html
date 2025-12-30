@@ -62,6 +62,11 @@
       max-height: 220px;
       overflow: auto;
     }
+
+    .danger {
+      border-color: #ffb3b3 !important;
+      background: #fff3f3 !important;
+    }
   </style>
 </head>
 <body>
@@ -128,6 +133,20 @@
     </div>
 
     <div class="hint" id="authState">未ログイン</div>
+
+    <hr style="margin:14px 0;" />
+
+    <!-- ✅ 追加：アカウント削除 -->
+    <b>⚠️ アカウント削除</b>
+    <div class="hint">
+      この操作は取り消せません。<br>
+      「自分のアカウント」自体をSupabase Authから削除します。<br>
+      ※削除にはサーバ側（Edge Function）が必要です（下に実装あり）
+    </div>
+
+    <div class="row" style="margin-top:8px;">
+      <button onclick="deleteAccount()" id="deleteAccountBtn" class="danger">アカウントを削除する</button>
+    </div>
   </div>
 
 <script>
@@ -201,7 +220,6 @@ function setMode(next){
     document.getElementById("pass").autocomplete = "new-password";
   }
 
-  // 触りやすいようにフォーカス
   document.getElementById("email").focus();
 }
 
@@ -214,7 +232,10 @@ function resetMode(){
 
 /* =================== メインへ =================== */
 function gotoMain(){
-  location.href = "./index.html";
+  // キャッシュで変な状態にならないように一応バスター
+  const u = new URL("./index.html", location.href);
+  u.searchParams.set("_r", String(Date.now()));
+  location.href = u.toString();
 }
 
 /* =================== セッション表示 =================== */
@@ -291,7 +312,6 @@ async function signUp() {
   alert("新規登録OK！メール確認が必要なら、メールを確認してからログインしてね！");
   await reloadSession();
 
-  // まだセッションが入らない設定の時があるから、ログインモードに誘導
   if (!authUser) {
     setMode("signin");
     setStatus("メール確認が必要なら先に確認 → その後ログインしてね", true);
@@ -314,7 +334,7 @@ async function signIn() {
 }
 
 async function signOut() {
-  const { error } = await sb.auth.signOut();
+  const { error } = await sb.auth.signOut({ scope: "local" });
   if (error) log("signOut error", error);
   authUser = null;
   setLoggedInUI();
@@ -327,11 +347,91 @@ async function saveDisplayName() {
   const dn = document.getElementById("displayName").value.trim();
   if (!dn) return alert("表示名を入れてね！");
 
-  const { error } = await sb.auth.updateUser({ data: { display_name: dn } });
-  if (error) { showAuthError("表示名保存失敗", error); return; }
+  const btn = document.getElementById("saveNameBtn");
+  if (btn) btn.disabled = true;
 
-  alert("表示名保存OK！");
-  await reloadSession();
+  try {
+    const { error } = await sb.auth.updateUser({ data: { display_name: dn } });
+    if (error) { showAuthError("表示名保存失敗", error); return; }
+
+    alert("表示名保存OK！");
+    await reloadSession();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/* =========================================================
+   ✅ 追加：アカウント削除（Edge Function経由）
+   =========================================================
+   - フロントだけでユーザー削除は不可（Service Roleが必要）
+   - Edge Function /functions/v1/delete-me を作って呼び出す
+   ========================================================= */
+async function deleteAccount(){
+  if (!authUser) return alert("先にログインしてね！");
+
+  // ① 最終確認（誤操作防止）
+  const ok1 = confirm("本当にアカウントを削除しますか？\nこの操作は取り消せません。");
+  if (!ok1) return;
+
+  // ② 文字入力確認（さらに誤爆防止）
+  const code = prompt("確認のため「DELETE」と入力してね（大文字）");
+  if (code !== "DELETE") {
+    alert("中止しました（DELETEと一致しません）");
+    return;
+  }
+
+  const btn = document.getElementById("deleteAccountBtn");
+  if (btn) btn.disabled = true;
+
+  try {
+    // JWT取得（Edge Functionで本人確認に使う）
+    const { data: sessData, error: sessErr } = await sb.auth.getSession();
+    if (sessErr) log("getSession error(deleteAccount)", sessErr);
+
+    const accessToken = sessData?.session?.access_token;
+    if (!accessToken) {
+      alert("セッションが取れませんでした。いったんログインし直してね。");
+      return;
+    }
+
+    setStatus("アカウント削除リクエスト中…", true);
+
+    // Edge Function 呼び出し
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-me`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ confirm: true })
+    });
+
+    const text = await res.text();
+    log("delete-me response", res.status, text);
+
+    if (!res.ok) {
+      alert("削除失敗: " + res.status + "\n" + text);
+      setStatus("削除失敗: " + res.status, false);
+      return;
+    }
+
+    alert("アカウントを削除しました。ログアウトしてログイン画面に戻ります。");
+
+    // 念のためローカルからもログアウト
+    try { await sb.auth.signOut({ scope: "local" }); } catch {}
+    authUser = null;
+    setLoggedInUI();
+
+    // ログイン画面をリロード（残骸防止）
+    location.replace("./login.html?_r=" + Date.now());
+  } catch (e) {
+    log("deleteAccount exception", e);
+    alert("削除中にエラー: " + (e?.message || e));
+    setStatus("削除中にエラー", false);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 /* 起動時 */
