@@ -1,504 +1,781 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ゆるるチャット</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ゆるるチャット</title>
 
-    <!-- Supabase JS v2 -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase JS v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <style>
-        body {
-            font-family: sans-serif;
-            padding: 12px;
-        }
+  <style>
+    body { font-family: sans-serif; padding: 12px; }
+    input { width: 260px; padding: 6px; margin: 4px 0; }
+    button { padding: 6px 10px; margin: 4px 2px; cursor: pointer; }
 
-        input {
-            width: 260px;
-            padding: 6px;
-            margin: 4px 0;
-        }
+    #roomsBox {
+      border: 1px solid #ccc; width: 260px; height: 180px;
+      overflow: auto; padding: 6px; margin: 10px 0; background: #fafafa;
+    }
+    .roomRow { display: flex; gap: 6px; margin: 3px 0; align-items: center; }
+    .roomBtn {
+      flex: 1; width: auto; text-align: left; padding: 6px;
+      cursor: pointer; border: 1px solid #ddd; background: #fff;
+    }
+    .roomBtn:hover { background: #f0f0f0; }
+    .delBtn { width: 44px; padding: 6px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
+    .delBtn:hover { background: #ffecec; }
 
-        button {
-            padding: 6px 10px;
-            margin: 4px 2px;
-            cursor: pointer;
-        }
+    #status { font-size: 12px; color: #666; margin-top: 6px; }
+    .ok { color: #0a7; }
+    .ng { color: #c33; }
+    .sys { color: #666; font-size: 12px; margin: 4px 0; }
 
-        #roomsBox {
-            border: 1px solid #ccc;
-            width: 260px;
-            height: 180px;
-            overflow: auto;
-            padding: 6px;
-            margin: 10px 0;
-            background: #fafafa;
-        }
+    /* レイアウト：左（参加者/通話） 右（チャット） */
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+    }
 
-        .roomRow {
-            display: flex;
-            gap: 6px;
-            margin: 3px 0;
-            align-items: center;
-        }
+    /* 通話ボックス */
+    #callBox{
+      border: 1px solid #ccc;
+      padding: 10px;
+      background: #fafafa;
+    }
+    #callState { font-size: 12px; color:#444; margin-top: 6px; }
 
-        .roomBtn {
-            flex: 1;
-            width: auto;
-            text-align: left;
-            padding: 6px;
-            cursor: pointer;
-            border: 1px solid #ddd;
-            background: #fff;
-        }
+    /* 参加者一覧 */
+    #peopleBox {
+      border: 1px solid #ccc;
+      padding: 10px;
+      background: #fff;
+      margin-top: 10px;
+    }
+    #peopleList { margin-top: 8px; }
+    .personRow{
+      display:flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px;
+      border: 1px solid #eee;
+      margin: 6px 0;
+      border-radius: 6px;
+      background:#fafafa;
+      font-size: 14px;
+    }
+    .pill {
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid #ddd;
+      background: #fff;
+      color:#333;
+      white-space: nowrap;
+    }
 
-            .roomBtn:hover {
-                background: #f0f0f0;
-            }
-
-        .delBtn {
-            width: 44px;
-            padding: 6px;
-            border: 1px solid #ddd;
-            background: #fff;
-            cursor: pointer;
-        }
-
-            .delBtn:hover {
-                background: #ffecec;
-            }
-
-        #chat {
-            border: 1px solid #ccc;
-            height: 240px;
-            overflow: auto;
-            padding: 8px;
-            background: #fff;
-            width: min(720px, 95vw);
-            margin-top: 10px;
-        }
-
-        .row {
-            margin: 6px 0;
-        }
-
-        .small {
-            font-size: 12px;
-            color: #666;
-        }
-
-        .ok {
-            color: #0a7;
-        }
-
-        .ng {
-            color: #c33;
-        }
-
-        /* ✅ システムメッセージの見た目 */
-        .sys {
-            color: #666;
-            font-size: 12px;
-            margin: 4px 0;
-        }
-    </style>
+    /* チャット */
+    #chat {
+      border: 1px solid #ccc;
+      height: 360px;
+      overflow: auto;
+      padding: 8px;
+      background: #fff;
+      width: min(900px, 95vw);
+    }
+  </style>
 </head>
 
 <body>
-    <h2>ゆるるチャット</h2>
+  <h2>ゆるるチャット</h2>
 
-    <div class="row">
-        <input id="name" placeholder="名前" />
+  <div>
+    <input id="name" placeholder="名前" /><br />
+    <input id="room" placeholder="部屋名（例: test）" /><br />
+
+    <button onclick="createRoom()">部屋作成</button>
+    <button onclick="join()">入室</button>
+    <button onclick="leave()">退室</button>
+    <button onclick="loadRooms()">部屋一覧更新</button>
+
+    <div style="margin-top:10px;">
+      <b>部屋一覧（スクロール）</b>
+      <div id="roomsBox"></div>
+      <div style="font-size:12px;color:#666;">
+        ・部屋名クリック：入力欄へ / ・部屋名ダブルクリック：その部屋に入室<br />
+        ・🗑：部屋削除（※その部屋のメッセージも削除）
+      </div>
     </div>
+  </div>
 
-    <div class="row">
-        <input id="room" placeholder="部屋名（例: test）" />
-    </div>
+  <hr />
 
-    <div class="row">
-        <button onclick="createRoom()">部屋作成</button>
-        <button onclick="join()">入室</button>
-        <button onclick="leave()">退室</button>
-        <button onclick="loadRooms()">部屋一覧更新</button>
-    </div>
+  <div id="status"></div>
 
-    <div class="row">
-        <b>部屋一覧（スクロール）</b>
-        <div id="roomsBox"></div>
-        <div class="small">
-            ・部屋名クリック：入力欄へ / ・部屋名ダブルクリック：その部屋に入室<br />
-            ・🗑：部屋削除（※その部屋のメッセージも削除）
+  <div class="layout">
+    <!-- 左：通話＆参加者 -->
+    <div>
+      <div id="callBox">
+        <b>🎤 音声通話（複数人）</b>
+        <div style="margin-top:8px;">
+          <button onclick="startVoice()">通話に参加（開始）</button>
+          <button onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
+          <button onclick="hangupAll()">通話退出</button>
         </div>
+        <div id="callState">未接続（入室してから使ってね）</div>
+
+        <!-- 相手の音声はここにaudio要素が増える -->
+        <div id="audios" style="margin-top:8px;"></div>
+      </div>
+
+      <div id="peopleBox">
+        <b>👥 参加者（通話チャンネル）</b>
+        <div style="font-size:12px;color:#666;margin-top:6px;">
+          ※「通話に参加」を押した人がここに表示されるよ
+        </div>
+        <div id="peopleList"></div>
+      </div>
     </div>
 
-    <hr />
-
-    <div id="status" class="small"></div>
-    <div id="chat"></div>
-
-    <div class="row">
+    <!-- 右：チャット -->
+    <div>
+      <div id="chat"></div>
+      <div style="margin-top:8px;">
         <input id="msg" placeholder="メッセージ" />
         <button onclick="send()">送信</button>
+      </div>
     </div>
+  </div>
 
-    <script>
-    // ========= ここだけ自分のSupabaseに合わせる =========
-    const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
-    // ================================================
+<script>
+/* =================== Supabase 設定 =================== */
+const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+const SUPABASE_KEY = "（ここに anon/publishable key）";
 
-    const sb = supabase.createClient(
-      SUPABASE_URL.trim(),
-      (SUPABASE_KEY || "").replace(/\s+/g, "")
-    );
+const sb = supabase.createClient(
+  SUPABASE_URL.trim(),
+  (SUPABASE_KEY || "").replace(/\s+/g, "")
+);
 
-    let room = "";
-    let name = "";
+/* =================== 状態 =================== */
+let room = "";
+let name = "";
 
-    // Realtime購読（部屋一覧/メッセージ）
-    let roomsChannel = null;
-    let messagesChannel = null;
+let roomsChannel = null;
+let messagesChannel = null;
 
-    // ✅ システムメッセージ用の固定名
-    const SYSTEM_NAME = "__system__";
+const SYSTEM_NAME = "__system__";
 
-    function setStatus(text, ok = true) {
-      const el = document.getElementById("status");
-      el.innerHTML = `<span class="${ok ? "ok" : "ng"}">${text}</span>`;
-    }
+/* =================== 表示系 =================== */
+function setStatus(text, ok = true) {
+  const el = document.getElementById("status");
+  el.innerHTML = `<span class="${ok ? "ok" : "ng"}">${text}</span>`;
+}
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+async function sendSystem(text) {
+  if (!room) return;
+  const { error } = await sb.from("messages").insert({
+    room_id: room, name: SYSTEM_NAME, message: text
+  });
+  if (error) console.error(error);
+}
 
-    function escapeHtml(s) {
-      return String(s)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
+/* =================== Realtime（部屋/メッセ） =================== */
+async function startRealtime() {
+  if (roomsChannel || messagesChannel) return;
 
-    // ✅ システムメッセージをDBに保存（＝みんなに見える）
-    async function sendSystem(text) {
-      if (!room) return;
-      const { error } = await sb.from("messages").insert({
-        room_id: room,
-        name: SYSTEM_NAME,
-        message: text
-      });
-      if (error) {
-        console.error(error);
-        // ここはalertしない（邪魔になる）けど、必要ならalertにしてOK
-      }
-    }
-
-    // ------------------------------
-    // Realtime開始（固定）
-    // ------------------------------
-    async function startRealtime() {
-      if (roomsChannel || messagesChannel) return;
-
-      roomsChannel = sb
-        .channel("rooms-ch")
-        .on("postgres_changes", { event: "*", schema: "public", table: "rooms" }, async () => {
-          await loadRooms();
-        })
-        .subscribe();
-
-      messagesChannel = sb
-        .channel("messages-ch")
-        .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, async (payload) => {
-          if (!room) return;
-
-          const newRow = payload.new || {};
-          const oldRow = payload.old || {};
-          const rid = newRow.room_id || oldRow.room_id;
-
-          if (rid === room) {
-            await loadMessages();
-          }
-        })
-        .subscribe();
-
-      setStatus("リアルタイム接続OK（変更があれば自動反映）");
-    }
-
-    // ------------------------------
-    // 部屋一覧
-    // ------------------------------
-    async function loadRooms() {
-      let res = await sb
-        .from("rooms")
-        .select("room_name, created_at")
-        .order("created_at", { ascending: true });
-
-      if (res.error && String(res.error.message || "").includes("created_at")) {
-        res = await sb.from("rooms").select("room_name");
-      }
-
-      const { data, error } = res;
-
-      if (error) {
-        console.error(error);
-        setStatus("部屋一覧取得失敗: " + error.message, false);
-        return;
-      }
-
-      const box = document.getElementById("roomsBox");
-      box.innerHTML = "";
-
-      if (!data || data.length === 0) {
-        box.innerHTML = "<div>まだ部屋がないよ（部屋作成してね）</div>";
-        if (!room) setStatus("部屋なし（新しく作ってOK）");
-        return;
-      }
-
-      data.forEach(r => {
-        const row = document.createElement("div");
-        row.className = "roomRow";
-
-        const btn = document.createElement("button");
-        btn.className = "roomBtn";
-        btn.textContent = r.room_name;
-
-        btn.onclick = () => { document.getElementById("room").value = r.room_name; };
-
-        btn.ondblclick = async () => {
-          document.getElementById("room").value = r.room_name;
-          await join();
-        };
-
-        const del = document.createElement("button");
-        del.className = "delBtn";
-        del.textContent = "🗑";
-        del.title = "部屋削除";
-
-        del.onclick = async () => {
-          const rn = r.room_name;
-          if (!confirm(`部屋「${rn}」を削除しますか？\n※その部屋のメッセージも消えます`)) return;
-          await deleteRoom(rn);
-        };
-
-        row.appendChild(btn);
-        row.appendChild(del);
-        box.appendChild(row);
-      });
-
-      if (!room) setStatus(`部屋一覧OK（${data.length}件）`);
-    }
-
-    // ------------------------------
-    // 部屋作成（同名禁止）
-    // ------------------------------
-    async function createRoom() {
-      const roomName = document.getElementById("room").value.trim();
-      if (!roomName) return alert("部屋名を入れてね！");
-
-      const { data: exists, error: e1 } = await sb
-        .from("rooms")
-        .select("room_name")
-        .eq("room_name", roomName)
-        .maybeSingle();
-
-      if (e1) {
-        console.error(e1);
-        alert("部屋確認失敗: " + e1.message);
-        return;
-      }
-
-      if (exists) {
-        alert("その部屋はもうあるよ！一覧から選んで入室してね！");
-        return;
-      }
-
-      const { error } = await sb.from("rooms").insert({ room_name: roomName });
-
-      if (error) {
-        console.error(error);
-        alert("部屋作成失敗: " + error.message);
-        return;
-      }
-
-      alert(`部屋「${roomName}」を作った！`);
+  roomsChannel = sb
+    .channel("rooms-ch")
+    .on("postgres_changes", { event: "*", schema: "public", table: "rooms" }, async () => {
       await loadRooms();
+    })
+    .subscribe();
 
-      // ✅ 作成した部屋に自動で入室したいなら、以下をONにしてもOK
-      // document.getElementById("room").value = roomName;
-      // await join();
-    }
-
-    // ------------------------------
-    // メッセージ読み込み
-    // ------------------------------
-    async function loadMessages() {
+  messagesChannel = sb
+    .channel("messages-ch")
+    .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, async (payload) => {
       if (!room) return;
+      const newRow = payload.new || {};
+      const oldRow = payload.old || {};
+      const rid = newRow.room_id || oldRow.room_id;
+      if (rid === room) await loadMessages();
+    })
+    .subscribe();
 
-      let res = await sb
-        .from("messages")
-        .select("*")
-        .eq("room_id", room)
-        .order("created_at", { ascending: true })
-        .limit(200);
+  setStatus("リアルタイム接続OK");
+}
 
-      if (res.error && String(res.error.message || "").includes("created_at")) {
-        res = await sb.from("messages").select("*").eq("room_id", room).limit(200);
-      }
+/* =================== 部屋一覧 =================== */
+async function loadRooms() {
+  let res = await sb.from("rooms")
+    .select("room_name, created_at")
+    .order("created_at", { ascending: true });
 
-      const { data, error } = res;
+  if (res.error && String(res.error.message || "").includes("created_at")) {
+    res = await sb.from("rooms").select("room_name");
+  }
 
-      if (error) {
-        console.error(error);
-        setStatus("メッセージ取得失敗: " + error.message, false);
-        return;
-      }
+  const { data, error } = res;
+  if (error) { console.error(error); setStatus("部屋一覧取得失敗: " + error.message, false); return; }
 
-      const chat = document.getElementById("chat");
-      chat.innerHTML = "";
+  const box = document.getElementById("roomsBox");
+  box.innerHTML = "";
 
-      (data || []).forEach(m => {
-        const n = escapeHtml(m.name ?? "");
-        const msg = escapeHtml(m.message ?? "");
+  if (!data || data.length === 0) {
+    box.innerHTML = "<div>まだ部屋がないよ（部屋作成してね）</div>";
+    if (!room) setStatus("部屋なし（新しく作ってOK）");
+    return;
+  }
 
-        if (m.name === SYSTEM_NAME) {
-          chat.innerHTML += `<div class="sys">✅ ${msg}</div>`;
-        } else {
-          chat.innerHTML += `<div><b>${n}:</b> ${msg}</div>`;
-        }
-      });
+  data.forEach(r => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "roomRow";
 
-      chat.scrollTop = chat.scrollHeight;
-      setStatus(`入室中: ${room}（${(data || []).length}件表示）`);
-    }
+    const btn = document.createElement("button");
+    btn.className = "roomBtn";
+    btn.textContent = r.room_name;
+    btn.onclick = () => { document.getElementById("room").value = r.room_name; };
+    btn.ondblclick = async () => { document.getElementById("room").value = r.room_name; await join(); };
 
-    // ------------------------------
-    // 入室（みんなに見えるログを保存）
-    // ------------------------------
-    async function join() {
-      const inputRoom = document.getElementById("room").value.trim();
-      const inputName = document.getElementById("name").value.trim();
+    const del = document.createElement("button");
+    del.className = "delBtn";
+    del.textContent = "🗑";
+    del.title = "部屋削除";
+    del.onclick = async () => {
+      const rn = r.room_name;
+      if (!confirm(`部屋「${rn}」を削除しますか？\n※その部屋のメッセージも消えます`)) return;
+      await deleteRoom(rn);
+    };
 
-      if (!inputRoom || !inputName) {
-        alert("名前と部屋名を入れてね！");
-        return;
-      }
+    rowEl.appendChild(btn);
+    rowEl.appendChild(del);
+    box.appendChild(rowEl);
+  });
 
-      const { data: exists, error } = await sb
-        .from("rooms")
-        .select("room_name")
-        .eq("room_name", inputRoom)
-        .maybeSingle();
+  if (!room) setStatus(`部屋一覧OK（${data.length}件）`);
+}
 
-      if (error) {
-        console.error(error);
-        alert("部屋確認失敗: " + error.message);
-        return;
-      }
-      if (!exists) {
-        alert("その部屋はまだ作られてない！先に『部屋作成』してね！");
-        return;
-      }
+/* =================== 部屋作成 =================== */
+async function createRoom() {
+  const roomName = document.getElementById("room").value.trim();
+  if (!roomName) return alert("部屋名を入れてね！");
 
-      // ✅ ここで入室を確定
-      room = inputRoom;
-      name = inputName;
+  const { data: exists, error: e1 } = await sb
+    .from("rooms").select("room_name").eq("room_name", roomName).maybeSingle();
 
-      await loadMessages();
+  if (e1) { console.error(e1); alert("部屋確認失敗: " + e1.message); return; }
+  if (exists) { alert("その部屋はもうあるよ！一覧から選んで入室してね！"); return; }
 
-      // ✅ 入室ログを「messages」に保存（＝みんなに表示）
-      await sendSystem(`${name} が「${room}」に入室しました`);
-    }
+  const { error } = await sb.from("rooms").insert({ room_name: roomName });
+  if (error) { console.error(error); alert("部屋作成失敗: " + error.message); return; }
 
-    // ------------------------------
-    // 退室（みんなに見えるログを保存）
-    // ------------------------------
-    async function leave() {
-      if (!room || !name) {
-        alert("まだ入室してないよ！");
-        return;
-      }
+  alert(`部屋「${roomName}」を作った！`);
+  await loadRooms();
+}
 
-      // ✅ 先に退室ログを保存（保存後にroom消す）
-      const leavingRoom = room;
-      const leavingName = name;
+/* =================== メッセ読み込み =================== */
+async function loadMessages() {
+  if (!room) return;
 
-      await sendSystem(`${leavingName} が「${leavingRoom}」から退室しました`);
+  let res = await sb.from("messages")
+    .select("*")
+    .eq("room_id", room)
+    .order("created_at", { ascending: true })
+    .limit(200);
 
-      room = "";
-      name = leavingName; // 名前は残してもいい（残したくなければ "" にしてOK）
+  if (res.error && String(res.error.message || "").includes("created_at")) {
+    res = await sb.from("messages").select("*").eq("room_id", room).limit(200);
+  }
 
-      document.getElementById("chat").innerHTML = "";
-      setStatus("退室しました");
-    }
+  const { data, error } = res;
+  if (error) { console.error(error); setStatus("メッセージ取得失敗: " + error.message, false); return; }
 
-    // ------------------------------
-    // 送信
-    // ------------------------------
-    async function send() {
-      const text = document.getElementById("msg").value.trim();
-      document.getElementById("msg").value = "";
+  const chat = document.getElementById("chat");
+  chat.innerHTML = "";
 
-      if (!room || !name) {
-        alert("先に入室してね！");
-        return;
-      }
-      if (!text) return;
+  (data || []).forEach(m => {
+    const n = escapeHtml(m.name ?? "");
+    const msg = escapeHtml(m.message ?? "");
+    if (m.name === SYSTEM_NAME) chat.innerHTML += `<div class="sys">✅ ${msg}</div>`;
+    else chat.innerHTML += `<div><b>${n}:</b> ${msg}</div>`;
+  });
 
-      const { error } = await sb.from("messages").insert({
-        room_id: room,
-        name: name,
-        message: text
-      });
+  chat.scrollTop = chat.scrollHeight;
+  setStatus(`入室中: ${room}（${(data || []).length}件表示）`);
+}
 
-      if (error) {
-        console.error(error);
-        alert("送信失敗: " + error.message);
-        return;
-      }
+/* =================== 入退室 =================== */
+async function join() {
+  const inputRoom = document.getElementById("room").value.trim();
+  const inputName = document.getElementById("name").value.trim();
 
-      await loadMessages();
-    }
+  if (!inputRoom || !inputName) { alert("名前と部屋名を入れてね！"); return; }
 
-    // ------------------------------
-    // 部屋削除（その部屋のmessagesも削除）
-    // ------------------------------
-    async function deleteRoom(roomName) {
-      // 入室中なら先に抜ける（ログは残す/残さない選べる）
-      if (room === roomName) {
-        await sendSystem(`${name} が「${roomName}」を削除します`);
-        room = "";
-        document.getElementById("chat").innerHTML = "";
-        setStatus("部屋から退出しました（削除処理中…）");
-      }
+  const { data: exists, error } = await sb
+    .from("rooms").select("room_name").eq("room_name", inputRoom).maybeSingle();
 
-      // ① messagesを削除
-      const r1 = await sb.from("messages").delete().eq("room_id", roomName);
-      if (r1.error) {
-        console.error(r1.error);
-        alert("メッセージ削除失敗: " + r1.error.message);
-        return;
-      }
+  if (error) { console.error(error); alert("部屋確認失敗: " + error.message); return; }
+  if (!exists) { alert("その部屋はまだ作られてない！先に『部屋作成』してね！"); return; }
 
-      // ② roomsを削除
-      const r2 = await sb.from("rooms").delete().eq("room_name", roomName);
-      if (r2.error) {
-        console.error(r2.error);
-        alert("部屋削除失敗: " + r2.error.message);
-        return;
-      }
+  room = inputRoom;
+  name = inputName;
 
-      alert(`部屋「${roomName}」を削除したよ！`);
-      await loadRooms();
-    }
+  await loadMessages();
+  await sendSystem(`${name} が「${room}」に入室しました`);
 
-    // Enterで送信
-    document.getElementById("msg").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") send();
+  // 通話は「通話に参加」押した時に接続開始
+  setCallState("未接続（通話に参加を押すと一覧に出る）");
+}
+
+async function leave() {
+  if (!room || !name) { alert("まだ入室してないよ！"); return; }
+
+  const leavingRoom = room;
+  const leavingName = name;
+
+  await sendSystem(`${leavingName} が「${leavingRoom}」から退室しました`);
+
+  // 通話退出もする
+  await hangupAll();
+
+  room = "";
+  document.getElementById("chat").innerHTML = "";
+  setStatus("退室しました");
+  renderPeople([]);
+  setCallState("未接続（入室してから使ってね）");
+}
+
+/* =================== 送信 =================== */
+async function send() {
+  const text = document.getElementById("msg").value.trim();
+  document.getElementById("msg").value = "";
+
+  if (!room || !name) { alert("先に入室してね！"); return; }
+  if (!text) return;
+
+  const { error } = await sb.from("messages").insert({
+    room_id: room, name: name, message: text
+  });
+
+  if (error) { console.error(error); alert("送信失敗: " + error.message); return; }
+  await loadMessages();
+}
+
+/* =================== 部屋削除 =================== */
+async function deleteRoom(roomName) {
+  if (room === roomName) {
+    await sendSystem(`${name} が「${roomName}」を削除します`);
+    await hangupAll();
+    room = "";
+    document.getElementById("chat").innerHTML = "";
+    setStatus("部屋から退出しました（削除処理中…）");
+  }
+
+  const r1 = await sb.from("messages").delete().eq("room_id", roomName);
+  if (r1.error) { console.error(r1.error); alert("メッセージ削除失敗: " + r1.error.message); return; }
+
+  const r2 = await sb.from("rooms").delete().eq("room_name", roomName);
+  if (r2.error) { console.error(r2.error); alert("部屋削除失敗: " + r2.error.message); return; }
+
+  alert(`部屋「${roomName}」を削除したよ！`);
+  await loadRooms();
+}
+
+/* =================== Enterで送信 =================== */
+document.getElementById("msg").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") send();
+});
+
+/* =========================================================
+   🎤 複数人通話（WebRTC Mesh）+ ミュート + 参加者一覧（Presence）
+   ========================================================= */
+
+const myId = (crypto?.randomUUID?.() || ("id-" + Math.random().toString(16).slice(2)));
+let callChannel = null;
+let localStream = null;
+let micMuted = false;
+
+// peerId -> RTCPeerConnection
+const pcs = new Map();
+// peerId -> <audio> element
+const audios = new Map();
+// peerId -> { name, muted? }
+let people = new Map();
+// peerId -> muted boolean（相手）
+const remoteMute = new Map();
+
+function setCallState(text) {
+  document.getElementById("callState").textContent = text;
+}
+function updateMuteBtn() {
+  document.getElementById("muteBtn").textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
+}
+
+/* 参加者UI */
+function renderPeopleFromState() {
+  const arr = [];
+  for (const [pid, info] of people.entries()) {
+    arr.push({
+      id: pid,
+      name: info?.name || pid,
+      muted: (pid === myId) ? micMuted : (remoteMute.get(pid) || false)
     });
+  }
+  renderPeople(arr);
+}
+function renderPeople(list) {
+  const box = document.getElementById("peopleList");
+  box.innerHTML = "";
 
-    // 起動時
-    (async () => {
-      await loadRooms();
-      await startRealtime();
-    })();
-    </script>
+  if (!list || list.length === 0) {
+    box.innerHTML = `<div style="font-size:12px;color:#666;margin-top:6px;">まだ誰も通話に参加してないよ</div>`;
+    return;
+  }
+
+  list
+    .sort((a,b)=> (a.name||"").localeCompare(b.name||""))
+    .forEach(p => {
+      const row = document.createElement("div");
+      row.className = "personRow";
+      const left = document.createElement("div");
+      left.textContent = p.name + (p.id === myId ? "（自分）" : "");
+      const right = document.createElement("div");
+      const pill1 = document.createElement("span");
+      pill1.className = "pill";
+      pill1.textContent = p.muted ? "🔇 ミュート" : "🎙️ 発話OK";
+
+      const pill2 = document.createElement("span");
+      pill2.className = "pill";
+      pill2.textContent = pcs.has(p.id) ? "🟢 接続" : (p.id === myId ? "🟦 参加中" : "🟡 未接続");
+      right.appendChild(pill1);
+      right.appendChild(pill2);
+
+      row.appendChild(left);
+      row.appendChild(right);
+      box.appendChild(row);
+    });
+}
+
+/* WebRTC */
+function shouldOfferTo(peerId) {
+  // 衝突防止：IDが小さい側がOffer担当
+  return String(myId) < String(peerId);
+}
+function makePeerConnection(peerId) {
+  const pc = new RTCPeerConnection({
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" }
+    ]
+  });
+
+  pc.onicecandidate = (ev) => {
+    if (ev.candidate) sendSignal(peerId, { kind: "ice", candidate: ev.candidate });
+  };
+
+  pc.ontrack = (ev) => {
+    let audio = audios.get(peerId);
+    if (!audio) {
+      audio = document.createElement("audio");
+      audio.autoplay = true;
+      audio.playsInline = true;
+      audio.controls = false;
+      audio.dataset.peer = peerId;
+      document.getElementById("audios").appendChild(audio);
+      audios.set(peerId, audio);
+    }
+    audio.srcObject = ev.streams[0];
+  };
+
+  pc.onconnectionstatechange = () => {
+    renderPeopleFromState();
+    // console.log("pc state", peerId, pc.connectionState);
+  };
+
+  // local audioを載せる
+  if (localStream) {
+    for (const track of localStream.getTracks()) {
+      pc.addTrack(track, localStream);
+    }
+  }
+
+  return pc;
+}
+
+async function ensurePC(peerId) {
+  if (pcs.has(peerId)) return pcs.get(peerId);
+  const pc = makePeerConnection(peerId);
+  pcs.set(peerId, pc);
+  renderPeopleFromState();
+  return pc;
+}
+
+async function closePeer(peerId) {
+  const pc = pcs.get(peerId);
+  if (pc) {
+    try { pc.ontrack = null; pc.onicecandidate = null; } catch {}
+    try { pc.close(); } catch {}
+    pcs.delete(peerId);
+  }
+  const audio = audios.get(peerId);
+  if (audio) {
+    try { audio.srcObject = null; } catch {}
+    audio.remove();
+    audios.delete(peerId);
+  }
+  remoteMute.delete(peerId);
+  renderPeopleFromState();
+}
+
+/* Supabase Realtime channel (broadcast + presence) */
+async function initCallChannel() {
+  if (!room || !name) throw new Error("入室してね");
+
+  if (callChannel) return;
+
+  callChannel = sb.channel(
+    "call-" + room,
+    { config: { presence: { key: myId } } }
+  );
+
+  // presence
+  callChannel.on("presence", { event: "sync" }, () => {
+    const state = callChannel.presenceState();
+    // state: { key: [ {name:.., ...} ] }
+    people = new Map();
+    for (const key of Object.keys(state)) {
+      const metas = state[key] || [];
+      const meta = metas[0] || {};
+      people.set(key, { name: meta.name || key });
+    }
+    renderPeopleFromState();
+  });
+
+  callChannel.on("presence", { event: "join" }, ({ key, newPresences }) => {
+    const meta = (newPresences && newPresences[0]) || {};
+    people.set(key, { name: meta.name || key });
+    renderPeopleFromState();
+  });
+
+  callChannel.on("presence", { event: "leave" }, async ({ key }) => {
+    people.delete(key);
+    await closePeer(key);
+    renderPeopleFromState();
+  });
+
+  // broadcast (signal)
+  callChannel.on("broadcast", { event: "signal" }, async ({ payload }) => {
+    if (!payload) return;
+    const { from, to, data } = payload;
+    if (!from || from === myId) return;
+    if (to && to !== myId) return;
+    if (!data || !data.kind) return;
+
+    const peerId = from;
+
+    try {
+      if (data.kind === "hello") {
+        // 相手が参加してきた
+        await ensurePC(peerId);
+
+        // Offer役ならオファーを出す
+        if (shouldOfferTo(peerId)) {
+          const pc = await ensurePC(peerId);
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          await sendSignal(peerId, { kind: "offer", sdp: pc.localDescription });
+        }
+        return;
+      }
+
+      if (data.kind === "offer") {
+        const pc = await ensurePC(peerId);
+        await pc.setRemoteDescription(data.sdp);
+        const ans = await pc.createAnswer();
+        await pc.setLocalDescription(ans);
+        await sendSignal(peerId, { kind: "answer", sdp: pc.localDescription });
+        return;
+      }
+
+      if (data.kind === "answer") {
+        const pc = await ensurePC(peerId);
+        await pc.setRemoteDescription(data.sdp);
+        renderPeopleFromState();
+        return;
+      }
+
+      if (data.kind === "ice") {
+        const pc = await ensurePC(peerId);
+        try { await pc.addIceCandidate(data.candidate); } catch (e) { console.warn("addIceCandidate failed", e); }
+        return;
+      }
+
+      if (data.kind === "hangup") {
+        await closePeer(peerId);
+        return;
+      }
+
+      if (data.kind === "mute") {
+        remoteMute.set(peerId, !!data.muted);
+        renderPeopleFromState();
+        return;
+      }
+
+    } catch (e) {
+      console.error("signal error", e);
+    }
+  });
+
+  await callChannel.subscribe(async (status) => {
+    if (status === "SUBSCRIBED") {
+      // 自分をpresenceに載せる
+      await callChannel.track({ name });
+      setCallState("通話チャンネル接続OK（参加ボタンで通話開始）");
+    }
+  });
+}
+
+async function sendSignal(peerId, data) {
+  if (!callChannel) return;
+  await callChannel.send({
+    type: "broadcast",
+    event: "signal",
+    payload: {
+      from: myId,
+      to: peerId,
+      data
+    }
+  });
+}
+
+/* 通話参加（開始） */
+async function startVoice() {
+  if (!room || !name) return alert("先に入室してね！");
+
+  try {
+    await initCallChannel();
+
+    if (!localStream) {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      micMuted = false;
+      updateMuteBtn();
+    }
+
+    // 既にpresenceにいる人全員に「hello」飛ばす（接続開始）
+    const state = callChannel.presenceState();
+    const keys = Object.keys(state).filter(k => k !== myId);
+
+    for (const pid of keys) {
+      await ensurePC(pid);
+    }
+
+    // helloを全員へ（相手がOffer作る/受ける判断に使う）
+    await broadcastHello();
+
+    // 自分のミュート状態も通知
+    await broadcastMute();
+
+    setCallState("通話参加中（複数人接続を開始…）");
+    renderPeopleFromState();
+  } catch (e) {
+    console.error(e);
+    alert("通話開始失敗: " + (e?.message || e));
+  }
+}
+
+async function broadcastHello() {
+  if (!callChannel) return;
+  // toを指定しないブロードキャスト（全員へ）
+  await callChannel.send({
+    type: "broadcast",
+    event: "signal",
+    payload: { from: myId, to: null, data: { kind: "hello" } }
+  });
+}
+
+async function broadcastMute() {
+  if (!callChannel) return;
+  await callChannel.send({
+    type: "broadcast",
+    event: "signal",
+    payload: { from: myId, to: null, data: { kind: "mute", muted: micMuted } }
+  });
+}
+
+/* ミュート */
+async function toggleMute() {
+  if (!localStream) {
+    alert("先に『通話に参加（開始）』を押してマイクを取ってね！");
+    return;
+  }
+  micMuted = !micMuted;
+  for (const t of localStream.getAudioTracks()) {
+    t.enabled = !micMuted; // enabled=false でミュート
+  }
+  updateMuteBtn();
+  await broadcastMute();
+  renderPeopleFromState();
+}
+
+/* 通話退出 */
+async function hangupAll() {
+  // 相手に通知（全員）
+  if (callChannel) {
+    try {
+      await callChannel.send({
+        type: "broadcast",
+        event: "signal",
+        payload: { from: myId, to: null, data: { kind: "hangup" } }
+      });
+    } catch {}
+  }
+
+  // 全Peer閉じる
+  const ids = Array.from(pcs.keys());
+  for (const pid of ids) {
+    await closePeer(pid);
+  }
+
+  // 自分のマイク停止
+  if (localStream) {
+    try { localStream.getTracks().forEach(t => t.stop()); } catch {}
+    localStream = null;
+  }
+  micMuted = false;
+  updateMuteBtn();
+
+  // presenceから抜ける（通話から退出扱い）
+  if (callChannel) {
+    try { await callChannel.untrack(); } catch {}
+    try { await sb.removeChannel(callChannel); } catch {}
+    callChannel = null;
+  }
+
+  people = new Map();
+  remoteMute.clear();
+  renderPeople([]);
+
+  setCallState("通話退出（未接続）");
+}
+
+/* 起動時 */
+(async () => {
+  await loadRooms();
+  await startRealtime();
+  updateMuteBtn();
+  setCallState("未接続（入室してから使ってね）");
+})();
+</script>
 </body>
 </html>
