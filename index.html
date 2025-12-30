@@ -9,6 +9,7 @@
 
   <style>
     body { font-family: sans-serif; padding: 12px; }
+
     input { width: 260px; padding: 6px; margin: 4px 0; }
     button { padding: 6px 10px; margin: 4px 2px; cursor: pointer; }
     button:disabled { opacity: .5; cursor: not-allowed; }
@@ -122,47 +123,82 @@
       font-weight: 700;
       margin-right: 6px;
     }
+
+    /* ===== 右上ユーザー表示バー ===== */
+    .topbar{
+      display:flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .userBox{
+      margin-left:auto;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      border: 1px solid #ddd;
+      background:#fafafa;
+      padding: 6px 10px;
+      border-radius: 999px;
+      max-width: 70vw;
+    }
+    .userText{
+      font-size: 12px;
+      color:#333;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 44vw;
+    }
+    .userPill{
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid #ddd;
+      background:#fff;
+      color:#333;
+      white-space: nowrap;
+    }
   </style>
 </head>
 
 <body>
-  <h2>ゆるるチャット</h2>
+
+  <div class="topbar">
+    <h2 style="margin:0;">ゆるるチャット</h2>
+
+    <div class="userBox">
+      <span class="userPill" id="userNamePill">未ログイン</span>
+      <span class="userText" id="userMailText"></span>
+      <button onclick="goLogin()" id="goLoginBtn" style="display:none;">ログイン画面へ</button>
+      <button onclick="signOut()" id="signOutBtn">ログアウト</button>
+    </div>
+  </div>
 
   <div class="card">
-    <b>🔐 ログイン</b>
-    <div class="hint">※ログインしないと使えません（RLSで保護）</div>
-
-    <div class="row" style="margin-top:8px;">
-      <input id="email" placeholder="メールアドレス" style="width:260px;" />
-      <input id="pass" type="password" placeholder="パスワード（8文字以上推奨）" style="width:260px;" />
-    </div>
-    <div class="row">
-      <button onclick="signUp()">新規登録</button>
-      <button onclick="signIn()">ログイン</button>
-      <button onclick="signOut()" id="signOutBtn" disabled>ログアウト</button>
-    </div>
-
+    <b>🪪 表示名（チャット名）</b>
+    <div class="hint">login.htmlで設定した表示名がここに反映されるよ（変更も可能）</div>
     <div class="row" style="margin-top:8px;">
       <input id="displayName" placeholder="表示名（チャット名）" style="width:260px;" />
-      <button onclick="saveDisplayName()" id="saveNameBtn" disabled>表示名保存</button>
+      <button onclick="saveDisplayName()" id="saveNameBtn">表示名保存</button>
     </div>
-
-    <div class="hint" id="authState">未ログイン</div>
+    <div class="hint" id="authState">読み込み中…</div>
   </div>
 
   <div>
     <input id="name" placeholder="名前（自動）" disabled /><br />
     <input id="room" placeholder="部屋名（例: test）" /><br />
 
-    <button onclick="createRoom()" id="createRoomBtn" disabled>部屋作成</button>
-    <button onclick="join()" id="joinBtn" disabled>入室</button>
-    <button onclick="leave()" id="leaveBtn" disabled>退室</button>
-    <button onclick="loadRooms()" id="reloadRoomsBtn" disabled>部屋一覧更新</button>
+    <button onclick="createRoom()" id="createRoomBtn">部屋作成</button>
+    <button onclick="join()" id="joinBtn">入室</button>
+    <button onclick="leave()" id="leaveBtn">退室</button>
+    <button onclick="loadRooms()" id="reloadRoomsBtn">部屋一覧更新</button>
 
     <div style="margin-top:10px;">
       <b>部屋一覧（スクロール）</b>
       <div id="roomsBox"></div>
-      <div class="hint" id="roomHint">🔐 まずログインしてね</div>
+      <div class="hint" id="roomHint">読み込み中…</div>
 
       <details>
         <summary>🔧 デバッグログ（困ったらここをコピペして送って）</summary>
@@ -180,9 +216,9 @@
       <div id="callBox">
         <b>🎤 音声通話（複数人）</b>
         <div style="margin-top:8px;">
-          <button onclick="startVoice()" id="startVoiceBtn" disabled>通話に参加（開始）</button>
-          <button onclick="toggleMute()" id="muteBtn" disabled>ミュート: OFF</button>
-          <button onclick="hangupAll()" id="hangupBtn" disabled>通話退出</button>
+          <button onclick="startVoice()" id="startVoiceBtn">通話に参加（開始）</button>
+          <button onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
+          <button onclick="hangupAll()" id="hangupBtn">通話退出</button>
         </div>
         <div id="callState">未接続（入室してから使ってね）</div>
         <div id="audios" style="margin-top:8px;"></div>
@@ -198,8 +234,8 @@
     <div>
       <div id="chat"></div>
       <div style="margin-top:8px;">
-        <input id="msg" placeholder="メッセージ" disabled />
-        <button onclick="send()" id="sendBtn" disabled>送信</button>
+        <input id="msg" placeholder="メッセージ" />
+        <button onclick="send()" id="sendBtn">送信</button>
       </div>
     </div>
   </div>
@@ -207,7 +243,6 @@
 <script>
 /* =================== Supabase 設定 =================== */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-/* ★anon key を必ず入れて！ */
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
 const sb = supabase.createClient(
@@ -227,6 +262,30 @@ const SYSTEM_NAME = "__system__";
 let inCall = false;
 let activeCallRooms = new Set();
 const CALL_ALIVE_SEC = 30;
+
+/* =========================================================
+   ✅ 未ログインなら login.html へ
+   ========================================================= */
+function goLogin(){ location.href = "./login.html"; }
+
+async function requireLoginOrRedirect(){
+  const { data, error } = await sb.auth.getSession();
+  if (error) log("getSession error(requireLoginOrRedirect)", error);
+
+  const user = data?.session?.user || null;
+  if (!user) {
+    // 右上を一応表示
+    document.getElementById("userNamePill").textContent = "未ログイン";
+    document.getElementById("userMailText").textContent = "";
+    document.getElementById("goLoginBtn").style.display = "inline-block";
+    document.getElementById("signOutBtn").style.display = "none";
+
+    // 実際にはログインページへ
+    goLogin();
+    return false;
+  }
+  return true;
+}
 
 /* =================== ログ =================== */
 function log(...args){
@@ -255,30 +314,34 @@ function escapeHtml(s) {
 
 function myUid() { return authUser?.id || null; }
 
-/* =================== Auth UI =================== */
-function setAuthUI() {
-  const loggedIn = !!authUser;
-  document.getElementById("signOutBtn").disabled = !loggedIn;
-  document.getElementById("saveNameBtn").disabled = !loggedIn;
+/* =================== 右上ユーザー表示 =================== */
+function updateTopRightUser(){
+  const pill = document.getElementById("userNamePill");
+  const mail = document.getElementById("userMailText");
+  const goBtn = document.getElementById("goLoginBtn");
+  const soBtn = document.getElementById("signOutBtn");
 
-  document.getElementById("createRoomBtn").disabled = !loggedIn;
-  document.getElementById("joinBtn").disabled = !loggedIn;
-  document.getElementById("reloadRoomsBtn").disabled = !loggedIn;
+  if (!authUser) {
+    pill.textContent = "未ログイン";
+    mail.textContent = "";
+    goBtn.style.display = "inline-block";
+    soBtn.style.display = "none";
+    return;
+  }
 
-  document.getElementById("leaveBtn").disabled = !loggedIn;
-  document.getElementById("sendBtn").disabled = !loggedIn;
-  document.getElementById("msg").disabled = !loggedIn;
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  const shownName = dn || (authUser.email || "user").split("@")[0];
 
-  document.getElementById("startVoiceBtn").disabled = !loggedIn;
-  document.getElementById("hangupBtn").disabled = !loggedIn;
-  document.getElementById("muteBtn").disabled = !loggedIn || !localStream;
-
-  document.getElementById("name").disabled = true;
+  pill.textContent = shownName;
+  mail.textContent = authUser.email || "";
+  goBtn.style.display = "none";
+  soBtn.style.display = "inline-block";
 }
 
+/* =================== Auth表示 =================== */
 function setAuthStateText() {
   const el = document.getElementById("authState");
-  if (!authUser) { el.textContent = "未ログイン"; return; }
+  if (!authUser) { el.textContent = "未ログイン（loginへ移動します）"; return; }
   const dn = (authUser.user_metadata && authUser.user_metadata.display_name) || "";
   el.textContent = `ログイン中: ${authUser.email}${dn ? " / 表示名: " + dn : ""}`;
 }
@@ -299,8 +362,8 @@ async function reloadSession() {
   document.getElementById("name").value = name || "";
   document.getElementById("displayName").value = (authUser?.user_metadata?.display_name || "");
 
-  setAuthUI();
   setAuthStateText();
+  updateTopRightUser();
   updateRoomHint();
 }
 
@@ -315,45 +378,7 @@ function showAuthError(prefix, error) {
   alert(prefix + ": " + full);
 }
 
-/* =================== Auth操作 =================== */
-async function signUp() {
-  const email = document.getElementById("email").value.trim();
-  const pass = document.getElementById("pass").value; // trimしない（末尾スペース含むと別物になるので）
-  if (!email || !pass) return alert("メールとパスワード入れてね！");
-  if (pass.length < 6) return alert("パスワード短すぎ！6文字以上にしてね（推奨8文字以上）");
-
-  const { data, error } = await sb.auth.signUp({
-    email,
-    password: pass,
-    options: {
-      // ★Pagesに合わせる（Auth設定のRedirect URLsにも入れる）
-      emailRedirectTo: "https://yururu-chat.pages.dev"
-    }
-  });
-
-  if (error) { showAuthError("新規登録失敗", error); return; }
-
-  log("signUp data", data);
-  alert("新規登録OK！メール確認が必要な設定なら、メールを確認してからログインしてね！");
-  await reloadSession();
-  if (authUser) { await loadRooms(); await startRealtime(); }
-}
-
-async function signIn() {
-  const email = document.getElementById("email").value.trim();
-  const pass = document.getElementById("pass").value;
-  if (!email || !pass) return alert("メールとパスワード入れてね！");
-
-  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-  if (error) { showAuthError("ログイン失敗", error); return; }
-
-  log("signIn data", data);
-  alert("ログインOK！");
-  await reloadSession();
-  await loadRooms();
-  await startRealtime();
-}
-
+/* =================== ログアウト（右上） =================== */
 async function signOut() {
   try { await hangupAll(); } catch {}
 
@@ -368,11 +393,9 @@ async function signOut() {
   name = "";
   document.getElementById("name").value = "";
 
-  setAuthUI();
-  setAuthStateText();
   setStatus("ログアウトしました");
-  document.getElementById("roomsBox").innerHTML = "<div>🔐 ログインしてね</div>";
-  updateRoomHint();
+  updateTopRightUser();
+  goLogin();
 }
 
 async function saveDisplayName() {
@@ -428,7 +451,7 @@ function updateRoomHint(){
   const el = document.getElementById("roomHint");
   if (!el) return;
 
-  if (!authUser) { el.innerHTML = "🔐 まずログインしてね"; return; }
+  if (!authUser) { el.innerHTML = "🔐 ログインが必要です（loginへ移動します）"; return; }
 
   if (activeCallRooms === null) {
     el.innerHTML = "⚠️ 通話状態の取得に失敗中：安全のため削除ロック中（RLS/型/ポリシー確認）";
@@ -1103,17 +1126,15 @@ window.addEventListener("freeze", () => safeCallLeave("freeze"));
 
 /* 起動時 */
 (async () => {
+  if (!(await requireLoginOrRedirect())) return;
+
   await reloadSession();
   setButtonsState();
   updateMuteBtn();
   setCallState("未接続（入室してから使ってね）");
 
-  if (authUser) {
-    await loadRooms();
-    await startRealtime();
-  } else {
-    document.getElementById("roomsBox").innerHTML = "<div>🔐 ログインしてね</div>";
-  }
+  await loadRooms();
+  await startRealtime();
 
   setInterval(async () => {
     if (!authUser) return;
