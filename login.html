@@ -8,16 +8,48 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
-    body { font-family: sans-serif; padding: 16px; max-width: 720px; margin: 0 auto; }
-    h2 { margin: 8px 0 16px; }
-    input { width: 320px; padding: 10px; margin: 6px 0; box-sizing: border-box; }
-    button { padding: 10px 12px; margin: 6px 4px 6px 0; cursor: pointer; }
+    body { font-family: sans-serif; padding: 16px; max-width: 760px; margin: 0 auto; }
+    h2 { margin: 6px 0 14px; }
+    input { width: 340px; padding: 10px; margin: 6px 0; box-sizing: border-box; }
+    button { padding: 10px 12px; margin: 6px 6px 6px 0; cursor: pointer; }
     button:disabled { opacity: .55; cursor: not-allowed; }
+
     .card { border: 1px solid #ccc; background: #fafafa; padding: 14px; border-radius: 12px; margin: 12px 0; }
     .row { display:flex; gap:10px; flex-wrap: wrap; align-items: center; }
+
     .hint { font-size: 12px; color:#666; line-height: 1.5; }
     .ok { color:#0a7; }
     .ng { color:#c33; }
+
+    .modeBtns { display:flex; gap:10px; flex-wrap: wrap; margin-top: 10px; }
+    .modeBtn{
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px 14px;
+      min-width: 160px;
+      text-align:left;
+      cursor:pointer;
+    }
+    .modeBtn:hover{ background:#f3f3f3; }
+    .modeBtn.active{
+      border-color:#8be3c8;
+      background:#f1fffb;
+    }
+    .modeTitle{ font-weight: 800; display:block; margin-bottom: 4px; }
+    .modeDesc{ font-size: 12px; color:#666; }
+
+    .topActions { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
+    .pill {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid #ddd;
+      background: #fff;
+      color:#333;
+      white-space: nowrap;
+    }
+
     details { margin-top: 10px; }
     #log {
       white-space: pre-wrap;
@@ -27,17 +59,43 @@
       background: #fff;
       padding: 10px;
       border-radius: 10px;
-      max-height: 200px;
+      max-height: 220px;
       overflow: auto;
     }
   </style>
 </head>
 <body>
-  <h2>ゆるるチャット</h2>
+  <div class="topActions">
+    <h2 style="margin:0;">ゆるるチャット</h2>
+    <span class="pill" id="authPill">未ログイン</span>
+  </div>
 
+  <!-- 最初の選択画面 -->
   <div class="card">
-    <b>🔐 ログイン / 新規登録</b>
-    <div class="hint">ログインに成功したらメインページに移動するよ（RLS保護）</div>
+    <b>はじめに選んでね</b>
+    <div class="hint">「ログイン」か「新規登録」どっちをする？</div>
+
+    <div class="modeBtns">
+      <div class="modeBtn" id="btnModeSignIn" onclick="setMode('signin')">
+        <span class="modeTitle">🔐 ログイン</span>
+        <span class="modeDesc">すでにアカウントがある人</span>
+      </div>
+
+      <div class="modeBtn" id="btnModeSignUp" onclick="setMode('signup')">
+        <span class="modeTitle">🆕 新規登録</span>
+        <span class="modeDesc">はじめて使う人（メール確認が必要なことあり）</span>
+      </div>
+    </div>
+
+    <div class="hint" style="margin-top:8px;">
+      ※ログインできない時は、画面下のエラーメッセージとデバッグログを送ってね
+    </div>
+  </div>
+
+  <!-- ログイン/新規登録フォーム（選んだときだけ表示） -->
+  <div class="card" id="formCard" style="display:none;">
+    <b id="formTitle">🔐 ログイン</b>
+    <div class="hint" id="formHint">ログインに成功したらメインページへ移動するよ</div>
 
     <div class="row" style="margin-top:10px;">
       <input id="email" placeholder="メールアドレス" autocomplete="email" />
@@ -45,19 +103,9 @@
     </div>
 
     <div class="row">
-      <button onclick="signUp()">新規登録</button>
-      <button onclick="signIn()">ログイン</button>
+      <button onclick="doPrimary()" id="primaryBtn">ログイン</button>
+      <button onclick="resetMode()">戻る</button>
       <button onclick="signOut()" id="signOutBtn" disabled>ログアウト</button>
-    </div>
-
-    <div class="card" style="margin-top:10px;">
-      <b>🪪 表示名（チャット名）</b>
-      <div class="hint">ここで設定した表示名が、メインページ右上に出るよ</div>
-      <div class="row" style="margin-top:8px;">
-        <input id="displayName" placeholder="表示名（例: ゆるたま）" autocomplete="nickname" />
-        <button onclick="saveDisplayName()" id="saveNameBtn" disabled>表示名保存</button>
-      </div>
-      <div class="hint" id="authState">未ログイン</div>
     </div>
 
     <div class="hint" id="status">未ログイン</div>
@@ -66,6 +114,20 @@
       <summary>🔧 デバッグログ（困ったらここをコピペして送って）</summary>
       <div id="log"></div>
     </details>
+  </div>
+
+  <!-- 表示名（ログイン後だけ使える） -->
+  <div class="card" id="nameCard" style="display:none;">
+    <b>🪪 表示名（チャット名）</b>
+    <div class="hint">ここで設定した表示名が、メインページ右上に出るよ</div>
+
+    <div class="row" style="margin-top:8px;">
+      <input id="displayName" placeholder="表示名（例: ゆるたま）" autocomplete="nickname" />
+      <button onclick="saveDisplayName()" id="saveNameBtn">表示名保存</button>
+      <button onclick="gotoMain()">メインへ</button>
+    </div>
+
+    <div class="hint" id="authState">未ログイン</div>
   </div>
 
 <script>
@@ -77,6 +139,10 @@ const sb = supabase.createClient(
   SUPABASE_URL.trim(),
   (SUPABASE_KEY || "").replace(/\s+/g, "")
 );
+
+/* =================== 状態 =================== */
+let authUser = null;
+let mode = null; // 'signin' | 'signup' | null
 
 /* =================== ログ =================== */
 function log(...args){
@@ -107,12 +173,59 @@ function showAuthError(prefix, error) {
   setStatus(prefix + ": " + full, false);
 }
 
-let authUser = null;
+/* =================== UI：モード切替 =================== */
+function setMode(next){
+  mode = next;
 
-function setAuthUI() {
-  const loggedIn = !!authUser;
-  document.getElementById("signOutBtn").disabled = !loggedIn;
-  document.getElementById("saveNameBtn").disabled = !loggedIn;
+  document.getElementById("btnModeSignIn").classList.toggle("active", mode === "signin");
+  document.getElementById("btnModeSignUp").classList.toggle("active", mode === "signup");
+
+  const formCard = document.getElementById("formCard");
+  formCard.style.display = "block";
+
+  const title = document.getElementById("formTitle");
+  const hint = document.getElementById("formHint");
+  const primaryBtn = document.getElementById("primaryBtn");
+
+  if (mode === "signin") {
+    title.textContent = "🔐 ログイン";
+    hint.textContent = "ログインに成功したらメインページへ移動するよ";
+    primaryBtn.textContent = "ログイン";
+    document.getElementById("pass").placeholder = "パスワード";
+    document.getElementById("pass").autocomplete = "current-password";
+  } else {
+    title.textContent = "🆕 新規登録";
+    hint.textContent = "新規登録 →（必要なら）メール確認 → ログイン、の流れだよ";
+    primaryBtn.textContent = "新規登録";
+    document.getElementById("pass").placeholder = "パスワード（6文字以上 / 推奨8以上）";
+    document.getElementById("pass").autocomplete = "new-password";
+  }
+
+  // 触りやすいようにフォーカス
+  document.getElementById("email").focus();
+}
+
+function resetMode(){
+  mode = null;
+  document.getElementById("btnModeSignIn").classList.remove("active");
+  document.getElementById("btnModeSignUp").classList.remove("active");
+  document.getElementById("formCard").style.display = "none";
+}
+
+/* =================== メインへ =================== */
+function gotoMain(){
+  location.href = "./index.html";
+}
+
+/* =================== セッション表示 =================== */
+function setAuthPill(){
+  const pill = document.getElementById("authPill");
+  if (!authUser) {
+    pill.textContent = "未ログイン";
+    return;
+  }
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  pill.textContent = dn ? `ログイン中: ${dn}` : `ログイン中: ${authUser.email}`;
 }
 
 function setAuthStateText() {
@@ -122,28 +235,45 @@ function setAuthStateText() {
   el.textContent = `ログイン中: ${authUser.email}${dn ? " / 表示名: " + dn : ""}`;
 }
 
+function setLoggedInUI(){
+  const loggedIn = !!authUser;
+  document.getElementById("signOutBtn").disabled = !loggedIn;
+
+  document.getElementById("nameCard").style.display = loggedIn ? "block" : "none";
+  if (loggedIn) {
+    document.getElementById("displayName").value = (authUser?.user_metadata?.display_name || "");
+  }
+  setAuthPill();
+  setAuthStateText();
+}
+
+/* =================== 起動/セッション取得 =================== */
 async function reloadSession() {
   const { data, error } = await sb.auth.getSession();
   if (error) log("getSession error", error);
 
   authUser = data?.session?.user || null;
-  document.getElementById("displayName").value = (authUser?.user_metadata?.display_name || "");
+  setLoggedInUI();
 
-  setAuthUI();
-  setAuthStateText();
-
-  if (authUser) setStatus("ログイン中：メインへ行けます", true);
-  else setStatus("未ログイン", true);
+  if (authUser) {
+    setStatus("ログイン中：メインへ行けます", true);
+  } else {
+    setStatus("未ログイン：まずモードを選んでね", true);
+  }
 }
 
-function gotoMain() {
-  location.href = "./index.html";
+/* =================== ボタン：ログイン/新規登録（共通） =================== */
+async function doPrimary(){
+  if (mode === "signin") return await signIn();
+  if (mode === "signup") return await signUp();
+  alert("まず「ログイン」か「新規登録」を選んでね！");
 }
 
 /* =================== Auth操作 =================== */
 async function signUp() {
   const email = document.getElementById("email").value.trim();
   const pass = document.getElementById("pass").value;
+
   if (!email || !pass) return alert("メールとパスワード入れてね！");
   if (pass.length < 6) return alert("パスワード短すぎ！6文字以上にしてね（推奨8文字以上）");
 
@@ -158,13 +288,20 @@ async function signUp() {
   if (error) { showAuthError("新規登録失敗", error); return; }
 
   log("signUp data", data);
-  alert("新規登録OK！メール確認が必要ならメールを確認してからログインしてね！");
+  alert("新規登録OK！メール確認が必要なら、メールを確認してからログインしてね！");
   await reloadSession();
+
+  // まだセッションが入らない設定の時があるから、ログインモードに誘導
+  if (!authUser) {
+    setMode("signin");
+    setStatus("メール確認が必要なら先に確認 → その後ログインしてね", true);
+  }
 }
 
 async function signIn() {
   const email = document.getElementById("email").value.trim();
   const pass = document.getElementById("pass").value;
+
   if (!email || !pass) return alert("メールとパスワード入れてね！");
 
   const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
@@ -180,11 +317,11 @@ async function signOut() {
   const { error } = await sb.auth.signOut();
   if (error) log("signOut error", error);
   authUser = null;
-  setAuthUI();
-  setAuthStateText();
+  setLoggedInUI();
   setStatus("ログアウトしました", true);
 }
 
+/* =================== 表示名保存 =================== */
 async function saveDisplayName() {
   if (!authUser) return alert("先にログインしてね！");
   const dn = document.getElementById("displayName").value.trim();
@@ -200,9 +337,6 @@ async function saveDisplayName() {
 /* 起動時 */
 (async () => {
   await reloadSession();
-
-  // すでにログインしてるなら即メインへ（好みで消してOK）
-  // if (authUser) gotoMain();
 
   sb.auth.onAuthStateChange(async () => {
     await reloadSession();
