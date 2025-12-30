@@ -173,7 +173,7 @@
 <script>
 /* =================== Supabase 設定 =================== */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM"; // ←ここをあなたのanon keyに（今のは貼ってOK）
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
@@ -189,8 +189,14 @@ let messagesChannel = null;
 
 const SYSTEM_NAME = "__system__";
 
-/* ★追加：通話中フラグ（部屋削除ロック用） */
+/* ★通話中フラグ（自分が通話中） */
 let inCall = false;
+
+/* ★追加：通話中の部屋（誰かが通話してる部屋） */
+let activeCallRooms = new Set();
+
+/* ★追加：通話参加者テーブルの生存判定（何秒以内を「通話中」とするか） */
+const CALL_ALIVE_SEC = 60;
 
 /* =================== ログ =================== */
 function log(...args){
@@ -225,39 +231,80 @@ async function sendSystem(text) {
   if (error) log("sendSystem error", error);
 }
 
+/* =================== ★通話中部屋一覧の更新 =================== */
+async function refreshActiveCallRooms() {
+  // call_participants の updated_at が新しい部屋は「通話中」とみなす
+  const since = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
+  const { data, error } = await sb
+    .from("call_participants")
+    .select("room_id, updated_at")
+    .gte("updated_at", since);
+
+  if (error) {
+    log("refreshActiveCallRooms error", error);
+    // エラー時は安全側：ロックしない（削除できちゃう）よりは、ここは好みだけど
+    // 今回は「取得失敗でもUIは継続」でOKにする
+    return;
+  }
+
+  const s = new Set();
+  (data || []).forEach(r => s.add(r.room_id));
+  activeCallRooms = s;
+
+  // rooms表示更新（削除ボタンのdisabled反映）
+  updateRoomDeleteButtons();
+}
+
 /* =================== UI状態更新 =================== */
 function setButtonsState() {
   const joined = !!(room && name);
   document.getElementById("startVoiceBtn").disabled = !joined;
   document.getElementById("hangupBtn").disabled = !joined;
 
-  // ★通話中は部屋削除禁止
   updateRoomDeleteButtons();
   updateRoomHint();
 }
+
 function updateRoomHint(){
   const el = document.getElementById("roomHint");
   if (!el) return;
+
   if (inCall) {
     el.innerHTML =
-      "✅ 通話中：部屋削除はロック中（先に「通話退出」してね）<br />" +
+      "✅ あなたは通話中：部屋削除はロック中（先に「通話退出」してね）<br />" +
       "・部屋名クリック：入力欄へ / ・部屋名ダブルクリック：その部屋に入室<br />" +
-      "・通話は「入室」してから「通話に参加（開始）」を押してね";
+      "・🗑：通話中の部屋は削除できない（誰かが通話してたらNG）";
   } else {
     el.innerHTML =
       "・部屋名クリック：入力欄へ / ・部屋名ダブルクリック：その部屋に入室<br />" +
-      "・🗑：部屋削除（※その部屋のメッセージも削除）<br />" +
+      "・🗑：通話中の部屋は削除できない（誰かが通話してたらNG）<br />" +
       "・通話は「入室」してから「通話に参加（開始）」を押してね";
   }
 }
+
 function updateRoomDeleteButtons(){
-  // roomsBox内の削除ボタンを通話中はdisabled
   const box = document.getElementById("roomsBox");
   if (!box) return;
-  const dels = box.querySelectorAll("button.delBtn");
-  dels.forEach(btn => {
-    btn.disabled = inCall;
-    btn.title = inCall ? "通話中は削除できません（通話退出してね）" : "部屋削除";
+
+  const rows = box.querySelectorAll(".roomRow");
+  rows.forEach(row => {
+    const btn = row.querySelector("button.roomBtn");
+    const del = row.querySelector("button.delBtn");
+    if (!btn || !del) return;
+
+    const rn = btn.textContent;
+
+    // ★ルール：自分が通話中 OR その部屋が通話中 なら削除不可
+    const locked = inCall || activeCallRooms.has(rn);
+
+    del.disabled = locked;
+    if (locked) {
+      del.title = inCall
+        ? "あなたが通話中なので削除できません（通話退出してね）"
+        : "この部屋は誰かが通話中なので削除できません";
+    } else {
+      del.title = "部屋削除";
+    }
   });
 }
 
@@ -288,6 +335,9 @@ async function startRealtime() {
 
 /* =================== 部屋一覧 =================== */
 async function loadRooms() {
+  // ★先に通話中部屋セットを更新（ここでロック状態が揃う）
+  await refreshActiveCallRooms();
+
   let res = await sb.from("rooms")
     .select("room_name, created_at")
     .order("created_at", { ascending: true });
@@ -321,14 +371,23 @@ async function loadRooms() {
     const del = document.createElement("button");
     del.className = "delBtn";
     del.textContent = "🗑";
-    del.title = "部屋削除";
-    del.disabled = inCall; // ★通話中は無効
+
+    const rn = r.room_name;
+    const locked = inCall || activeCallRooms.has(rn);
+    del.disabled = locked;
+    del.title = locked
+      ? (inCall ? "あなたが通話中なので削除できません" : "この部屋は誰かが通話中なので削除できません")
+      : "部屋削除";
+
     del.onclick = async () => {
-      if (inCall) {
-        alert("通話中は部屋を削除できません！\n先に「通話退出」を押してね。");
+      // ★ガード（UIで押せないはずだけど念のため）
+      const lockedNow = inCall || activeCallRooms.has(rn);
+      if (lockedNow) {
+        alert(inCall
+          ? "あなたが通話中は部屋を削除できません！\n先に「通話退出」を押してね。"
+          : "この部屋は誰かが通話中なので削除できません！");
         return;
       }
-      const rn = r.room_name;
       if (!confirm(`部屋「${rn}」を削除しますか？\n※その部屋のメッセージも消えます`)) return;
       await deleteRoom(rn);
     };
@@ -340,7 +399,6 @@ async function loadRooms() {
 
   if (!room) setStatus(`部屋一覧OK（${data.length}件）`);
 
-  // ★描画後にも反映
   updateRoomDeleteButtons();
 }
 
@@ -414,6 +472,7 @@ async function join() {
 
   setCallState("未接続（通話に参加を押すと一覧に出る）");
   setButtonsState();
+  await loadRooms(); // ★通話中部屋ロック反映
 }
 
 async function leave() {
@@ -424,7 +483,7 @@ async function leave() {
 
   await sendSystem(`${leavingName} が「${leavingRoom}」から退室しました`);
 
-  // 通話中なら退出（inCall解除も含まれる）
+  // 通話中なら退出（DB解除も含む）
   await hangupAll();
 
   room = "";
@@ -434,6 +493,7 @@ async function leave() {
   renderPeople([]);
   setCallState("未接続（入室してから使ってね）");
   setButtonsState();
+  await loadRooms(); // ★反映
 }
 
 /* =================== 送信 =================== */
@@ -454,9 +514,12 @@ async function send() {
 
 /* =================== 部屋削除 =================== */
 async function deleteRoom(roomName) {
-  // ★二重ガード：通話中は絶対削除させない
-  if (inCall) {
-    alert("通話中は部屋を削除できません。\n先に「通話退出」を押してね。");
+  // ★最終ガード：通話中部屋は絶対削除させない
+  await refreshActiveCallRooms();
+  if (inCall || activeCallRooms.has(roomName)) {
+    alert(inCall
+      ? "あなたが通話中は部屋を削除できません。\n先に「通話退出」を押してね。"
+      : "この部屋は誰かが通話中なので削除できません。");
     return;
   }
 
@@ -487,6 +550,7 @@ document.getElementById("msg").addEventListener("keydown", (e) => {
 
 /* =========================================================
    🎤 複数人通話（WebRTC Mesh）+ ミュート + 参加者一覧（Presence）
+   + ★通話参加者DB（call_participants）で部屋削除ロック
    ========================================================= */
 
 const myId = (crypto?.randomUUID?.() || ("id-" + Math.random().toString(16).slice(2)));
@@ -499,14 +563,16 @@ const audios = new Map();
 let people = new Map();
 const remoteMute = new Map();
 
+/* ★追加：heartbeat用 */
+let callHeartbeatTimer = null;
+
+/* 参加者UI */
 function setCallState(text) {
   document.getElementById("callState").textContent = text;
 }
 function updateMuteBtn() {
   document.getElementById("muteBtn").textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
 }
-
-/* 参加者UI */
 function renderPeopleFromState() {
   const arr = [];
   for (const [pid, info] of people.entries()) {
@@ -553,7 +619,31 @@ function renderPeople(list) {
     });
 }
 
-/* WebRTC */
+/* ★DB: 通話参加登録/更新/解除 */
+async function upsertCallParticipant() {
+  if (!room || !name) return;
+  const payload = { room_id: room, user_id: myId, name, updated_at: new Date().toISOString() };
+  const { error } = await sb.from("call_participants").upsert(payload);
+  if (error) log("upsertCallParticipant error", error);
+}
+async function deleteCallParticipant() {
+  if (!room) return;
+  const { error } = await sb.from("call_participants").delete().eq("room_id", room).eq("user_id", myId);
+  if (error) log("deleteCallParticipant error", error);
+}
+function startHeartbeat() {
+  stopHeartbeat();
+  callHeartbeatTimer = setInterval(async () => {
+    if (!inCall) return;
+    await upsertCallParticipant();
+    await refreshActiveCallRooms();
+  }, 20000); // 20秒ごと
+}
+function stopHeartbeat() {
+  if (callHeartbeatTimer) clearInterval(callHeartbeatTimer);
+  callHeartbeatTimer = null;
+}
+
 function shouldOfferTo(peerId) {
   return String(myId) < String(peerId);
 }
@@ -574,7 +664,7 @@ function makePeerConnection(peerId) {
       audio = document.createElement("audio");
       audio.autoplay = true;
       audio.playsInline = true;
-      audio.controls = true; // デバッグしやすいようにON
+      audio.controls = true;
       audio.dataset.peer = peerId;
       document.getElementById("audios").appendChild(audio);
       audios.set(peerId, audio);
@@ -621,7 +711,6 @@ async function closePeer(peerId) {
   renderPeopleFromState();
 }
 
-/* Supabase Realtime channel (broadcast + presence) */
 async function initCallChannel() {
   if (!room || !name) throw new Error("入室してね");
   if (callChannel) return;
@@ -742,6 +831,23 @@ async function sendSignal(peerId, data) {
   });
 }
 
+async function broadcastHello() {
+  if (!callChannel) return;
+  await callChannel.send({
+    type: "broadcast",
+    event: "signal",
+    payload: { from: myId, to: null, data: { kind: "hello" } }
+  });
+}
+async function broadcastMute() {
+  if (!callChannel) return;
+  await callChannel.send({
+    type: "broadcast",
+    event: "signal",
+    payload: { from: myId, to: null, data: { kind: "mute", muted: micMuted } }
+  });
+}
+
 /* 通話参加（開始） */
 async function startVoice() {
   if (!room || !name) return alert("先に入室してね！");
@@ -756,9 +862,15 @@ async function startVoice() {
       log("mic ok");
     }
 
-    // ★通話中フラグON（削除ロック）
+    // ★通話中フラグON
     inCall = true;
-    setButtonsState(); // roomsの削除ボタンも更新
+
+    // ★DB参加登録 + heartbeat開始（これで他人から見ても「通話中部屋」扱いになる）
+    await upsertCallParticipant();
+    startHeartbeat();
+    await refreshActiveCallRooms();
+    setButtonsState();
+    await loadRooms();
 
     await new Promise(r => setTimeout(r, 200));
 
@@ -780,23 +892,6 @@ async function startVoice() {
   }
 }
 
-async function broadcastHello() {
-  if (!callChannel) return;
-  await callChannel.send({
-    type: "broadcast",
-    event: "signal",
-    payload: { from: myId, to: null, data: { kind: "hello" } }
-  });
-}
-async function broadcastMute() {
-  if (!callChannel) return;
-  await callChannel.send({
-    type: "broadcast",
-    event: "signal",
-    payload: { from: myId, to: null, data: { kind: "mute", muted: micMuted } }
-  });
-}
-
 /* ミュート */
 async function toggleMute() {
   if (!localStream) {
@@ -812,6 +907,13 @@ async function toggleMute() {
 
 /* 通話退出 */
 async function hangupAll() {
+  if (!inCall && !callChannel && !localStream) {
+    // 何もしてないなら軽く更新だけ
+    await refreshActiveCallRooms();
+    setButtonsState();
+    return;
+  }
+
   if (callChannel) {
     try {
       await callChannel.send({
@@ -844,12 +946,31 @@ async function hangupAll() {
   remoteMute.clear();
   renderPeople([]);
 
-  // ★通話中フラグOFF（削除ロック解除）
+  // ★DB解除 + heartbeat停止
+  stopHeartbeat();
+  await deleteCallParticipant();
+
+  // ★通話中フラグOFF
   inCall = false;
+
+  await refreshActiveCallRooms();
   setButtonsState();
+  await loadRooms();
 
   setCallState("通話退出（未接続）");
 }
+
+/* =================== タブ閉じ/更新でもDB解除 =================== */
+window.addEventListener("beforeunload", () => {
+  // 同期的には待てないけど、なるべく送る
+  try { navigator.sendBeacon?.(SUPABASE_URL + "/dummy", ""); } catch {}
+});
+window.addEventListener("pagehide", async () => {
+  try {
+    stopHeartbeat();
+    await deleteCallParticipant();
+  } catch {}
+});
 
 /* 起動時 */
 (async () => {
@@ -858,9 +979,14 @@ async function hangupAll() {
   updateMuteBtn();
   setCallState("未接続（入室してから使ってね）");
   setButtonsState();
+
+  // ★定期的に通話中部屋を更新（通話してない人側でもロックが効く）
+  setInterval(async () => {
+    await refreshActiveCallRooms();
+  }, 15000);
+
   log("ready. myId=", myId);
 })();
 </script>
 </body>
 </html>
-
