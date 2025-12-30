@@ -171,17 +171,17 @@
     <div class="userBox">
       <span class="userPill" id="userNamePill">未ログイン</span>
       <span class="userText" id="userMailText"></span>
-      <button onclick="goLogin()" id="goLoginBtn" style="display:none;">ログイン画面へ</button>
-      <button onclick="signOut()" id="signOutBtn">ログアウト</button>
+      <button type="button" onclick="goLogin()" id="goLoginBtn" style="display:none;">ログイン画面へ</button>
+      <button type="button" onclick="signOut()" id="signOutBtn">ログアウト</button>
     </div>
   </div>
 
   <div class="card">
     <b>🪪 表示名（チャット名）</b>
-    <div class="hint">login.htmlで設定した表示名がここに反映されるよ（変更も可能）</div>
+    <div class="hint">login側で設定した表示名がここに反映されるよ（変更も可能）</div>
     <div class="row" style="margin-top:8px;">
       <input id="displayName" placeholder="表示名（チャット名）" style="width:260px;" />
-      <button onclick="saveDisplayName()" id="saveNameBtn">表示名保存</button>
+      <button type="button" onclick="saveDisplayName()" id="saveNameBtn">表示名保存</button>
     </div>
     <div class="hint" id="authState">読み込み中…</div>
   </div>
@@ -190,10 +190,10 @@
     <input id="name" placeholder="名前（自動）" disabled /><br />
     <input id="room" placeholder="部屋名（例: test）" /><br />
 
-    <button onclick="createRoom()" id="createRoomBtn">部屋作成</button>
-    <button onclick="join()" id="joinBtn">入室</button>
-    <button onclick="leave()" id="leaveBtn">退室</button>
-    <button onclick="loadRooms()" id="reloadRoomsBtn">部屋一覧更新</button>
+    <button type="button" onclick="createRoom()" id="createRoomBtn">部屋作成</button>
+    <button type="button" onclick="join()" id="joinBtn">入室</button>
+    <button type="button" onclick="leave()" id="leaveBtn">退室</button>
+    <button type="button" onclick="loadRooms()" id="reloadRoomsBtn">部屋一覧更新</button>
 
     <div style="margin-top:10px;">
       <b>部屋一覧（スクロール）</b>
@@ -216,9 +216,9 @@
       <div id="callBox">
         <b>🎤 音声通話（複数人）</b>
         <div style="margin-top:8px;">
-          <button onclick="startVoice()" id="startVoiceBtn">通話に参加（開始）</button>
-          <button onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
-          <button onclick="hangupAll()" id="hangupBtn">通話退出</button>
+          <button type="button" onclick="startVoice()" id="startVoiceBtn">通話に参加（開始）</button>
+          <button type="button" onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
+          <button type="button" onclick="hangupAll()" id="hangupBtn">通話退出</button>
         </div>
         <div id="callState">未接続（入室してから使ってね）</div>
         <div id="audios" style="margin-top:8px;"></div>
@@ -235,7 +235,7 @@
       <div id="chat"></div>
       <div style="margin-top:8px;">
         <input id="msg" placeholder="メッセージ" />
-        <button onclick="send()" id="sendBtn">送信</button>
+        <button type="button" onclick="send()" id="sendBtn">送信</button>
       </div>
     </div>
   </div>
@@ -263,30 +263,6 @@ let inCall = false;
 let activeCallRooms = new Set();
 const CALL_ALIVE_SEC = 30;
 
-/* =========================================================
-   ✅ 未ログインなら login.html へ
-   ========================================================= */
-function goLogin(){ location.href = "./login.html"; }
-
-async function requireLoginOrRedirect(){
-  const { data, error } = await sb.auth.getSession();
-  if (error) log("getSession error(requireLoginOrRedirect)", error);
-
-  const user = data?.session?.user || null;
-  if (!user) {
-    // 右上を一応表示
-    document.getElementById("userNamePill").textContent = "未ログイン";
-    document.getElementById("userMailText").textContent = "";
-    document.getElementById("goLoginBtn").style.display = "inline-block";
-    document.getElementById("signOutBtn").style.display = "none";
-
-    // 実際にはログインページへ
-    goLogin();
-    return false;
-  }
-  return true;
-}
-
 /* =================== ログ =================== */
 function log(...args){
   const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
@@ -311,8 +287,33 @@ function escapeHtml(s) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
-
 function myUid() { return authUser?.id || null; }
+
+/* =========================================================
+   ✅ ログインページへの移動先（ここ重要）
+   あなたの環境が /login ならこれでOK
+   login.html なら "/login.html" に変えてね
+   ========================================================= */
+function goLogin(){ location.href = "/login"; }
+
+/* =========================================================
+   ✅ 未ログインなら loginへ
+   ========================================================= */
+async function requireLoginOrRedirect(){
+  const { data, error } = await sb.auth.getSession();
+  if (error) log("getSession error(requireLoginOrRedirect)", error);
+
+  const user = data?.session?.user || null;
+  if (!user) {
+    document.getElementById("userNamePill").textContent = "未ログイン";
+    document.getElementById("userMailText").textContent = "";
+    document.getElementById("goLoginBtn").style.display = "inline-block";
+    document.getElementById("signOutBtn").style.display = "none";
+    goLogin();
+    return false;
+  }
+  return true;
+}
 
 /* =================== 右上ユーザー表示 =================== */
 function updateTopRightUser(){
@@ -367,7 +368,7 @@ async function reloadSession() {
   updateRoomHint();
 }
 
-/* ★422の理由を必ず出すための共通表示 */
+/* ★422などの理由を必ず出すための共通表示 */
 function showAuthError(prefix, error) {
   if (!error) return;
   log(prefix, error);
@@ -378,26 +379,66 @@ function showAuthError(prefix, error) {
   alert(prefix + ": " + full);
 }
 
+/* =========================================================
+   ✅ 確実ログアウト（ローカル強制削除）
+   ========================================================= */
+function clearSupabaseLocalSession() {
+  try {
+    const ref = "gqqkjytefyllfomtqcqd";
+    const targets = [
+      `sb-${ref}-auth-token`,
+      `sb-${ref}-auth-token-code-verifier`,
+      `sb-${ref}-auth-token-refresh`,
+    ];
+    targets.forEach(k => {
+      try { localStorage.removeItem(k); } catch {}
+      try { sessionStorage.removeItem(k); } catch {}
+    });
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("sb-")) localStorage.removeItem(k);
+    }
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith("sb-")) sessionStorage.removeItem(k);
+    }
+  } catch {}
+}
+
 /* =================== ログアウト（右上） =================== */
 async function signOut() {
+  // ① 先に通話終了（失敗しても続行）
   try { await hangupAll(); } catch {}
 
+  // ② UI/状態を先にクリア（体感を良くする）
   room = "";
-  document.getElementById("chat").innerHTML = "";
-  renderPeople([]);
-
-  const { error } = await sb.auth.signOut();
-  if (error) log("signOut error", error);
-
-  authUser = null;
   name = "";
-  document.getElementById("name").value = "";
+  inCall = false;
+  try { document.getElementById("chat").innerHTML = ""; } catch {}
+  try { renderPeople([]); } catch {}
 
+  // ③ Supabaseへサインアウト（失敗してもOK）
+  try {
+    const { error } = await sb.auth.signOut({ scope: "local" });
+    if (error) log("signOut error", error);
+  } catch (e) {
+    log("signOut exception", e);
+  }
+
+  // ④ ローカルセッションを強制削除（これで残らない）
+  clearSupabaseLocalSession();
+
+  // ⑤ 変数も完全リセット
+  authUser = null;
+  try { document.getElementById("name").value = ""; } catch {}
   setStatus("ログアウトしました");
   updateTopRightUser();
+
+  // ⑥ loginへ
   goLogin();
 }
 
+/* =================== 表示名保存 =================== */
 async function saveDisplayName() {
   if (!authUser) return alert("先にログインしてね！");
   const dn = document.getElementById("displayName").value.trim();
@@ -562,6 +603,7 @@ async function loadRooms() {
     rowEl.className = "roomRow";
 
     const btn = document.createElement("button");
+    btn.type = "button";
     btn.className = "roomBtn";
 
     const rn = r.room_name;
@@ -580,6 +622,7 @@ async function loadRooms() {
     btn.ondblclick = async () => { document.getElementById("room").value = rn; await join(); };
 
     const del = document.createElement("button");
+    del.type = "button";
     del.className = "delBtn";
     del.textContent = "🗑";
     del.disabled = isRoomLocked(rn);
