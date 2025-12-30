@@ -522,7 +522,7 @@ async function deleteAccount(){
 
     setStatus("アカウント削除リクエスト中…", true);
 
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/super-function, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -1310,5 +1310,6 @@ window.addEventListener("freeze", () => safeCallLeave("freeze"));
 </script>
 </body>
 </html>
+
 
 
