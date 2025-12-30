@@ -126,14 +126,25 @@
 <body>
   <h2>ゆるるチャット</h2>
 
+  <!-- ✅ ログインUI -->
+  <div style="margin-bottom:10px;border:1px solid #ddd;padding:8px;border-radius:8px;width:280px;background:#fafafa;">
+    <b>🔐 ログイン</b><br/>
+    <input id="email" placeholder="メールアドレス" /><br/>
+    <input id="pass" placeholder="パスワード" type="password" /><br/>
+    <button onclick="signUp()">新規登録</button>
+    <button onclick="signIn()">ログイン</button>
+    <button onclick="signOut()">ログアウト</button>
+    <div class="hint" id="authState">未ログイン</div>
+  </div>
+
   <div>
-    <input id="name" placeholder="名前" /><br />
+    <input id="name" placeholder="名前（ログイン後に自動セット）" /><br />
     <input id="room" placeholder="部屋名（例: test）" /><br />
 
-    <button onclick="createRoom()">部屋作成</button>
-    <button onclick="join()">入室</button>
-    <button onclick="leave()">退室</button>
-    <button onclick="loadRooms()">部屋一覧更新</button>
+    <button onclick="createRoom()" id="createRoomBtn">部屋作成</button>
+    <button onclick="join()" id="joinBtn">入室</button>
+    <button onclick="leave()" id="leaveBtn">退室</button>
+    <button onclick="loadRooms()" id="reloadRoomsBtn">部屋一覧更新</button>
 
     <div style="margin-top:10px;">
       <b>部屋一覧（スクロール）</b>
@@ -179,7 +190,7 @@
       <div id="chat"></div>
       <div style="margin-top:8px;">
         <input id="msg" placeholder="メッセージ" />
-        <button onclick="send()">送信</button>
+        <button onclick="send()" id="sendBtn">送信</button>
       </div>
     </div>
   </div>
@@ -206,8 +217,16 @@ let inCall = false;
 /* ★Set or null（取得失敗時はnullにして安全側ロック） */
 let activeCallRooms = new Set();
 
-/* ★ここを短くして「残留してもすぐ消える」 */
+/* ★短め：残留があってもすぐ消える（heartbeatが動いてる人だけ生存） */
 const CALL_ALIVE_SEC = 30;
+
+/* =================== Auth状態 =================== */
+let authUser = null;          // sb.auth.getUser() の user
+let authUserId = null;        // user.id
+let authEmail = null;
+
+/* WebRTC presence用（通話ごとに別ID） */
+const peerId = (crypto?.randomUUID?.() || ("peer-" + Math.random().toString(16).slice(2)));
 
 /* =================== ログ =================== */
 function log(...args){
@@ -242,31 +261,95 @@ async function sendSystem(text) {
   if (error) log("sendSystem error", error);
 }
 
-/* =================== ★通話中部屋一覧の更新 =================== */
-async function refreshActiveCallRooms() {
-  const since = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
-  const { data, error } = await sb
-    .from("call_participants")
-    .select("room_id, updated_at")
-    .gte("updated_at", since);
+/* =================== Auth（ログイン） =================== */
+function setAuthState(text){
+  const el = document.getElementById("authState");
+  if (el) el.textContent = text;
+}
 
-  if (error) {
-    log("refreshActiveCallRooms error", error);
-    activeCallRooms = null;
-    setStatus("通話状態の取得に失敗（安全のため削除ロック）: " + error.message, false);
-    updateRoomDeleteButtons();
-    return;
+async function syncUserToUI(){
+  const { data, error } = await sb.auth.getUser();
+  if (error) log("getUser error", error);
+
+  authUser = data?.user || null;
+  authUserId = authUser?.id || null;
+  authEmail = authUser?.email || null;
+
+  const nameInput = document.getElementById("name");
+  if (authUser) {
+    const display = (authEmail || "user").split("@")[0];
+    if (nameInput && !nameInput.value.trim()) nameInput.value = display;
+    setAuthState("ログイン中: " + authEmail);
+  } else {
+    setAuthState("未ログイン");
   }
 
-  const s = new Set();
-  (data || []).forEach(r => s.add(r.room_id));
-  activeCallRooms = s;
-  updateRoomDeleteButtons();
+  setButtonsState();
 }
+
+async function requireLogin(){
+  await syncUserToUI();
+  if (!authUser) {
+    alert("先にログインしてね！");
+    throw new Error("not logged in");
+  }
+  return authUser;
+}
+
+async function signUp(){
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("pass").value.trim();
+  if (!email || !password) return alert("メールとパスワードを入れてね！");
+
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if (error) return alert("新規登録失敗: " + error.message);
+
+  setAuthState("登録OK: " + email);
+  await syncUserToUI();
+}
+
+async function signIn(){
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("pass").value.trim();
+  if (!email || !password) return alert("メールとパスワードを入れてね！");
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) return alert("ログイン失敗: " + error.message);
+
+  setAuthState("ログイン中: " + email);
+  await syncUserToUI();
+}
+
+async function signOut(){
+  // 先に通話の残留を消す
+  await safeCallLeave("signOut");
+  await hangupAll();
+
+  await sb.auth.signOut();
+  authUser = null;
+  authUserId = null;
+  authEmail = null;
+
+  setAuthState("未ログイン");
+  setButtonsState();
+}
+
+/* auth change */
+sb.auth.onAuthStateChange((_event, _session) => {
+  syncUserToUI();
+});
 
 /* =================== UI状態更新 =================== */
 function setButtonsState() {
-  const joined = !!(room && name);
+  const loggedIn = !!authUser;
+
+  // 未ログインは主要操作を禁止
+  document.getElementById("createRoomBtn").disabled = !loggedIn;
+  document.getElementById("joinBtn").disabled = !loggedIn;
+  document.getElementById("leaveBtn").disabled = !loggedIn;
+  document.getElementById("sendBtn").disabled = !loggedIn;
+
+  const joined = !!(room && name && loggedIn);
   document.getElementById("startVoiceBtn").disabled = !joined;
   document.getElementById("hangupBtn").disabled = !joined;
 
@@ -277,6 +360,12 @@ function setButtonsState() {
 function updateRoomHint(){
   const el = document.getElementById("roomHint");
   if (!el) return;
+
+  if (!authUser) {
+    el.innerHTML =
+      "🔐 まずログインしてね（未ログインは部屋作成/入室/送信/通話ができないよ）";
+    return;
+  }
 
   if (activeCallRooms === null) {
     el.innerHTML =
@@ -299,6 +388,7 @@ function updateRoomHint(){
 }
 
 function isRoomLocked(rn){
+  // ★判定不能は安全側で全部ロック
   if (activeCallRooms === null) return true;
   return inCall || activeCallRooms.has(rn);
 }
@@ -314,11 +404,12 @@ function updateRoomDeleteButtons(){
     if (!btn || !del) return;
 
     const rn = btn.dataset.room || btn.textContent;
-    const locked = isRoomLocked(rn);
+    const locked = !authUser ? true : isRoomLocked(rn);
 
     del.disabled = locked;
     del.title = locked
-      ? (activeCallRooms === null ? "通話状態の取得失敗中（安全ロック）"
+      ? (!authUser ? "未ログインのため削除できません"
+         : activeCallRooms === null ? "通話状態の取得失敗中（安全ロック）"
          : inCall ? "あなたが通話中なので削除できません（通話退出してね）"
          : "この部屋は誰かが通話中なので削除できません")
       : "部屋削除";
@@ -326,6 +417,28 @@ function updateRoomDeleteButtons(){
     const calling = (activeCallRooms instanceof Set) && activeCallRooms.has(rn);
     btn.classList.toggle("calling", calling);
   });
+}
+
+/* =================== ★通話中部屋一覧の更新 =================== */
+async function refreshActiveCallRooms() {
+  const since = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
+  const { data, error } = await sb
+    .from("call_participants")
+    .select("room_id, updated_at")
+    .gte("updated_at", since);
+
+  if (error) {
+    log("refreshActiveCallRooms error", error);
+    activeCallRooms = null;
+    setStatus("通話状態の取得に失敗（安全のため削除ロック）: " + error.message, false);
+    updateRoomDeleteButtons();
+    return;
+  }
+
+  const s = new Set();
+  (data || []).forEach(r => s.add(r.room_id));
+  activeCallRooms = s;
+  updateRoomDeleteButtons();
 }
 
 /* =================== Realtime（部屋/メッセ） =================== */
@@ -374,6 +487,7 @@ async function loadRooms() {
   if (!data || data.length === 0) {
     box.innerHTML = "<div>まだ部屋がないよ（部屋作成してね）</div>";
     if (!room) setStatus("部屋なし（新しく作ってOK）");
+    updateRoomDeleteButtons();
     return;
   }
 
@@ -403,10 +517,11 @@ async function loadRooms() {
     del.className = "delBtn";
     del.textContent = "🗑";
 
-    const locked = isRoomLocked(rn);
+    const locked = !authUser ? true : isRoomLocked(rn);
     del.disabled = locked;
 
     del.onclick = async () => {
+      if (!authUser) return alert("先にログインしてね！");
       await refreshActiveCallRooms();
       if (isRoomLocked(rn)) {
         alert(activeCallRooms === null
@@ -431,6 +546,8 @@ async function loadRooms() {
 
 /* =================== 部屋作成 =================== */
 async function createRoom() {
+  await requireLogin();
+
   const roomName = document.getElementById("room").value.trim();
   if (!roomName) return alert("部屋名を入れてね！");
 
@@ -480,6 +597,8 @@ async function loadMessages() {
 
 /* =================== 入退室 =================== */
 async function join() {
+  await requireLogin();
+
   const inputRoom = document.getElementById("room").value.trim();
   const inputName = document.getElementById("name").value.trim();
 
@@ -502,8 +621,8 @@ async function join() {
   await loadRooms();
 }
 
-/* ★退室時も確実に退出処理 */
 async function leave() {
+  if (!authUser) { alert("未ログインだよ！"); return; }
   if (!room || !name) { alert("まだ入室してないよ！"); return; }
 
   const leavingRoom = room;
@@ -511,7 +630,7 @@ async function leave() {
 
   await sendSystem(`${leavingName} が「${leavingRoom}」から退室しました`);
 
-  await hangupAll(); // ←ここでsafeCallLeaveも動く
+  await hangupAll();
 
   room = "";
   name = "";
@@ -525,6 +644,8 @@ async function leave() {
 
 /* =================== 送信 =================== */
 async function send() {
+  await requireLogin();
+
   const text = document.getElementById("msg").value.trim();
   document.getElementById("msg").value = "";
 
@@ -541,6 +662,8 @@ async function send() {
 
 /* =================== 部屋削除 =================== */
 async function deleteRoom(roomName) {
+  await requireLogin();
+
   await refreshActiveCallRooms();
   if (isRoomLocked(roomName)) {
     alert(activeCallRooms === null
@@ -582,10 +705,9 @@ document.getElementById("msg").addEventListener("keydown", (e) => {
 
 /* =========================================================
    🎤 複数人通話（WebRTC Mesh）+ ミュート + 参加者一覧（Presence）
-   + ★通話参加者DB（call_participants）で部屋削除ロック
+   + call_participantsで部屋削除ロック
    ========================================================= */
 
-const myId = (crypto?.randomUUID?.() || ("id-" + Math.random().toString(16).slice(2)));
 let callChannel = null;
 let localStream = null;
 let micMuted = false;
@@ -597,27 +719,23 @@ const remoteMute = new Map();
 
 let callHeartbeatTimer = null;
 
-/* =================== ★退出処理を一本化（これが肝） =================== */
+/* =================== ★退出処理（DB残留を確実に消す） =================== */
 async function safeCallLeave(reason = "") {
   try {
-    // まだ入室してないなら何もしない
-    if (!room) return;
+    if (!authUserId) return;       // 未ログインならDB操作しない
+    if (!room) return;             // 入室してなければ消す対象がない
 
-    // heartbeat止める
     stopHeartbeat();
 
-    // DBの行を消す（失敗しても握りつぶさずログ）
     const { error } = await sb
       .from("call_participants")
       .delete()
       .eq("room_id", room)
-      .eq("user_id", myId);
+      .eq("user_id", authUserId);
 
-    if (error) {
-      log("safeCallLeave delete error", reason, error);
-    } else {
-      log("safeCallLeave ok", reason);
-    }
+    if (error) log("safeCallLeave delete error", reason, error);
+    else log("safeCallLeave ok", reason);
+
   } catch (e) {
     log("safeCallLeave exception", reason, e);
   }
@@ -636,7 +754,7 @@ function renderPeopleFromState() {
     arr.push({
       id: pid,
       name: info?.name || pid,
-      muted: (pid === myId) ? micMuted : (remoteMute.get(pid) || false)
+      muted: (pid === peerId) ? micMuted : (remoteMute.get(pid) || false)
     });
   }
   renderPeople(arr);
@@ -656,7 +774,7 @@ function renderPeople(list) {
       const row = document.createElement("div");
       row.className = "personRow";
       const left = document.createElement("div");
-      left.textContent = p.name + (p.id === myId ? "（自分）" : "");
+      left.textContent = p.name + (p.id === peerId ? "（自分）" : "");
       const right = document.createElement("div");
 
       const pill1 = document.createElement("span");
@@ -665,7 +783,7 @@ function renderPeople(list) {
 
       const pill2 = document.createElement("span");
       pill2.className = "pill";
-      pill2.textContent = pcs.has(p.id) ? "🟢 接続" : (p.id === myId ? "🟦 参加中" : "🟡 未接続");
+      pill2.textContent = pcs.has(p.id) ? "🟢 接続" : (p.id === peerId ? "🟦 参加中" : "🟡 未接続");
 
       right.appendChild(pill1);
       right.appendChild(pill2);
@@ -676,10 +794,18 @@ function renderPeople(list) {
     });
 }
 
-/* DB: 通話参加登録/更新 */
+/* DB: 通話参加登録/更新（user_id は authUserId） */
 async function upsertCallParticipant() {
+  if (!authUserId) return;
   if (!room || !name) return;
-  const payload = { room_id: room, user_id: myId, name, updated_at: new Date().toISOString() };
+
+  const payload = {
+    room_id: room,
+    user_id: authUserId,            // ★AuthのID
+    name,
+    updated_at: new Date().toISOString()
+  };
+
   const { error } = await sb.from("call_participants").upsert(payload);
   if (error) log("upsertCallParticipant error", error);
 }
@@ -690,42 +816,41 @@ function startHeartbeat() {
     if (!inCall) return;
     await upsertCallParticipant();
     await refreshActiveCallRooms();
-  }, 15000); // ★15秒
+  }, 15000); // 15秒
 }
 function stopHeartbeat() {
   if (callHeartbeatTimer) clearInterval(callHeartbeatTimer);
   callHeartbeatTimer = null;
 }
 
-function shouldOfferTo(peerId) {
-  return String(myId) < String(peerId);
+function shouldOfferTo(otherPeerId) {
+  return String(peerId) < String(otherPeerId);
 }
-
-function makePeerConnection(peerId) {
+function makePeerConnection(otherPeerId) {
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
   });
 
   pc.onicecandidate = (ev) => {
-    if (ev.candidate) sendSignal(peerId, { kind: "ice", candidate: ev.candidate });
+    if (ev.candidate) sendSignal(otherPeerId, { kind: "ice", candidate: ev.candidate });
   };
 
   pc.ontrack = (ev) => {
-    let audio = audios.get(peerId);
+    let audio = audios.get(otherPeerId);
     if (!audio) {
       audio = document.createElement("audio");
       audio.autoplay = true;
       audio.playsInline = true;
       audio.controls = true;
-      audio.dataset.peer = peerId;
+      audio.dataset.peer = otherPeerId;
       document.getElementById("audios").appendChild(audio);
-      audios.set(peerId, audio);
+      audios.set(otherPeerId, audio);
     }
     audio.srcObject = ev.streams[0];
   };
 
   pc.onconnectionstatechange = () => {
-    log("pc state", peerId, pc.connectionState);
+    log("pc state", otherPeerId, pc.connectionState);
     renderPeopleFromState();
   };
 
@@ -738,37 +863,37 @@ function makePeerConnection(peerId) {
   return pc;
 }
 
-async function ensurePC(peerId) {
-  if (pcs.has(peerId)) return pcs.get(peerId);
-  const pc = makePeerConnection(peerId);
-  pcs.set(peerId, pc);
+async function ensurePC(otherPeerId) {
+  if (pcs.has(otherPeerId)) return pcs.get(otherPeerId);
+  const pc = makePeerConnection(otherPeerId);
+  pcs.set(otherPeerId, pc);
   renderPeopleFromState();
   return pc;
 }
 
-async function closePeer(peerId) {
-  const pc = pcs.get(peerId);
+async function closePeer(otherPeerId) {
+  const pc = pcs.get(otherPeerId);
   if (pc) {
     try { pc.ontrack = null; pc.onicecandidate = null; } catch {}
     try { pc.close(); } catch {}
-    pcs.delete(peerId);
+    pcs.delete(otherPeerId);
   }
-  const audio = audios.get(peerId);
+  const audio = audios.get(otherPeerId);
   if (audio) {
     try { audio.srcObject = null; } catch {}
     audio.remove();
-    audios.delete(peerId);
+    audios.delete(otherPeerId);
   }
-  remoteMute.delete(peerId);
+  remoteMute.delete(otherPeerId);
   renderPeopleFromState();
 }
 
-/* Supabase Realtime channel */
+/* Supabase Realtime channel（presence key は peerId） */
 async function initCallChannel() {
   if (!room || !name) throw new Error("入室してね");
   if (callChannel) return;
 
-  callChannel = sb.channel("call-" + room, { config: { presence: { key: myId } } });
+  callChannel = sb.channel("call-" + room, { config: { presence: { key: peerId } } });
 
   callChannel.on("presence", { event: "sync" }, () => {
     const state = callChannel.presenceState();
@@ -796,55 +921,55 @@ async function initCallChannel() {
   callChannel.on("broadcast", { event: "signal" }, async ({ payload }) => {
     if (!payload) return;
     const { from, to, data } = payload;
-    if (!from || from === myId) return;
-    if (to && to !== myId) return;
+    if (!from || from === peerId) return;
+    if (to && to !== peerId) return;
     if (!data || !data.kind) return;
 
-    const peerId = from;
+    const otherPeerId = from;
 
     try {
       if (data.kind === "hello") {
-        await ensurePC(peerId);
+        await ensurePC(otherPeerId);
 
-        if (shouldOfferTo(peerId)) {
-          const pc = await ensurePC(peerId);
+        if (shouldOfferTo(otherPeerId)) {
+          const pc = await ensurePC(otherPeerId);
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          await sendSignal(peerId, { kind: "offer", sdp: pc.localDescription });
+          await sendSignal(otherPeerId, { kind: "offer", sdp: pc.localDescription });
         }
         return;
       }
 
       if (data.kind === "offer") {
-        const pc = await ensurePC(peerId);
+        const pc = await ensurePC(otherPeerId);
         await pc.setRemoteDescription(data.sdp);
         const ans = await pc.createAnswer();
         await pc.setLocalDescription(ans);
-        await sendSignal(peerId, { kind: "answer", sdp: pc.localDescription });
+        await sendSignal(otherPeerId, { kind: "answer", sdp: pc.localDescription });
         return;
       }
 
       if (data.kind === "answer") {
-        const pc = await ensurePC(peerId);
+        const pc = await ensurePC(otherPeerId);
         await pc.setRemoteDescription(data.sdp);
         renderPeopleFromState();
         return;
       }
 
       if (data.kind === "ice") {
-        const pc = await ensurePC(peerId);
+        const pc = await ensurePC(otherPeerId);
         try { await pc.addIceCandidate(data.candidate); }
         catch (e) { log("addIceCandidate failed", e); }
         return;
       }
 
       if (data.kind === "hangup") {
-        await closePeer(peerId);
+        await closePeer(otherPeerId);
         return;
       }
 
       if (data.kind === "mute") {
-        remoteMute.set(peerId, !!data.muted);
+        remoteMute.set(otherPeerId, !!data.muted);
         renderPeopleFromState();
         return;
       }
@@ -870,12 +995,12 @@ async function initCallChannel() {
   });
 }
 
-async function sendSignal(peerId, data) {
+async function sendSignal(otherPeerId, data) {
   if (!callChannel) return;
   await callChannel.send({
     type: "broadcast",
     event: "signal",
-    payload: { from: myId, to: peerId, data }
+    payload: { from: peerId, to: otherPeerId, data }
   });
 }
 
@@ -884,7 +1009,7 @@ async function broadcastHello() {
   await callChannel.send({
     type: "broadcast",
     event: "signal",
-    payload: { from: myId, to: null, data: { kind: "hello" } }
+    payload: { from: peerId, to: null, data: { kind: "hello" } }
   });
 }
 async function broadcastMute() {
@@ -892,12 +1017,13 @@ async function broadcastMute() {
   await callChannel.send({
     type: "broadcast",
     event: "signal",
-    payload: { from: myId, to: null, data: { kind: "mute", muted: micMuted } }
+    payload: { from: peerId, to: null, data: { kind: "mute", muted: micMuted } }
   });
 }
 
 /* 通話参加（開始） */
 async function startVoice() {
+  await requireLogin();
   if (!room || !name) return alert("先に入室してね！");
 
   try {
@@ -922,7 +1048,7 @@ async function startVoice() {
     await new Promise(r => setTimeout(r, 200));
 
     const state = callChannel.presenceState();
-    const keys = Object.keys(state).filter(k => k !== myId);
+    const keys = Object.keys(state).filter(k => k !== peerId);
 
     for (const pid of keys) {
       await ensurePC(pid);
@@ -961,7 +1087,7 @@ async function hangupAll() {
     return;
   }
 
-  // DBから先に消す（他人の📞が早く消える）
+  // ★DBから先に消す（他人の📞が早く消える）
   await safeCallLeave("hangupAll");
 
   if (callChannel) {
@@ -969,7 +1095,7 @@ async function hangupAll() {
       await callChannel.send({
         type: "broadcast",
         event: "signal",
-        payload: { from: myId, to: null, data: { kind: "hangup" } }
+        payload: { from: peerId, to: null, data: { kind: "hangup" } }
       });
     } catch {}
   }
@@ -1003,24 +1129,17 @@ async function hangupAll() {
   setCallState("通話退出（未接続）");
 }
 
-/* =================== タブ閉じ/更新/バックグラウンドでも確実にDB解除 =================== */
-window.addEventListener("pagehide", () => {
-  safeCallLeave("pagehide");
-});
-window.addEventListener("beforeunload", () => {
-  safeCallLeave("beforeunload");
-});
+/* タブ閉じ/更新/バックグラウンドでもDB解除 */
+window.addEventListener("pagehide", () => safeCallLeave("pagehide"));
+window.addEventListener("beforeunload", () => safeCallLeave("beforeunload"));
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") {
-    safeCallLeave("visibilitychange:hidden");
-  }
+  if (document.visibilityState === "hidden") safeCallLeave("visibilitychange:hidden");
 });
-window.addEventListener("freeze", () => {
-  safeCallLeave("freeze");
-});
+window.addEventListener("freeze", () => safeCallLeave("freeze"));
 
 /* 起動時 */
 (async () => {
+  await syncUserToUI();      // ★ログイン状態反映
   await loadRooms();
   await startRealtime();
   updateMuteBtn();
@@ -1030,9 +1149,9 @@ window.addEventListener("freeze", () => {
   // ★通話してない人側でもロックが効くように定期更新
   setInterval(async () => {
     await refreshActiveCallRooms();
-  }, 8000); // ★8秒
+  }, 8000);
 
-  log("ready. myId=", myId);
+  log("ready. peerId=", peerId);
 })();
 </script>
 </body>
