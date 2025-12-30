@@ -26,13 +26,13 @@
     .roomBtn:hover { background: #f0f0f0; }
     .delBtn { width: 44px; padding: 6px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
     .delBtn:hover { background: #ffecec; }
+    .delBtn:disabled { opacity: .35; cursor: not-allowed; background: #fff; }
 
     #status { font-size: 12px; color: #666; margin-top: 6px; }
     .ok { color: #0a7; }
     .ng { color: #c33; }
     .sys { color: #666; font-size: 12px; margin: 4px 0; }
 
-    /* レイアウト：左（参加者/通話） 右（チャット） */
     .layout {
       display: grid;
       grid-template-columns: 320px 1fr;
@@ -43,7 +43,6 @@
       .layout { grid-template-columns: 1fr; }
     }
 
-    /* 通話ボックス */
     #callBox{
       border: 1px solid #ccc;
       padding: 10px;
@@ -51,7 +50,6 @@
     }
     #callState { font-size: 12px; color:#444; margin-top: 6px; }
 
-    /* 参加者一覧 */
     #peopleBox {
       border: 1px solid #ccc;
       padding: 10px;
@@ -80,7 +78,6 @@
       white-space: nowrap;
     }
 
-    /* チャット */
     #chat {
       border: 1px solid #ccc;
       height: 360px;
@@ -127,7 +124,7 @@
     <div style="margin-top:10px;">
       <b>部屋一覧（スクロール）</b>
       <div id="roomsBox"></div>
-      <div class="hint">
+      <div class="hint" id="roomHint">
         ・部屋名クリック：入力欄へ / ・部屋名ダブルクリック：その部屋に入室<br />
         ・🗑：部屋削除（※その部屋のメッセージも削除）<br />
         ・通話は「入室」してから「通話に参加（開始）」を押してね
@@ -145,7 +142,6 @@
   <div id="status"></div>
 
   <div class="layout">
-    <!-- 左：通話＆参加者 -->
     <div>
       <div id="callBox">
         <b>🎤 音声通話（複数人）</b>
@@ -155,7 +151,6 @@
           <button onclick="hangupAll()" id="hangupBtn">通話退出</button>
         </div>
         <div id="callState">未接続（入室してから使ってね）</div>
-
         <div id="audios" style="margin-top:8px;"></div>
       </div>
 
@@ -166,7 +161,6 @@
       </div>
     </div>
 
-    <!-- 右：チャット -->
     <div>
       <div id="chat"></div>
       <div style="margin-top:8px;">
@@ -179,7 +173,7 @@
 <script>
 /* =================== Supabase 設定 =================== */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM"; // ←ここを本物に
+const SUPABASE_KEY = "REPLACE_WITH_YOUR_ANON_KEY"; // ←ここをあなたのanon keyに（今のは貼ってOK）
 
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
@@ -194,6 +188,9 @@ let roomsChannel = null;
 let messagesChannel = null;
 
 const SYSTEM_NAME = "__system__";
+
+/* ★追加：通話中フラグ（部屋削除ロック用） */
+let inCall = false;
 
 /* =================== ログ =================== */
 function log(...args){
@@ -226,6 +223,42 @@ async function sendSystem(text) {
     room_id: room, name: SYSTEM_NAME, message: text
   });
   if (error) log("sendSystem error", error);
+}
+
+/* =================== UI状態更新 =================== */
+function setButtonsState() {
+  const joined = !!(room && name);
+  document.getElementById("startVoiceBtn").disabled = !joined;
+  document.getElementById("hangupBtn").disabled = !joined;
+
+  // ★通話中は部屋削除禁止
+  updateRoomDeleteButtons();
+  updateRoomHint();
+}
+function updateRoomHint(){
+  const el = document.getElementById("roomHint");
+  if (!el) return;
+  if (inCall) {
+    el.innerHTML =
+      "✅ 通話中：部屋削除はロック中（先に「通話退出」してね）<br />" +
+      "・部屋名クリック：入力欄へ / ・部屋名ダブルクリック：その部屋に入室<br />" +
+      "・通話は「入室」してから「通話に参加（開始）」を押してね";
+  } else {
+    el.innerHTML =
+      "・部屋名クリック：入力欄へ / ・部屋名ダブルクリック：その部屋に入室<br />" +
+      "・🗑：部屋削除（※その部屋のメッセージも削除）<br />" +
+      "・通話は「入室」してから「通話に参加（開始）」を押してね";
+  }
+}
+function updateRoomDeleteButtons(){
+  // roomsBox内の削除ボタンを通話中はdisabled
+  const box = document.getElementById("roomsBox");
+  if (!box) return;
+  const dels = box.querySelectorAll("button.delBtn");
+  dels.forEach(btn => {
+    btn.disabled = inCall;
+    btn.title = inCall ? "通話中は削除できません（通話退出してね）" : "部屋削除";
+  });
 }
 
 /* =================== Realtime（部屋/メッセ） =================== */
@@ -289,7 +322,12 @@ async function loadRooms() {
     del.className = "delBtn";
     del.textContent = "🗑";
     del.title = "部屋削除";
+    del.disabled = inCall; // ★通話中は無効
     del.onclick = async () => {
+      if (inCall) {
+        alert("通話中は部屋を削除できません！\n先に「通話退出」を押してね。");
+        return;
+      }
       const rn = r.room_name;
       if (!confirm(`部屋「${rn}」を削除しますか？\n※その部屋のメッセージも消えます`)) return;
       await deleteRoom(rn);
@@ -301,6 +339,9 @@ async function loadRooms() {
   });
 
   if (!room) setStatus(`部屋一覧OK（${data.length}件）`);
+
+  // ★描画後にも反映
+  updateRoomDeleteButtons();
 }
 
 /* =================== 部屋作成 =================== */
@@ -353,11 +394,6 @@ async function loadMessages() {
 }
 
 /* =================== 入退室 =================== */
-function setButtonsState() {
-  const joined = !!(room && name);
-  document.getElementById("startVoiceBtn").disabled = !joined;
-  document.getElementById("hangupBtn").disabled = !joined;
-}
 async function join() {
   const inputRoom = document.getElementById("room").value.trim();
   const inputName = document.getElementById("name").value.trim();
@@ -387,6 +423,8 @@ async function leave() {
   const leavingName = name;
 
   await sendSystem(`${leavingName} が「${leavingRoom}」から退室しました`);
+
+  // 通話中なら退出（inCall解除も含まれる）
   await hangupAll();
 
   room = "";
@@ -416,6 +454,12 @@ async function send() {
 
 /* =================== 部屋削除 =================== */
 async function deleteRoom(roomName) {
+  // ★二重ガード：通話中は絶対削除させない
+  if (inCall) {
+    alert("通話中は部屋を削除できません。\n先に「通話退出」を押してね。");
+    return;
+  }
+
   if (room === roomName) {
     await sendSystem(`${name} が「${roomName}」を削除します`);
     await hangupAll();
@@ -530,7 +574,7 @@ function makePeerConnection(peerId) {
       audio = document.createElement("audio");
       audio.autoplay = true;
       audio.playsInline = true;
-      audio.controls = true; // デバッグしやすいように一旦ON
+      audio.controls = true; // デバッグしやすいようにON
       audio.dataset.peer = peerId;
       document.getElementById("audios").appendChild(audio);
       audios.set(peerId, audio);
@@ -543,7 +587,6 @@ function makePeerConnection(peerId) {
     renderPeopleFromState();
   };
 
-  // local audioを載せる
   if (localStream) {
     for (const track of localStream.getTracks()) {
       pc.addTrack(track, localStream);
@@ -671,7 +714,6 @@ async function initCallChannel() {
     }
   });
 
-  // ★重要：SUBSCRIBEDまで待ってから進む
   await new Promise((resolve, reject) => {
     callChannel.subscribe(async (status) => {
       log("callChannel status:", status);
@@ -714,7 +756,10 @@ async function startVoice() {
       log("mic ok");
     }
 
-    // presence sync反映の保険
+    // ★通話中フラグON（削除ロック）
+    inCall = true;
+    setButtonsState(); // roomsの削除ボタンも更新
+
     await new Promise(r => setTimeout(r, 200));
 
     const state = callChannel.presenceState();
@@ -799,6 +844,10 @@ async function hangupAll() {
   remoteMute.clear();
   renderPeople([]);
 
+  // ★通話中フラグOFF（削除ロック解除）
+  inCall = false;
+  setButtonsState();
+
   setCallState("通話退出（未接続）");
 }
 
@@ -814,4 +863,3 @@ async function hangupAll() {
 </script>
 </body>
 </html>
-
