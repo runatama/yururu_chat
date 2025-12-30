@@ -1,142 +1,215 @@
-﻿!DOCTYPE html
-html lang=ja
-head
-  meta charset=UTF-8
-  meta name=viewport content=width=device-width, initial-scale=1
-  titleゆるるチャット - ログインtitle
-  script src=httpscdn.jsdelivr.netnpm@supabasesupabase-js@2script
-  style
-    body { font-family sans-serif; padding 20px; max-width 560px; margin 0 auto; }
-    .card { border 1px solid #ccc; background#fafafa; padding 16px; border-radius 12px; }
-    input { width 100%; padding 10px; margin 6px 0; box-sizing border-box; }
-    button { padding 10px 12px; margin 6px 2px; cursorpointer; }
-    .row { displayflex; gap10px; flex-wrap wrap; }
-    .hint { font-size 12px; color#666; line-height 1.4; }
-    .ok { color#0a7; }
-    .ng { color#c33; }
-    #log { white-space pre-wrap; font-family ui-monospace, Menlo, monospace; font-size 12px; border1px solid #ddd; padding10px; border-radius10px; background#fff; max-height 160px; overflowauto; }
-  style
-head
-body
-  h2ゆるるチャットh2
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ゆるるチャット - ログイン</title>
 
-  div class=card
-    b🔐 ログイン  新規登録b
-    div class=hintログイン成功したらメインページに移動するよdiv
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    input id=email placeholder=メールアドレス autocomplete=email
-    input id=pass type=password placeholder=パスワード autocomplete=current-password
+  <style>
+    body { font-family: sans-serif; padding: 16px; max-width: 720px; margin: 0 auto; }
+    h2 { margin: 8px 0 16px; }
+    input { width: 320px; padding: 10px; margin: 6px 0; box-sizing: border-box; }
+    button { padding: 10px 12px; margin: 6px 4px 6px 0; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .card { border: 1px solid #ccc; background: #fafafa; padding: 14px; border-radius: 12px; margin: 12px 0; }
+    .row { display:flex; gap:10px; flex-wrap: wrap; align-items: center; }
+    .hint { font-size: 12px; color:#666; line-height: 1.5; }
+    .ok { color:#0a7; }
+    .ng { color:#c33; }
+    details { margin-top: 10px; }
+    #log {
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      border: 1px solid #ddd;
+      background: #fff;
+      padding: 10px;
+      border-radius: 10px;
+      max-height: 200px;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <h2>ゆるるチャット</h2>
 
-    div class=row
-      button onclick=signUp()新規登録button
-      button onclick=signIn()ログインbutton
-    div
+  <div class="card">
+    <b>🔐 ログイン / 新規登録</b>
+    <div class="hint">ログインに成功したらメインページに移動するよ（RLS保護）</div>
 
-    div class=hint style=margin-top8px;
-      表示名（あとでメインで変更できる）br
-      input id=displayName placeholder=表示名（任意） autocomplete=nickname
-      button onclick=saveDisplayName()表示名保存（ログイン後）button
-    div
+    <div class="row" style="margin-top:10px;">
+      <input id="email" placeholder="メールアドレス" autocomplete="email" />
+      <input id="pass" type="password" placeholder="パスワード" autocomplete="current-password" />
+    </div>
 
-    div id=status class=hint style=margin-top10px;未ログインdiv
+    <div class="row">
+      <button onclick="signUp()">新規登録</button>
+      <button onclick="signIn()">ログイン</button>
+      <button onclick="signOut()" id="signOutBtn" disabled>ログアウト</button>
+    </div>
 
-    details style=margin-top12px;
-      summary🔧 デバッグログsummary
-      div id=logdiv
-    details
-  div
+    <div class="card" style="margin-top:10px;">
+      <b>🪪 表示名（チャット名）</b>
+      <div class="hint">ここで設定した表示名が、メインページ右上に出るよ</div>
+      <div class="row" style="margin-top:8px;">
+        <input id="displayName" placeholder="表示名（例: ゆるたま）" autocomplete="nickname" />
+        <button onclick="saveDisplayName()" id="saveNameBtn" disabled>表示名保存</button>
+      </div>
+      <div class="hint" id="authState">未ログイン</div>
+    </div>
 
-script
- ===== Supabase 設定 =====
-const SUPABASE_URL = httpsgqqkjytefyllfomtqcqd.supabase.co;
-const SUPABASE_KEY = PUT_YOUR_ANON_KEY_HERE;
-const sb = supabase.createClient(SUPABASE_URL.trim(), (SUPABASE_KEY).replace(s+g,));
+    <div class="hint" id="status">未ログイン</div>
 
+    <details>
+      <summary>🔧 デバッグログ（困ったらここをコピペして送って）</summary>
+      <div id="log"></div>
+    </details>
+  </div>
+
+<script>
+/* =================== Supabase 設定 =================== */
+const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+
+const sb = supabase.createClient(
+  SUPABASE_URL.trim(),
+  (SUPABASE_KEY || "").replace(/\s+/g, "")
+);
+
+/* =================== ログ =================== */
 function log(...args){
-  const s = args.map(a = (typeof a === string  a  JSON.stringify(a,null,2))).join( );
-  console.log([login], ...args);
-  const el = document.getElementById(log);
-  el.textContent += s + n;
+  const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
+  console.log("[login]", ...args);
+  const el = document.getElementById("log");
+  if (!el) return;
+  el.textContent += s + "\n";
   el.scrollTop = el.scrollHeight;
 }
-function setStatus(text, ok=true){
-  const el = document.getElementById(status);
-  el.className = hint  + (ok  ok  ng);
+window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
+window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
+
+function setStatus(text, ok = true) {
+  const el = document.getElementById("status");
+  el.className = "hint " + (ok ? "ok" : "ng");
   el.textContent = text;
 }
-function showErr(prefix, error){
+
+function showAuthError(prefix, error) {
+  if (!error) return;
   log(prefix, error);
-  const msg = (error.message  String(error));
-  setStatus(prefix +   + msg, false);
-  alert(prefix +   + msg);
+  const full =
+    (error.message || "") +
+    (error.status ? ` (status:${error.status})` : "") +
+    (error.code ? ` (code:${error.code})` : "");
+  alert(prefix + ": " + full);
+  setStatus(prefix + ": " + full, false);
 }
 
-async function gotoMain(){
-   ログイン済みならメインへ
-  location.href = .index.html;
+let authUser = null;
+
+function setAuthUI() {
+  const loggedIn = !!authUser;
+  document.getElementById("signOutBtn").disabled = !loggedIn;
+  document.getElementById("saveNameBtn").disabled = !loggedIn;
 }
 
-async function signUp(){
-  const email = document.getElementById(email).value.trim();
-  const pass  = document.getElementById(pass).value;
-  if (!email  !pass) return alert(メールとパスワード入れてね！);
-  if (pass.length  6) return alert(パスワードは6文字以上にしてね！);
+function setAuthStateText() {
+  const el = document.getElementById("authState");
+  if (!authUser) { el.textContent = "未ログイン"; return; }
+  const dn = (authUser.user_metadata && authUser.user_metadata.display_name) || "";
+  el.textContent = `ログイン中: ${authUser.email}${dn ? " / 表示名: " + dn : ""}`;
+}
+
+async function reloadSession() {
+  const { data, error } = await sb.auth.getSession();
+  if (error) log("getSession error", error);
+
+  authUser = data?.session?.user || null;
+  document.getElementById("displayName").value = (authUser?.user_metadata?.display_name || "");
+
+  setAuthUI();
+  setAuthStateText();
+
+  if (authUser) setStatus("ログイン中：メインへ行けます", true);
+  else setStatus("未ログイン", true);
+}
+
+function gotoMain() {
+  location.href = "./index.html";
+}
+
+/* =================== Auth操作 =================== */
+async function signUp() {
+  const email = document.getElementById("email").value.trim();
+  const pass = document.getElementById("pass").value;
+  if (!email || !pass) return alert("メールとパスワード入れてね！");
+  if (pass.length < 6) return alert("パスワード短すぎ！6文字以上にしてね（推奨8文字以上）");
 
   const { data, error } = await sb.auth.signUp({
     email,
-    password pass,
-    options { emailRedirectTo httpsyururu-chat.pages.dev }
-  });
-  if (error) return showErr(新規登録失敗, error);
-
-  log(signUp data, data);
-  setStatus(新規登録OK！メール確認が必要なら確認してからログインしてね, true);
-}
-
-async function signIn(){
-  const email = document.getElementById(email).value.trim();
-  const pass  = document.getElementById(pass).value;
-  if (!email  !pass) return alert(メールとパスワード入れてね！);
-
-  const { data, error } = await sb.auth.signInWithPassword({ email, password pass });
-  if (error) return showErr(ログイン失敗, error);
-
-  log(signIn data, data);
-  setStatus(ログインOK！メインへ移動します…, true);
-  await gotoMain();
-}
-
-async function saveDisplayName(){
-  const { data } = await sb.auth.getSession();
-  const user = data.session.user;
-  if (!user) return alert(先にログインしてね！);
-  const dn = document.getElementById(displayName).value.trim();
-  if (!dn) return alert(表示名を入れてね！);
-
-  const { error } = await sb.auth.updateUser({ data { display_name dn } });
-  if (error) return showErr(表示名保存失敗, error);
-
-  setStatus(表示名を保存した！メインに移動してOK, true);
-}
-
-(async()={
-  const { data } = await sb.auth.getSession();
-  if (data.session.user) {
-    setStatus(すでにログイン中！メインへ移動します…, true);
-    await gotoMain();
-  } else {
-    setStatus(未ログイン, true);
-  }
-
-  sb.auth.onAuthStateChange(async (_event, session)={
-    if (session.user) {
-      setStatus(ログイン検知！メインへ移動します…, true);
-      await gotoMain();
+    password: pass,
+    options: {
+      emailRedirectTo: "https://yururu-chat.pages.dev"
     }
   });
 
-  log(ready);
+  if (error) { showAuthError("新規登録失敗", error); return; }
+
+  log("signUp data", data);
+  alert("新規登録OK！メール確認が必要ならメールを確認してからログインしてね！");
+  await reloadSession();
+}
+
+async function signIn() {
+  const email = document.getElementById("email").value.trim();
+  const pass = document.getElementById("pass").value;
+  if (!email || !pass) return alert("メールとパスワード入れてね！");
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showAuthError("ログイン失敗", error); return; }
+
+  log("signIn data", data);
+  alert("ログインOK！メインへ移動するよ！");
+  await reloadSession();
+  gotoMain();
+}
+
+async function signOut() {
+  const { error } = await sb.auth.signOut();
+  if (error) log("signOut error", error);
+  authUser = null;
+  setAuthUI();
+  setAuthStateText();
+  setStatus("ログアウトしました", true);
+}
+
+async function saveDisplayName() {
+  if (!authUser) return alert("先にログインしてね！");
+  const dn = document.getElementById("displayName").value.trim();
+  if (!dn) return alert("表示名を入れてね！");
+
+  const { error } = await sb.auth.updateUser({ data: { display_name: dn } });
+  if (error) { showAuthError("表示名保存失敗", error); return; }
+
+  alert("表示名保存OK！");
+  await reloadSession();
+}
+
+/* 起動時 */
+(async () => {
+  await reloadSession();
+
+  // すでにログインしてるなら即メインへ（好みで消してOK）
+  // if (authUser) gotoMain();
+
+  sb.auth.onAuthStateChange(async () => {
+    await reloadSession();
+  });
+
+  log("ready. authUser=", authUser?.id || null);
 })();
-script
-body
-html
+</script>
+</body>
+</html>
