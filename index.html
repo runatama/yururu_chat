@@ -434,11 +434,11 @@ async function signOut() {
   setStatus("ログアウトしました");
   updateTopRightUser();
 
-  // ⑥ loginへ
-  goLogin();
+  // ✅ ⑥ ページを再読み込み（起動時に未ログインなら login へ自動遷移）
+  location.reload();
 }
 
-/* =================== 表示名保存 =================== */
+/* =================== 表示名保存（★保存後リロード） =================== */
 async function saveDisplayName() {
   if (!authUser) return alert("先にログインしてね！");
   const dn = document.getElementById("displayName").value.trim();
@@ -448,7 +448,9 @@ async function saveDisplayName() {
   if (error) { showAuthError("表示名保存失敗", error); return; }
 
   alert("表示名保存OK！");
-  await reloadSession();
+
+  // ✅ 追加：表示名保存後にページ再読み込み（全部確実に更新）
+  location.reload();
 }
 
 /* =================== システムメッセ =================== */
