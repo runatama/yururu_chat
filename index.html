@@ -522,14 +522,15 @@ async function deleteAccount(){
 
     setStatus("アカウント削除リクエスト中…", true);
 
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-me`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${accessToken}`
-      },
-      body: JSON.stringify({ confirm: true })
-    });
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/bright-service`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${accessToken}`
+  },
+  body: JSON.stringify({ confirm: true })
+});
+
 
     const text = await res.text();
     log("delete-me response", res.status, text);
@@ -1309,3 +1310,4 @@ window.addEventListener("freeze", () => safeCallLeave("freeze"));
 </script>
 </body>
 </html>
+
