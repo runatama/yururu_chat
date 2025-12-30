@@ -12,6 +12,7 @@
     body { font-family: sans-serif; padding: 12px; }
     input { width: 260px; padding: 6px; margin: 4px 0; }
     button { padding: 6px 10px; margin: 4px 2px; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
 
     #roomsBox {
       border: 1px solid #ccc; width: 260px; height: 180px;
@@ -88,6 +89,26 @@
       background: #fff;
       width: min(900px, 95vw);
     }
+
+    .hint {
+      font-size: 12px;
+      color:#666;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+
+    details { margin-top: 10px; }
+    #log {
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      border: 1px solid #ddd;
+      background: #fff;
+      padding: 8px;
+      border-radius: 8px;
+      max-height: 180px;
+      overflow: auto;
+    }
   </style>
 </head>
 
@@ -106,10 +127,16 @@
     <div style="margin-top:10px;">
       <b>部屋一覧（スクロール）</b>
       <div id="roomsBox"></div>
-      <div style="font-size:12px;color:#666;">
+      <div class="hint">
         ・部屋名クリック：入力欄へ / ・部屋名ダブルクリック：その部屋に入室<br />
-        ・🗑：部屋削除（※その部屋のメッセージも削除）
+        ・🗑：部屋削除（※その部屋のメッセージも削除）<br />
+        ・通話は「入室」してから「通話に参加（開始）」を押してね
       </div>
+
+      <details>
+        <summary>🔧 デバッグログ（困ったらここをコピペして送って）</summary>
+        <div id="log"></div>
+      </details>
     </div>
   </div>
 
@@ -123,21 +150,18 @@
       <div id="callBox">
         <b>🎤 音声通話（複数人）</b>
         <div style="margin-top:8px;">
-          <button onclick="startVoice()">通話に参加（開始）</button>
+          <button onclick="startVoice()" id="startVoiceBtn">通話に参加（開始）</button>
           <button onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
-          <button onclick="hangupAll()">通話退出</button>
+          <button onclick="hangupAll()" id="hangupBtn">通話退出</button>
         </div>
         <div id="callState">未接続（入室してから使ってね）</div>
 
-        <!-- 相手の音声はここにaudio要素が増える -->
         <div id="audios" style="margin-top:8px;"></div>
       </div>
 
       <div id="peopleBox">
         <b>👥 参加者（通話チャンネル）</b>
-        <div style="font-size:12px;color:#666;margin-top:6px;">
-          ※「通話に参加」を押した人がここに表示されるよ
-        </div>
+        <div class="hint">※「通話に参加」を押した人がここに表示されるよ</div>
         <div id="peopleList"></div>
       </div>
     </div>
@@ -155,7 +179,7 @@
 <script>
 /* =================== Supabase 設定 =================== */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "（ここに anon/publishable key）";
+const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY_HERE"; // ←ここを本物に
 
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
@@ -170,6 +194,18 @@ let roomsChannel = null;
 let messagesChannel = null;
 
 const SYSTEM_NAME = "__system__";
+
+/* =================== ログ =================== */
+function log(...args){
+  const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
+  console.log("[yururu]", ...args);
+  const el = document.getElementById("log");
+  if (!el) return;
+  el.textContent += s + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
+window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
 
 /* =================== 表示系 =================== */
 function setStatus(text, ok = true) {
@@ -189,7 +225,7 @@ async function sendSystem(text) {
   const { error } = await sb.from("messages").insert({
     room_id: room, name: SYSTEM_NAME, message: text
   });
-  if (error) console.error(error);
+  if (error) log("sendSystem error", error);
 }
 
 /* =================== Realtime（部屋/メッセ） =================== */
@@ -228,7 +264,7 @@ async function loadRooms() {
   }
 
   const { data, error } = res;
-  if (error) { console.error(error); setStatus("部屋一覧取得失敗: " + error.message, false); return; }
+  if (error) { log("loadRooms error", error); setStatus("部屋一覧取得失敗: " + error.message, false); return; }
 
   const box = document.getElementById("roomsBox");
   box.innerHTML = "";
@@ -275,11 +311,11 @@ async function createRoom() {
   const { data: exists, error: e1 } = await sb
     .from("rooms").select("room_name").eq("room_name", roomName).maybeSingle();
 
-  if (e1) { console.error(e1); alert("部屋確認失敗: " + e1.message); return; }
+  if (e1) { log("createRoom check error", e1); alert("部屋確認失敗: " + e1.message); return; }
   if (exists) { alert("その部屋はもうあるよ！一覧から選んで入室してね！"); return; }
 
   const { error } = await sb.from("rooms").insert({ room_name: roomName });
-  if (error) { console.error(error); alert("部屋作成失敗: " + error.message); return; }
+  if (error) { log("createRoom insert error", error); alert("部屋作成失敗: " + error.message); return; }
 
   alert(`部屋「${roomName}」を作った！`);
   await loadRooms();
@@ -300,7 +336,7 @@ async function loadMessages() {
   }
 
   const { data, error } = res;
-  if (error) { console.error(error); setStatus("メッセージ取得失敗: " + error.message, false); return; }
+  if (error) { log("loadMessages error", error); setStatus("メッセージ取得失敗: " + error.message, false); return; }
 
   const chat = document.getElementById("chat");
   chat.innerHTML = "";
@@ -317,6 +353,11 @@ async function loadMessages() {
 }
 
 /* =================== 入退室 =================== */
+function setButtonsState() {
+  const joined = !!(room && name);
+  document.getElementById("startVoiceBtn").disabled = !joined;
+  document.getElementById("hangupBtn").disabled = !joined;
+}
 async function join() {
   const inputRoom = document.getElementById("room").value.trim();
   const inputName = document.getElementById("name").value.trim();
@@ -326,7 +367,7 @@ async function join() {
   const { data: exists, error } = await sb
     .from("rooms").select("room_name").eq("room_name", inputRoom).maybeSingle();
 
-  if (error) { console.error(error); alert("部屋確認失敗: " + error.message); return; }
+  if (error) { log("join check error", error); alert("部屋確認失敗: " + error.message); return; }
   if (!exists) { alert("その部屋はまだ作られてない！先に『部屋作成』してね！"); return; }
 
   room = inputRoom;
@@ -335,8 +376,8 @@ async function join() {
   await loadMessages();
   await sendSystem(`${name} が「${room}」に入室しました`);
 
-  // 通話は「通話に参加」押した時に接続開始
   setCallState("未接続（通話に参加を押すと一覧に出る）");
+  setButtonsState();
 }
 
 async function leave() {
@@ -346,15 +387,15 @@ async function leave() {
   const leavingName = name;
 
   await sendSystem(`${leavingName} が「${leavingRoom}」から退室しました`);
-
-  // 通話退出もする
   await hangupAll();
 
   room = "";
+  name = "";
   document.getElementById("chat").innerHTML = "";
   setStatus("退室しました");
   renderPeople([]);
   setCallState("未接続（入室してから使ってね）");
+  setButtonsState();
 }
 
 /* =================== 送信 =================== */
@@ -369,7 +410,7 @@ async function send() {
     room_id: room, name: name, message: text
   });
 
-  if (error) { console.error(error); alert("送信失敗: " + error.message); return; }
+  if (error) { log("send error", error); alert("送信失敗: " + error.message); return; }
   await loadMessages();
 }
 
@@ -379,15 +420,17 @@ async function deleteRoom(roomName) {
     await sendSystem(`${name} が「${roomName}」を削除します`);
     await hangupAll();
     room = "";
+    name = "";
     document.getElementById("chat").innerHTML = "";
     setStatus("部屋から退出しました（削除処理中…）");
+    setButtonsState();
   }
 
   const r1 = await sb.from("messages").delete().eq("room_id", roomName);
-  if (r1.error) { console.error(r1.error); alert("メッセージ削除失敗: " + r1.error.message); return; }
+  if (r1.error) { log("delete messages error", r1.error); alert("メッセージ削除失敗: " + r1.error.message); return; }
 
   const r2 = await sb.from("rooms").delete().eq("room_name", roomName);
-  if (r2.error) { console.error(r2.error); alert("部屋削除失敗: " + r2.error.message); return; }
+  if (r2.error) { log("delete room error", r2.error); alert("部屋削除失敗: " + r2.error.message); return; }
 
   alert(`部屋「${roomName}」を削除したよ！`);
   await loadRooms();
@@ -407,13 +450,9 @@ let callChannel = null;
 let localStream = null;
 let micMuted = false;
 
-// peerId -> RTCPeerConnection
 const pcs = new Map();
-// peerId -> <audio> element
 const audios = new Map();
-// peerId -> { name, muted? }
 let people = new Map();
-// peerId -> muted boolean（相手）
 const remoteMute = new Map();
 
 function setCallState(text) {
@@ -440,7 +479,7 @@ function renderPeople(list) {
   box.innerHTML = "";
 
   if (!list || list.length === 0) {
-    box.innerHTML = `<div style="font-size:12px;color:#666;margin-top:6px;">まだ誰も通話に参加してないよ</div>`;
+    box.innerHTML = `<div class="hint">まだ誰も通話に参加してないよ</div>`;
     return;
   }
 
@@ -452,6 +491,7 @@ function renderPeople(list) {
       const left = document.createElement("div");
       left.textContent = p.name + (p.id === myId ? "（自分）" : "");
       const right = document.createElement("div");
+
       const pill1 = document.createElement("span");
       pill1.className = "pill";
       pill1.textContent = p.muted ? "🔇 ミュート" : "🎙️ 発話OK";
@@ -459,6 +499,7 @@ function renderPeople(list) {
       const pill2 = document.createElement("span");
       pill2.className = "pill";
       pill2.textContent = pcs.has(p.id) ? "🟢 接続" : (p.id === myId ? "🟦 参加中" : "🟡 未接続");
+
       right.appendChild(pill1);
       right.appendChild(pill2);
 
@@ -470,7 +511,6 @@ function renderPeople(list) {
 
 /* WebRTC */
 function shouldOfferTo(peerId) {
-  // 衝突防止：IDが小さい側がOffer担当
   return String(myId) < String(peerId);
 }
 function makePeerConnection(peerId) {
@@ -490,7 +530,7 @@ function makePeerConnection(peerId) {
       audio = document.createElement("audio");
       audio.autoplay = true;
       audio.playsInline = true;
-      audio.controls = false;
+      audio.controls = true; // デバッグしやすいように一旦ON
       audio.dataset.peer = peerId;
       document.getElementById("audios").appendChild(audio);
       audios.set(peerId, audio);
@@ -499,8 +539,8 @@ function makePeerConnection(peerId) {
   };
 
   pc.onconnectionstatechange = () => {
+    log("pc state", peerId, pc.connectionState);
     renderPeopleFromState();
-    // console.log("pc state", peerId, pc.connectionState);
   };
 
   // local audioを載せる
@@ -541,7 +581,6 @@ async function closePeer(peerId) {
 /* Supabase Realtime channel (broadcast + presence) */
 async function initCallChannel() {
   if (!room || !name) throw new Error("入室してね");
-
   if (callChannel) return;
 
   callChannel = sb.channel(
@@ -549,10 +588,8 @@ async function initCallChannel() {
     { config: { presence: { key: myId } } }
   );
 
-  // presence
   callChannel.on("presence", { event: "sync" }, () => {
     const state = callChannel.presenceState();
-    // state: { key: [ {name:.., ...} ] }
     people = new Map();
     for (const key of Object.keys(state)) {
       const metas = state[key] || [];
@@ -574,7 +611,6 @@ async function initCallChannel() {
     renderPeopleFromState();
   });
 
-  // broadcast (signal)
   callChannel.on("broadcast", { event: "signal" }, async ({ payload }) => {
     if (!payload) return;
     const { from, to, data } = payload;
@@ -586,10 +622,8 @@ async function initCallChannel() {
 
     try {
       if (data.kind === "hello") {
-        // 相手が参加してきた
         await ensurePC(peerId);
 
-        // Offer役ならオファーを出す
         if (shouldOfferTo(peerId)) {
           const pc = await ensurePC(peerId);
           const offer = await pc.createOffer();
@@ -617,7 +651,8 @@ async function initCallChannel() {
 
       if (data.kind === "ice") {
         const pc = await ensurePC(peerId);
-        try { await pc.addIceCandidate(data.candidate); } catch (e) { console.warn("addIceCandidate failed", e); }
+        try { await pc.addIceCandidate(data.candidate); }
+        catch (e) { log("addIceCandidate failed", e); }
         return;
       }
 
@@ -631,18 +666,28 @@ async function initCallChannel() {
         renderPeopleFromState();
         return;
       }
-
     } catch (e) {
-      console.error("signal error", e);
+      log("signal error", e);
     }
   });
 
-  await callChannel.subscribe(async (status) => {
-    if (status === "SUBSCRIBED") {
-      // 自分をpresenceに載せる
-      await callChannel.track({ name });
-      setCallState("通話チャンネル接続OK（参加ボタンで通話開始）");
-    }
+  // ★重要：SUBSCRIBEDまで待ってから進む
+  await new Promise((resolve, reject) => {
+    callChannel.subscribe(async (status) => {
+      log("callChannel status:", status);
+      if (status === "SUBSCRIBED") {
+        try {
+          await callChannel.track({ name });
+          setCallState("通話チャンネル接続OK（参加ボタンで通話開始）");
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      }
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        reject(new Error("Realtime subscribe failed: " + status));
+      }
+    });
   });
 }
 
@@ -651,11 +696,7 @@ async function sendSignal(peerId, data) {
   await callChannel.send({
     type: "broadcast",
     event: "signal",
-    payload: {
-      from: myId,
-      to: peerId,
-      data
-    }
+    payload: { from: myId, to: peerId, data }
   });
 }
 
@@ -670,9 +711,12 @@ async function startVoice() {
       localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       micMuted = false;
       updateMuteBtn();
+      log("mic ok");
     }
 
-    // 既にpresenceにいる人全員に「hello」飛ばす（接続開始）
+    // presence sync反映の保険
+    await new Promise(r => setTimeout(r, 200));
+
     const state = callChannel.presenceState();
     const keys = Object.keys(state).filter(k => k !== myId);
 
@@ -680,30 +724,25 @@ async function startVoice() {
       await ensurePC(pid);
     }
 
-    // helloを全員へ（相手がOffer作る/受ける判断に使う）
     await broadcastHello();
-
-    // 自分のミュート状態も通知
     await broadcastMute();
 
-    setCallState("通話参加中（複数人接続を開始…）");
+    setCallState("通話参加中（接続開始…）");
     renderPeopleFromState();
   } catch (e) {
-    console.error(e);
+    log("startVoice error", e);
     alert("通話開始失敗: " + (e?.message || e));
   }
 }
 
 async function broadcastHello() {
   if (!callChannel) return;
-  // toを指定しないブロードキャスト（全員へ）
   await callChannel.send({
     type: "broadcast",
     event: "signal",
     payload: { from: myId, to: null, data: { kind: "hello" } }
   });
 }
-
 async function broadcastMute() {
   if (!callChannel) return;
   await callChannel.send({
@@ -720,9 +759,7 @@ async function toggleMute() {
     return;
   }
   micMuted = !micMuted;
-  for (const t of localStream.getAudioTracks()) {
-    t.enabled = !micMuted; // enabled=false でミュート
-  }
+  for (const t of localStream.getAudioTracks()) t.enabled = !micMuted;
   updateMuteBtn();
   await broadcastMute();
   renderPeopleFromState();
@@ -730,7 +767,6 @@ async function toggleMute() {
 
 /* 通話退出 */
 async function hangupAll() {
-  // 相手に通知（全員）
   if (callChannel) {
     try {
       await callChannel.send({
@@ -741,21 +777,18 @@ async function hangupAll() {
     } catch {}
   }
 
-  // 全Peer閉じる
-  const ids = Array.from(pcs.keys());
-  for (const pid of ids) {
+  for (const pid of Array.from(pcs.keys())) {
     await closePeer(pid);
   }
 
-  // 自分のマイク停止
   if (localStream) {
     try { localStream.getTracks().forEach(t => t.stop()); } catch {}
     localStream = null;
   }
+
   micMuted = false;
   updateMuteBtn();
 
-  // presenceから抜ける（通話から退出扱い）
   if (callChannel) {
     try { await callChannel.untrack(); } catch {}
     try { await sb.removeChannel(callChannel); } catch {}
@@ -775,6 +808,8 @@ async function hangupAll() {
   await startRealtime();
   updateMuteBtn();
   setCallState("未接続（入室してから使ってね）");
+  setButtonsState();
+  log("ready. myId=", myId);
 })();
 </script>
 </body>
