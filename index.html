@@ -290,11 +290,23 @@ function escapeHtml(s) {
 function myUid() { return authUser?.id || null; }
 
 /* =========================================================
+   ✅ ページを確実に「再読み込み相当」にする（reloadが効かない環境対策）
+   ========================================================= */
+function hardReloadSamePage() {
+  const url = new URL(location.href);
+  url.searchParams.set("_r", String(Date.now())); // キャッシュバスター
+  location.replace(url.toString());
+}
+
+/* =========================================================
    ✅ ログインページへの移動先（ここ重要）
    あなたの環境が /login ならこれでOK
    login.html なら "/login.html" に変えてね
    ========================================================= */
-function goLogin(){ location.href = "/login"; }
+function goLogin(){
+  // 戻るで戻れないようにする（ログアウト後の事故防止）
+  location.replace("/login");
+}
 
 /* =========================================================
    ✅ 未ログインなら loginへ
@@ -434,23 +446,30 @@ async function signOut() {
   setStatus("ログアウトしました");
   updateTopRightUser();
 
-  // ✅ ⑥ ページを再読み込み（起動時に未ログインなら login へ自動遷移）
-  location.reload();
+  // ✅ ⑥ ここが最重要：reloadじゃなく、loginへ確実遷移（結果として必ず更新される）
+  goLogin();
 }
 
-/* =================== 表示名保存（★保存後リロード） =================== */
+/* =================== 表示名保存（★保存後に確実更新） =================== */
 async function saveDisplayName() {
   if (!authUser) return alert("先にログインしてね！");
   const dn = document.getElementById("displayName").value.trim();
   if (!dn) return alert("表示名を入れてね！");
 
-  const { error } = await sb.auth.updateUser({ data: { display_name: dn } });
-  if (error) { showAuthError("表示名保存失敗", error); return; }
+  const btn = document.getElementById("saveNameBtn");
+  if (btn) btn.disabled = true;
 
-  alert("表示名保存OK！");
+  try {
+    const { error } = await sb.auth.updateUser({ data: { display_name: dn } });
+    if (error) { showAuthError("表示名保存失敗", error); return; }
 
-  // ✅ 追加：表示名保存後にページ再読み込み（全部確実に更新）
-  location.reload();
+    alert("表示名保存OK！");
+
+    // ✅ reloadが効かない環境対策：確実に「再読み込み相当」
+    hardReloadSamePage();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 /* =================== システムメッセ =================== */
@@ -1046,8 +1065,11 @@ async function initCallChannel() {
     callChannel.subscribe(async (status) => {
       log("callChannel status:", status);
       if (status === "SUBSCRIBED") {
-        try { await callChannel.track({ name }); setCallState("通話チャンネル接続OK（参加ボタンで通話開始）"); resolve(); }
-        catch (e) { reject(e); }
+        try {
+          await callChannel.track({ name });
+          setCallState("通話チャンネル接続OK（参加ボタンで通話開始）");
+          resolve();
+        } catch (e) { reject(e); }
       }
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") reject(new Error("Realtime subscribe failed: " + status));
     });
