@@ -517,7 +517,7 @@ async function deleteAccount(){
     setStatus("アカウント削除リクエスト中…", true);
 
     // ★ここはあなたのEdge Function名に合わせる
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/bright-service`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/super-function`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -1364,4 +1364,5 @@ window.addEventListener("freeze", () => safeCallLeave("freeze"));
 </script>
 </body>
 </html>
+
 
