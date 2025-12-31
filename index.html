@@ -900,6 +900,8 @@ async function send() {
 async function deleteRoom(roomName) {
   if (!authUser) return alert("先にログインしてね！");
   await refreshActiveCallRooms();
+
+  // ✅ 通話中ロック（あなたのままでOK）
   if (isRoomLocked(roomName)) {
     alert(activeCallRooms === null
       ? "通話状態の取得に失敗中のため、安全のため削除できません。"
@@ -909,6 +911,7 @@ async function deleteRoom(roomName) {
     return;
   }
 
+  // ✅ 自分がその部屋に入ってる状態で削除した場合は、先に退出処理
   if (room === roomName) {
     await sendSystem(`${name} が「${roomName}」を削除します`);
     await hangupAll();
@@ -918,11 +921,14 @@ async function deleteRoom(roomName) {
     setButtonsState();
   }
 
-  const r1 = await sb.from("messages").delete().eq("room_id", roomName);
-  if (r1.error) { log("delete messages error", r1.error); alert("メッセージ削除失敗: " + r1.error.message); return; }
-
+  // ✅ 重要：messages はフロントから消さない！
+  // DBの外部キー（ON DELETE CASCADE）が rooms 削除に連動して messages を自動削除する
   const r2 = await sb.from("rooms").delete().eq("room_name", roomName);
-  if (r2.error) { log("delete room error", r2.error); alert("部屋削除失敗: " + r2.error.message); return; }
+  if (r2.error) {
+    log("delete room error", r2.error);
+    alert("部屋削除失敗: " + r2.error.message);
+    return;
+  }
 
   alert(`部屋「${roomName}」を削除したよ！`);
   await loadRooms();
@@ -931,6 +937,7 @@ async function deleteRoom(roomName) {
 document.getElementById("msg").addEventListener("keydown", (e) => {
   if (e.key === "Enter") send();
 });
+
 
 /* =========================================================
    🎤 複数人通話（WebRTC Mesh）+ ミュート + 参加者一覧（Presence）
@@ -1389,5 +1396,6 @@ window.addEventListener("freeze", () => safeCallLeave("freeze"));
 
 </body>
 </html>
+
 
 
