@@ -517,14 +517,19 @@ async function deleteAccount(){
     setStatus("アカウント削除リクエスト中…", true);
 
     // ★ここはあなたのEdge Function名に合わせる
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/super-function`, {
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....";
+
+const res = await fetch(`${SUPABASE_URL}/functions/v1/super-function`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${accessToken}`
+    "Authorization": `Bearer ${accessToken}`,
+    "apikey": SUPABASE_KEY
   },
   body: JSON.stringify({ confirm: true })
 });
+
+
 
 
     const text = await res.text();
@@ -1364,5 +1369,6 @@ window.addEventListener("freeze", () => safeCallLeave("freeze"));
 </script>
 </body>
 </html>
+
 
 
