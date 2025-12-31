@@ -1369,12 +1369,14 @@ window.addEventListener("freeze", () => safeCallLeave("freeze"));
 
   log("ready. authUser=", authUser?.id || null);
 })();
-  <details style="margin-top:16px;">
+</script>
+
+<details style="margin-top:16px;">
   <summary>⚠️ 現在確認されている不具合・制限事項</summary>
   <div class="hint">
     <ul>
-      <li>部屋を立てた人以外が消そうとすると部屋は消えないが、中のチャットが消える不具合</li>
-      <li>電話をしている最中は、部屋を消せなくなってます【仕様】</li>
+      <li>部屋を立てた人以外が消そうとすると、部屋自体は消えないが中のチャットが消える不具合</li>
+      <li>通話中は部屋を消せないようになっています【仕様】</li>
     </ul>
     <div style="font-size:12px;color:#888;">
       ※ 現在修正対応中 / 身内利用前提
@@ -1382,7 +1384,10 @@ window.addEventListener("freeze", () => safeCallLeave("freeze"));
   </div>
 </details>
 
-</script>
 </body>
 </html>
+
+</body>
+</html>
+
 
