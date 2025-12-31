@@ -900,23 +900,41 @@ async function send() {
 async function deleteRoom(roomName) {
   if (!authUser) return alert("先にログインしてね！");
   await refreshActiveCallRooms();
+
   if (isRoomLocked(roomName)) {
-    alert(activeCallRooms === null
-      ? "通話状態の取得に失敗中のため、安全のため削除できません。"
-      : inCall
-      ? "あなたが通話中は部屋を削除できません。\n先に「通話退出」を押してね。"
-      : "この部屋は誰かが通話中なので削除できません。");
+    alert("この部屋は削除できません（通話中 or ロック中）");
     return;
   }
 
+  // ★ 部屋だけ削除する（messagesは触らない）
+  const res = await sb
+    .from("rooms")
+    .delete()
+    .eq("room_name", roomName)
+    .select("room_name"); // ← 超重要
+
+  if (res.error) {
+    alert("部屋削除失敗: " + res.error.message);
+    return;
+  }
+
+  // ★ RLSで消せなかった場合（0件）
+  if (!res.data || res.data.length === 0) {
+    alert("部屋を削除できませんでした（権限なし）");
+    return;
+  }
+
+  // 自分が入ってた部屋なら後処理
   if (room === roomName) {
-    await sendSystem(`${name} が「${roomName}」を削除します`);
     await hangupAll();
     room = "";
     document.getElementById("chat").innerHTML = "";
-    setStatus("部屋から退出しました（削除処理中…）");
-    setButtonsState();
   }
+
+  alert(`部屋「${roomName}」を削除したよ！`);
+  await loadRooms();
+}
+
 
   const r1 = await sb.from("messages").delete().eq("room_id", roomName);
   if (r1.error) { log("delete messages error", r1.error); alert("メッセージ削除失敗: " + r1.error.message); return; }
@@ -1372,3 +1390,4 @@ window.addEventListener("freeze", () => safeCallLeave("freeze"));
 </script>
 </body>
 </html>
+
