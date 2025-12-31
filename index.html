@@ -264,8 +264,9 @@
 
 <script>
 /* =================== Supabase 設定 =================== */
+/* ✅ ここは anon key を入れる（Service Role はフロントに絶対置かない） */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM"; // ←あなたの anon key（今貼ってるやつ）をここへ
 
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
@@ -487,13 +488,20 @@ async function saveDisplayName() {
   }
 }
 
-/* =================== アカウント削除（※あなたのFunction名に合わせてね） =================== */
+/* =================== アカウント削除（Edge Function: super-function） =================== */
+/*
+  ✅ 超重要ポイント
+  - フロントは anon key を使う（SUPABASE_KEY）
+  - Service Role Key は Edge Function の「環境変数」に置く（SUPABASE_SERVICE_ROLE_KEY）
+  - 削除後は signOut が 403 になる事があるので、失敗しても握りつぶして local を掃除する
+*/
 async function deleteAccount(){
   if (!authUser) return alert("先にログインしてね！");
   if (inCall) {
     alert("通話中は削除できないようにしてます。\n先に「通話退出」を押してね。");
     return;
   }
+
   const ok1 = confirm("本当にアカウントを削除しますか？\nこの操作は取り消せません。");
   if (!ok1) return;
 
@@ -507,7 +515,9 @@ async function deleteAccount(){
   if (btn) btn.disabled = true;
 
   try {
-    const { data: sessData } = await sb.auth.getSession();
+    const { data: sessData, error: sessErr } = await sb.auth.getSession();
+    if (sessErr) log("getSession error(deleteAccount)", sessErr);
+
     const accessToken = sessData?.session?.access_token;
     if (!accessToken) {
       alert("セッションが取れませんでした。いったんログインし直してね。");
@@ -516,24 +526,18 @@ async function deleteAccount(){
 
     setStatus("アカウント削除リクエスト中…", true);
 
-    // ★ここはあなたのEdge Function名に合わせる
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....";
-
-const res = await fetch(`${SUPABASE_URL}/functions/v1/super-function`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${accessToken}`,
-    "apikey": SUPABASE_KEY
-  },
-  body: JSON.stringify({ confirm: true })
-});
-
-
-
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/super-function`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+        "apikey": SUPABASE_KEY
+      },
+      body: JSON.stringify({ confirm: true })
+    });
 
     const text = await res.text();
-    log("delete-me response", res.status, text);
+    log("super-function response", res.status, text);
 
     if (!res.ok) {
       alert("削除失敗: " + res.status + "\n" + text);
@@ -543,17 +547,25 @@ const res = await fetch(`${SUPABASE_URL}/functions/v1/super-function`, {
 
     alert("アカウントを削除しました。ログイン画面に戻ります。");
 
-    try { await sb.auth.signOut({ scope: "local" }); } catch {}
-    clearSupabaseLocalSession();
-    authUser = null;
-    updateTopRightUser();
-    location.replace("/login?_r=" + Date.now());
   } catch (e) {
     log("deleteAccount exception", e);
     alert("削除中にエラー: " + (e?.message || e));
     setStatus("削除中にエラー", false);
+
   } finally {
+    // ✅ 削除後は signOut が 403 でもOK（無視）
+    try { await sb.auth.signOut({ scope: "local" }); } catch (e) { log("signOut after delete (ignore)", e); }
+
+    // ✅ ローカル掃除で「確実に未ログイン」にする
+    clearSupabaseLocalSession();
+
+    authUser = null;
+    updateTopRightUser();
+
     if (btn) btn.disabled = false;
+
+    // ✅ 最後にログインへ
+    location.replace("/login?_r=" + Date.now());
   }
 }
 
@@ -922,7 +934,6 @@ document.getElementById("msg").addEventListener("keydown", (e) => {
 
 /* =========================================================
    🎤 複数人通話（WebRTC Mesh）+ ミュート + 参加者一覧（Presence）
-   強化版：audio.play(), ICEログ, join時にhello, channel名サニタイズ
    ========================================================= */
 let callChannel = null;
 let localStream = null;
@@ -1027,7 +1038,6 @@ function shouldOfferTo(peerId) { return String(myUid()) < String(peerId); }
 /* ✅ Channel名が壊れないようにサニタイズ（spaceや記号対策） */
 function safeChannelName(roomName){
   const s = String(roomName || "").trim();
-  // supabase realtimeはchannel名に色々入ると事故るので英数_-
   const normalized = s
     .normalize("NFKC")
     .replace(/\s+/g, "_")
@@ -1047,8 +1057,6 @@ function makePeerConnection(peerId) {
   const pc = new RTCPeerConnection({
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" }
-      // ★TURNを入れるならここに追加する
-      // { urls:"turn:YOUR_TURN_HOST:3478", username:"u", credential:"p" }
     ]
   });
 
@@ -1070,8 +1078,6 @@ function makePeerConnection(peerId) {
       audios.set(peerId, audio);
     }
     audio.srcObject = ev.streams[0];
-
-    // ✅ autoplayブロック対策：失敗したらログに出す
     const p = audio.play();
     if (p && p.catch) p.catch(err => log("audio.play blocked", peerId, err));
   };
@@ -1129,7 +1135,6 @@ async function initCallChannel() {
     people.set(key, { name: meta.name || key });
     log("presence join", key, meta);
 
-    // ✅ 参加した人が来たら、こちらからもhello投げて接続開始を促進
     if (inCall && key !== myUid()) {
       await ensurePC(key);
       await sendSignal(key, { kind: "hello" });
@@ -1257,13 +1262,11 @@ async function startVoice() {
 
     await new Promise(r => setTimeout(r, 200));
 
-    // ✅ 既に居る人に先にPC用意
     const state = callChannel.presenceState();
     const keys = Object.keys(state).filter(k => k !== myUid());
     log("startVoice presence keys=", keys);
     for (const pid of keys) await ensurePC(pid);
 
-    // ✅ 全員にhello
     await broadcastHello();
     await broadcastMute();
 
@@ -1369,6 +1372,3 @@ window.addEventListener("freeze", () => safeCallLeave("freeze"));
 </script>
 </body>
 </html>
-
-
-
