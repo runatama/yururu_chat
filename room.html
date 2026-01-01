@@ -1,0 +1,671 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ゆるるチャット - Room</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 12px;
+        }
+
+        input {
+            width: 260px;
+            padding: 6px;
+            margin: 4px 0;
+        }
+
+        button {
+            padding: 6px 10px;
+            margin: 4px 2px;
+            cursor: pointer;
+        }
+
+            button:disabled {
+                opacity: .5;
+                cursor: not-allowed;
+            }
+
+        .card {
+            border: 1px solid #ccc;
+            background: #fafafa;
+            padding: 10px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .userBox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            border: 1px solid #ddd;
+            background: #fafafa;
+            padding: 6px 10px;
+            border-radius: 999px;
+        }
+
+        .userPill {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid #ddd;
+            background: #fff;
+        }
+
+        .userText {
+            font-size: 12px;
+            color: #333;
+            max-width: 44vw;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #status {
+            font-size: 12px;
+            color: #666;
+            margin-top: 6px;
+        }
+
+        .ok {
+            color: #0a7;
+        }
+
+        .ng {
+            color: #c33;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 12px;
+            align-items: start;
+        }
+
+        @media (max-width: 900px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        #chat {
+            border: 1px solid #ccc;
+            height: 360px;
+            overflow: auto;
+            padding: 8px;
+            background: #fff;
+        }
+
+        #log {
+            white-space: pre-wrap;
+            font-family: ui-monospace, Menlo, monospace;
+            font-size: 12px;
+            border: 1px solid #ddd;
+            background: #fff;
+            padding: 8px;
+            border-radius: 10px;
+            max-height: 200px;
+            overflow: auto;
+        }
+
+        #peopleList .pRow {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 6px;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            background: #fff;
+            margin: 6px 0;
+        }
+
+        .pill {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid #ddd;
+            background: #fafafa;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <h2 style="margin:0;">ゆるるチャット - ルーム</h2>
+        <div class="userBox">
+            <span class="userPill" id="userNamePill">未ログイン</span>
+            <span class="userText" id="userMailText"></span>
+            <button onclick="goLobby()">ロビーへ</button>
+            <button onclick="signOut()" id="signOutBtn">ログアウト</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <b>🏠 現在の部屋</b>
+        <div style="margin-top:6px;">
+            <input id="roomNameView" disabled />
+            <button onclick="leaveRoom()">退室</button>
+        </div>
+        <div id="status"></div>
+    </div>
+
+    <div class="layout">
+        <div>
+            <div class="card">
+                <b>🎤 音声通話（複数人）</b><br />
+                <button onclick="startVoice()" id="startVoiceBtn">通話に参加（開始）</button>
+                <button onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
+                <button onclick="hangupAll()" id="hangupBtn">通話退出</button>
+                <div id="callState" style="font-size:12px; margin-top:6px;">未接続</div>
+                <div id="audios" style="margin-top:8px;"></div>
+            </div>
+
+            <div class="card">
+                <b>👥 参加者（通話）</b>
+                <div id="peopleList"></div>
+            </div>
+
+            <details>
+                <summary>🔧 デバッグログ</summary>
+                <div id="log"></div>
+            </details>
+        </div>
+
+        <div>
+            <div id="chat"></div>
+            <div style="margin-top:8px;">
+                <input id="msg" placeholder="メッセージ" />
+                <button onclick="sendMsg()">送信</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+/* =================== Supabase 設定 ===================
+   index(6).html / login.html と同じものを入れてね :contentReference[oaicite:10]{index=10} */
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_KEY = "YOUR_ANON_KEY";
+
+const sb = supabase.createClient(
+  SUPABASE_URL.trim(),
+  (SUPABASE_KEY || "").replace(/\s+/g, "")
+);
+
+/* ===== 状態 ===== */
+let authUser = null;
+let room = "";
+let name = "";
+
+const SYSTEM_NAME = "__system__";
+let messagesChannel = null;
+
+/* ===== 通話 ===== */
+let callChannel = null;
+let localStream = null;
+let micMuted = false;
+
+const pcs = new Map();        // peerId -> RTCPeerConnection
+const mutedMap = new Map();   // peerId -> muted(boolean)
+let heartbeatTimer = null;
+const CALL_ALIVE_SEC = 30;
+
+/* ===== util ===== */
+function log(...args){
+  const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
+  console.log("[room]", ...args);
+  const el = document.getElementById("log");
+  if (!el) return;
+  el.textContent += s + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
+window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
+
+function setStatus(text, ok=true){
+  const el = document.getElementById("status");
+  el.innerHTML = `<span class="${ok?'ok':'ng'}">${text}</span>`;
+}
+function setCallState(t){ document.getElementById("callState").textContent = t; }
+
+function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
+function goLobby(){ location.replace("./lobby.html?_r=" + Date.now()); }
+function leaveRoom(){ hangupAll().finally(()=>goLobby()); }
+
+function updateTopRightUser(){
+  const pill = document.getElementById("userNamePill");
+  const mail = document.getElementById("userMailText");
+  if (!authUser){
+    pill.textContent = "未ログイン";
+    mail.textContent = "";
+    return;
+  }
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  const shown = dn || (authUser.email || "user").split("@")[0];
+  pill.textContent = shown;
+  mail.textContent = authUser.email || "";
+}
+
+function myUid(){ return authUser?.id || null; }
+
+/* ===== 起動・ログイン必須 ===== */
+async function requireLoginOrRedirect(){
+  const { data, error } = await sb.auth.getSession();
+  if (error) log("getSession error", error);
+  authUser = data?.session?.user || null;
+  updateTopRightUser();
+  if (!authUser){ goLogin(); return false; }
+  return true;
+}
+
+async function signOut(){
+  try { await hangupAll(); } catch {}
+  try { await sb.auth.signOut({ scope:"local" }); } catch (e) { log("signOut", e); }
+  authUser = null;
+  updateTopRightUser();
+  goLogin();
+}
+
+function readRoomFromUrl(){
+  const u = new URL(location.href);
+  room = (u.searchParams.get("room") || "").trim();
+  if (!room) return false;
+  document.getElementById("roomNameView").value = room;
+  return true;
+}
+
+async function reloadName(){
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  name = dn || (authUser.email || "user").split("@")[0];
+}
+
+/* =========================================================
+   チャット（messages）
+   - index(6).html と同じく messages の changes を監視する :contentReference[oaicite:11]{index=11}
+   ========================================================= */
+async function startMessagesRealtime(){
+  if (messagesChannel) return;
+
+  messagesChannel = sb
+    .channel("messages-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"messages" }, async (payload)=>{
+      const newRow = payload.new || {};
+      const oldRow = payload.old || {};
+      const rid = newRow.room_id || oldRow.room_id;
+      if (rid === room) await loadMessages();
+    })
+    .subscribe();
+}
+
+async function loadMessages(){
+  const { data, error } = await sb
+    .from("messages")
+    .select("id, room_id, name, body, created_at")
+    .eq("room_id", room)
+    .order("created_at", { ascending:true })
+    .limit(200);
+
+  if (error){ log("loadMessages error", error); return; }
+
+  const box = document.getElementById("chat");
+  box.innerHTML = "";
+  (data || []).forEach(m=>{
+    const line = document.createElement("div");
+    const n = m.name || "";
+    const b = m.body || "";
+    if (n === SYSTEM_NAME){
+      line.style.color = "#666";
+      line.style.fontSize = "12px";
+      line.textContent = b;
+    } else {
+      line.textContent = `${n}: ${b}`;
+    }
+    box.appendChild(line);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendMsg(){
+  const v = document.getElementById("msg").value.trim();
+  if (!v) return;
+  document.getElementById("msg").value = "";
+  const { error } = await sb.from("messages").insert({ room_id: room, name, body: v });
+  if (error){ alert("送信失敗: " + error.message); }
+}
+
+/* =========================================================
+   通話（Realtime presence + broadcast signal）
+   - あなたの index(6).html の startVoice() 方式を採用 :contentReference[oaicite:12]{index=12}
+   ========================================================= */
+function updateMuteBtn(){
+  document.getElementById("muteBtn").textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
+}
+
+function renderPeopleFromState(){
+  if (!callChannel) {
+    document.getElementById("peopleList").innerHTML = "<div style='color:#666;font-size:12px;'>未接続</div>";
+    return;
+  }
+  const state = callChannel.presenceState();
+  const list = [];
+
+  for (const pid of Object.keys(state)){
+    const metas = state[pid] || [];
+    const meta = metas[0] || {};
+    const nm = meta?.name || pid;
+    const muted = mutedMap.get(pid) || false;
+    list.push({ pid, name: nm, muted });
+  }
+
+  list.sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+
+  const box = document.getElementById("peopleList");
+  box.innerHTML = "";
+  list.forEach(p=>{
+    const row = document.createElement("div");
+    row.className = "pRow";
+    row.innerHTML = `<div>${p.name}</div><div class="pill">${p.muted ? "🔇 mute" : "🎤 on"}</div>`;
+    box.appendChild(row);
+  });
+}
+
+async function initCallChannel(){
+  if (callChannel) return;
+
+  callChannel = sb.channel("call-" + room, {
+    config: { presence: { key: myUid() } }
+  });
+
+  callChannel
+    .on("presence", { event:"sync" }, ()=>{ renderPeopleFromState(); })
+    .on("presence", { event:"join" }, ({ key })=>{ log("presence join", key); renderPeopleFromState(); })
+    .on("presence", { event:"leave" }, ({ key })=>{
+      log("presence leave", key);
+      closePC(key);
+      mutedMap.delete(key);
+      renderPeopleFromState();
+    })
+    .on("broadcast", { event:"signal" }, async ({ payload })=>{
+      const { from, to, data } = payload || {};
+      if (!from) return;
+      if (to && to !== myUid()) return;
+
+      try {
+        if (data?.kind === "hello") {
+          await ensurePC(from);
+          await maybeMakeOffer(from);
+          return;
+        }
+        if (data?.kind === "mute") {
+          mutedMap.set(from, !!data.muted);
+          renderPeopleFromState();
+          return;
+        }
+        if (data?.kind === "sdp") {
+          await ensurePC(from);
+          const pc = pcs.get(from);
+          await pc.setRemoteDescription(data.sdp);
+          if (data.sdp.type === "offer") {
+            const ans = await pc.createAnswer();
+            await pc.setLocalDescription(ans);
+            await sendSignal(from, { kind:"sdp", sdp: pc.localDescription });
+          }
+          return;
+        }
+        if (data?.kind === "ice") {
+          const pc = pcs.get(from);
+          if (!pc) return;
+          await pc.addIceCandidate(data.candidate);
+          return;
+        }
+      } catch (e) {
+        log("signal error", from, e);
+      }
+    });
+
+  await new Promise((resolve, reject)=>{
+    callChannel.subscribe(async (status)=>{
+      log("callChannel status", status);
+      if (status === "SUBSCRIBED") {
+        try {
+          await callChannel.track({ name });
+          setCallState("通話チャンネル接続OK（参加ボタンで通話開始）");
+          resolve();
+        } catch (e) { reject(e); }
+      }
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        reject(new Error("Realtime subscribe failed: " + status));
+      }
+    });
+  });
+}
+
+async function sendSignal(peerId, data){
+  if (!callChannel) return;
+  await callChannel.send({ type:"broadcast", event:"signal", payload:{ from: myUid(), to: peerId, data } });
+}
+async function broadcastHello(){
+  if (!callChannel) return;
+  await callChannel.send({ type:"broadcast", event:"signal", payload:{ from: myUid(), to: null, data:{ kind:"hello" } } });
+}
+async function broadcastMute(){
+  if (!callChannel) return;
+  await callChannel.send({ type:"broadcast", event:"signal", payload:{ from: myUid(), to: null, data:{ kind:"mute", muted: micMuted } } });
+}
+
+function ensureAudioEl(peerId){
+  const id = "audio-" + peerId;
+  let el = document.getElementById(id);
+  if (el) return el;
+  el = document.createElement("audio");
+  el.id = id;
+  el.autoplay = true;
+  el.controls = true;
+  el.style.display = "block";
+  el.style.width = "100%";
+  document.getElementById("audios").appendChild(el);
+  return el;
+}
+
+async function ensurePC(peerId){
+  if (peerId === myUid()) return;
+  if (pcs.has(peerId)) return;
+
+  const pc = new RTCPeerConnection({
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+  });
+
+  pcs.set(peerId, pc);
+
+  pc.onicecandidate = async (ev)=>{
+    if (ev.candidate) await sendSignal(peerId, { kind:"ice", candidate: ev.candidate });
+  };
+
+  pc.onconnectionstatechange = ()=>{
+    log("pc state", peerId, pc.connectionState);
+  };
+  pc.oniceconnectionstatechange = ()=>{
+    log("ice state", peerId, pc.iceConnectionState);
+  };
+
+  pc.ontrack = (ev)=>{
+    const el = ensureAudioEl(peerId);
+    el.srcObject = ev.streams[0];
+  };
+
+  // 自分の音声トラックを相手へ
+  if (localStream){
+    for (const t of localStream.getTracks()){
+      pc.addTrack(t, localStream);
+    }
+  }
+
+  return pc;
+}
+
+async function maybeMakeOffer(peerId){
+  const pc = pcs.get(peerId);
+  if (!pc) return;
+  if (pc.signalingState !== "stable") return;
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await sendSignal(peerId, { kind:"sdp", sdp: pc.localDescription });
+}
+
+function closePC(peerId){
+  const pc = pcs.get(peerId);
+  if (!pc) return;
+  try { pc.close(); } catch {}
+  pcs.delete(peerId);
+
+  const el = document.getElementById("audio-" + peerId);
+  if (el) el.remove();
+}
+
+async function upsertCallParticipant(){
+  // index(6).html と同じ思想：call_participants に居る=通話中（alive判定に使う） :contentReference[oaicite:13]{index=13}
+  // テーブル定義例: room_id(text), user_id(uuid), name(text), muted(bool), updated_at(timestamptz)
+  const { error } = await sb.from("call_participants").upsert({
+    room_id: room,
+    user_id: myUid(),
+    name,
+    muted: micMuted,
+    updated_at: new Date().toISOString()
+  }, { onConflict: "room_id,user_id" });
+  if (error) log("upsertCallParticipant error", error);
+}
+
+function startHeartbeat(){
+  stopHeartbeat();
+  heartbeatTimer = setInterval(async ()=>{
+    await upsertCallParticipant();
+  }, Math.max(5000, (CALL_ALIVE_SEC * 1000) / 3));
+}
+function stopHeartbeat(){
+  if (heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
+}
+
+async function startVoice(){
+  if (!authUser) return alert("先にログインしてね！");
+  if (!room || !name) return alert("部屋が変です（URL確認）");
+
+  try {
+    await initCallChannel();
+
+    if (!localStream){
+      localStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
+      micMuted = false;
+      for (const t of localStream.getAudioTracks()) t.enabled = true;
+      updateMuteBtn();
+      log("mic ok");
+    }
+
+    // すでに作ってあるPCへもトラックを追加（遅延参加対策）
+    for (const [pid, pc] of pcs){
+      if (!pc) continue;
+      const senders = pc.getSenders().filter(s=>s.track && s.track.kind==="audio");
+      if (senders.length === 0){
+        for (const t of localStream.getTracks()) pc.addTrack(t, localStream);
+      }
+    }
+
+    await upsertCallParticipant();
+    startHeartbeat();
+
+    // presenceに居る全員へ接続準備
+    const state = callChannel.presenceState();
+    const peers = Object.keys(state).filter(k => k !== myUid());
+    log("startVoice peers", peers);
+
+    for (const pid of peers) await ensurePC(pid);
+
+    await broadcastHello();
+    await broadcastMute();
+
+    setCallState("通話参加中（接続開始…）");
+    renderPeopleFromState();
+
+  } catch (e) {
+    log("startVoice error", e);
+    alert("通話開始失敗: " + (e?.message || e));
+  }
+}
+
+async function toggleMute(){
+  if (!localStream) return alert("先に『通話に参加（開始）』を押してね！");
+  micMuted = !micMuted;
+  for (const t of localStream.getAudioTracks()) t.enabled = !micMuted;
+  updateMuteBtn();
+
+  await upsertCallParticipant();
+  await broadcastMute();
+  renderPeopleFromState();
+}
+
+async function hangupAll(){
+  stopHeartbeat();
+
+  // call_participants から削除（通話中フラグを消す）
+  if (authUser && room){
+    try { await sb.from("call_participants").delete().eq("room_id", room).eq("user_id", myUid()); } catch {}
+  }
+
+  // PC全閉じ
+  for (const pid of Array.from(pcs.keys())) closePC(pid);
+
+  // マイク停止
+  if (localStream){
+    try { localStream.getTracks().forEach(t=>t.stop()); } catch {}
+    localStream = null;
+  }
+
+  mutedMap.clear();
+  micMuted = false;
+  updateMuteBtn();
+
+  // presence離脱
+  if (callChannel){
+    try { await callChannel.untrack(); } catch {}
+    try { await callChannel.unsubscribe(); } catch {}
+    callChannel = null;
+  }
+
+  setCallState("未接続");
+  renderPeopleFromState();
+}
+
+/* ===== 起動 ===== */
+(async ()=>{
+  if (!(await requireLoginOrRedirect())) return;
+  if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
+  await reloadName();
+
+  await startMessagesRealtime();
+  await loadMessages();
+
+  // 通話はボタンを押すまで開始しない（あなたの方式と同じ） :contentReference[oaicite:14]{index=14}
+  setCallState("未接続（必要なら『通話に参加』を押してね）");
+  renderPeopleFromState();
+
+  sb.auth.onAuthStateChange(async ()=>{
+    if (!(await requireLoginOrRedirect())) return;
+    await reloadName();
+  });
+
+  log("ready room=", room);
+})();
+    </script>
+</body>
+</html>
