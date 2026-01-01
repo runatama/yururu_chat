@@ -95,7 +95,7 @@
 
     <hr style="margin:12px 0;" />
 
-    <!-- ★ Googleログイン追加 -->
+    <!-- ★ Googleログイン -->
     <button onclick="signInWithGoogle()">
       🔵 Googleでログイン
     </button>
@@ -128,17 +128,19 @@
     <div class="hint" id="status">未ログイン</div>
 
     <details>
-      <summary>🔧 デバッグログ</summary>
+      <summary>🔧 デバッグログ（困ったらここをコピペして送って）</summary>
       <div id="log"></div>
     </details>
   </div>
 
-  <!-- 表示名 -->
+  <!-- 表示名（ログイン後だけ） -->
   <div class="card" id="nameCard" style="display:none;">
-    <b>🪪 表示名</b>
-    <div class="row">
-      <input id="displayName" placeholder="表示名（例: ゆるたま）" />
-      <button onclick="saveDisplayName()">保存</button>
+    <b>🪪 表示名（チャット名）</b>
+    <div class="hint">ここで設定した表示名が、メインページ右上に出るよ</div>
+
+    <div class="row" style="margin-top:8px;">
+      <input id="displayName" placeholder="表示名（例: ゆるたま）" autocomplete="nickname" />
+      <button onclick="saveDisplayName()" id="saveNameBtn">表示名保存</button>
       <button onclick="gotoMain()">メインへ</button>
     </div>
 
@@ -150,18 +152,146 @@
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(
+  SUPABASE_URL.trim(),
+  (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
+  {
+    auth: {
+      flowType: "pkce",
+      detectSessionInUrl: true,
+      autoRefreshToken: true,
+      persistSession: true
+    }
+  }
+);
 
 /* =================== 状態 =================== */
 let authUser = null;
-let mode = null;
+let mode = null; // 'signin' | 'signup' | null
 
 /* =================== ログ =================== */
 function log(...args){
+  const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
+  console.log("[login]", ...args);
   const el = document.getElementById("log");
-  const s = args.join(" ");
-  console.log("[login]", s);
-  if(el){ el.textContent += s + "\n"; }
+  if (el) {
+    el.textContent += s + "\n";
+    el.scrollTop = el.scrollHeight;
+  }
+}
+window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
+window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
+
+function setStatus(text, ok = true) {
+  const el = document.getElementById("status");
+  el.className = "hint " + (ok ? "ok" : "ng");
+  el.textContent = text;
+}
+
+function showAuthError(prefix, error) {
+  if (!error) return;
+  log(prefix, error);
+  const full =
+    (error.message || "") +
+    (error.status ? ` (status:${error.status})` : "") +
+    (error.code ? ` (code:${error.code})` : "");
+  alert(prefix + ": " + full);
+  setStatus(prefix + ": " + full, false);
+}
+
+/* =================== 便利：今のページURL（パラメータ無し） =================== */
+function currentPageUrlNoParams(){
+  const u = new URL(location.href);
+  u.search = "";
+  u.hash = "";
+  return u.toString();
+}
+
+/* =================== UI：モード切替 =================== */
+function setMode(next){
+  mode = next;
+
+  document.getElementById("btnModeSignIn").classList.toggle("active", mode === "signin");
+  document.getElementById("btnModeSignUp").classList.toggle("active", mode === "signup");
+
+  const formCard = document.getElementById("formCard");
+  formCard.style.display = "block";
+
+  const title = document.getElementById("formTitle");
+  const hint = document.getElementById("formHint");
+  const primaryBtn = document.getElementById("primaryBtn");
+
+  if (mode === "signin") {
+    title.textContent = "🔐 ログイン";
+    hint.textContent = "ログインに成功したらメインページへ移動するよ";
+    primaryBtn.textContent = "ログイン";
+    document.getElementById("pass").placeholder = "パスワード";
+    document.getElementById("pass").autocomplete = "current-password";
+  } else {
+    title.textContent = "🆕 新規登録";
+    hint.textContent = "新規登録 →（必要なら）メール確認 → ログイン、の流れだよ";
+    primaryBtn.textContent = "新規登録";
+    document.getElementById("pass").placeholder = "パスワード（6文字以上 / 推奨8以上）";
+    document.getElementById("pass").autocomplete = "new-password";
+  }
+
+  document.getElementById("email").focus();
+}
+
+function resetMode(){
+  mode = null;
+  document.getElementById("btnModeSignIn").classList.remove("active");
+  document.getElementById("btnModeSignUp").classList.remove("active");
+  document.getElementById("formCard").style.display = "none";
+}
+
+/* =================== メインへ =================== */
+function gotoMain() {
+  const u = new URL("./lobby.html", location.href);
+  u.searchParams.set("_r", String(Date.now()));
+  setTimeout(() => location.replace(u.toString()), 300);
+}
+
+/* =================== セッション表示 =================== */
+function setAuthPill(){
+  const pill = document.getElementById("authPill");
+  if (!authUser) {
+    pill.textContent = "未ログイン";
+    return;
+  }
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  pill.textContent = dn ? `ログイン中: ${dn}` : `ログイン中: ${authUser.email}`;
+}
+
+function setAuthStateText() {
+  const el = document.getElementById("authState");
+  if (!authUser) { el.textContent = "未ログイン"; return; }
+  const dn = (authUser.user_metadata && authUser.user_metadata.display_name) || "";
+  el.textContent = `ログイン中: ${authUser.email}${dn ? " / 表示名: " + dn : ""}`;
+}
+
+function setLoggedInUI(){
+  const loggedIn = !!authUser;
+  document.getElementById("signOutBtn").disabled = !loggedIn;
+
+  document.getElementById("nameCard").style.display = loggedIn ? "block" : "none";
+  if (loggedIn) {
+    document.getElementById("displayName").value = (authUser?.user_metadata?.display_name || "");
+  }
+  setAuthPill();
+  setAuthStateText();
+}
+
+/* =================== 起動/セッション取得 =================== */
+async function reloadSession() {
+  const { data, error } = await sb.auth.getSession();
+  if (error) log("getSession error", error);
+
+  authUser = data?.session?.user || null;
+  setLoggedInUI();
+
+  if (authUser) setStatus("ログイン中：メインへ行けます", true);
+  else setStatus("未ログイン：まずモードを選んでね", true);
 }
 
 /* =================== Googleログイン =================== */
@@ -169,76 +299,126 @@ async function signInWithGoogle(){
   const { error } = await sb.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: location.origin + "/login.html"
+      // ★ /login でも /login.html でもOK：今いるページへ戻す
+      redirectTo: currentPageUrlNoParams()
     }
   });
-  if(error){
-    alert("Googleログイン失敗: " + error.message);
-    log(error);
+  if (error) showAuthError("Googleログイン失敗", error);
+}
+
+/* =================== ボタン：ログイン/新規登録（共通） =================== */
+async function doPrimary(){
+  if (mode === "signin") return await signIn();
+  if (mode === "signup") return await signUp();
+  alert("まず「ログイン」か「新規登録」を選んでね！");
+}
+
+/* =================== Auth操作 =================== */
+async function signUp() {
+  const email = document.getElementById("email").value.trim();
+  const pass = document.getElementById("pass").value;
+
+  if (!email || !pass) return alert("メールとパスワード入れてね！");
+  if (pass.length < 6) return alert("パスワード短すぎ！6文字以上にしてね（推奨8文字以上）");
+
+  const { data, error } = await sb.auth.signUp({
+    email,
+    password: pass,
+    options: {
+      // ★ /login でも /login.html でもOK
+      emailRedirectTo: currentPageUrlNoParams()
+    }
+  });
+
+  if (error) { showAuthError("新規登録失敗", error); return; }
+
+  log("signUp data", data);
+  alert("新規登録OK！メール確認が必要なら、メールを確認してからログインしてね！");
+  await reloadSession();
+
+  if (!authUser) {
+    setMode("signin");
+    setStatus("メール確認が必要なら先に確認 → その後ログインしてね", true);
   }
 }
 
-/* =================== UI =================== */
-function setMode(next){
-  mode = next;
-  document.getElementById("formCard").style.display = "block";
-}
-function resetMode(){
-  mode = null;
-  document.getElementById("formCard").style.display = "none";
-}
+async function signIn() {
+  const email = document.getElementById("email").value.trim();
+  const pass = document.getElementById("pass").value;
 
-/* =================== Auth =================== */
-async function doPrimary(){
-  if(mode === "signin") return signIn();
-  if(mode === "signup") return signUp();
-}
+  if (!email || !pass) return alert("メールとパスワード入れてね！");
 
-async function signUp(){
-  const email = emailEl();
-  const pass = passEl();
-  const { error } = await sb.auth.signUp({ email, password: pass });
-  if(error) alert(error.message);
-}
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showAuthError("ログイン失敗", error); return; }
 
-async function signIn(){
-  const email = emailEl();
-  const pass = passEl();
-  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-  if(error) return alert(error.message);
+  log("signIn data", data);
+  alert("ログインOK！メインへ移動するよ！");
+  await reloadSession();
   gotoMain();
 }
 
-async function signOut(){
-  await sb.auth.signOut();
-  location.reload();
+async function signOut() {
+  const { error } = await sb.auth.signOut({ scope: "local" });
+  if (error) log("signOut error", error);
+  authUser = null;
+  setLoggedInUI();
+  setStatus("ログアウトしました", true);
 }
 
-async function saveDisplayName(){
+/* =================== 表示名保存 =================== */
+async function saveDisplayName() {
+  if (!authUser) return alert("先にログインしてね！");
   const dn = document.getElementById("displayName").value.trim();
-  if(!dn) return;
-  await sb.auth.updateUser({ data:{ display_name: dn } });
-  gotoMain();
+  if (!dn) return alert("表示名を入れてね！");
+
+  const btn = document.getElementById("saveNameBtn");
+  if (btn) btn.disabled = true;
+
+  try {
+    const { error } = await sb.auth.updateUser({ data: { display_name: dn } });
+    if (error) { showAuthError("表示名保存失敗", error); return; }
+
+    alert("表示名保存OK！");
+    await reloadSession();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
-/* =================== セッション =================== */
-async function reloadSession(){
-  const { data } = await sb.auth.getSession();
-  authUser = data?.session?.user || null;
-}
+/* =================== 起動時：OAuth戻りを確定させる（ここが重要） =================== */
+(async () => {
+  // 1) まずURLにcode/access_tokenが付いてたら、セッション確定（ここが無いと不安定）
+  try {
+    const url = new URL(location.href);
+    const hasAuthParams =
+      url.searchParams.has("code") ||
+      url.searchParams.has("type") ||
+      url.searchParams.has("access_token") ||
+      url.searchParams.has("refresh_token") ||
+      (location.hash && (location.hash.includes("access_token=") || location.hash.includes("refresh_token=")));
 
-/* =================== 移動 =================== */
-function gotoMain(){
-  location.replace("./lobby.html");
-}
+    if (hasAuthParams) {
+      const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
+      if (error) log("getSessionFromUrl error", error);
+      if (data?.session?.user) {
+        log("OAuth session OK", data.session.user.email);
+      }
+      // URLを綺麗にする（パラメータ残りで挙動が変になるのを防ぐ）
+      history.replaceState({}, document.title, currentPageUrlNoParams());
+    }
+  } catch (e) {
+    log("init exception", e);
+  }
 
-/* =================== util =================== */
-const emailEl = ()=>document.getElementById("email").value.trim();
-const passEl  = ()=>document.getElementById("pass").value;
+  // 2) 普通にセッション読み込み
+  await reloadSession();
 
-/* =================== 起動 =================== */
-reloadSession();
+  // 3) ログイン状態になったら自動でlobbyへ
+  sb.auth.onAuthStateChange(async () => {
+    await reloadSession();
+    if (authUser) gotoMain();
+  });
+})();
 </script>
 </body>
 </html>
-
