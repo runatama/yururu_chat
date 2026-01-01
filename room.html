@@ -36,6 +36,12 @@
       padding:6px; border:1px solid #eee; border-radius:10px; background:#fff; margin:6px 0;
     }
     .pill { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; background:#fafafa; }
+
+    #callUsersList .uRow{
+      display:flex; justify-content:space-between; gap:8px;
+      padding:6px; border:1px solid #eee; border-radius:10px; background:#fff; margin:6px 0;
+    }
+    .mutedPill{ font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; background:#fafafa; }
   </style>
 </head>
 <body>
@@ -71,8 +77,13 @@
       </div>
 
       <div class="card">
-        <b>👥 参加者（通話）</b>
+        <b>👥 参加者（通話：チャンネル接続中のみ表示）</b>
         <div id="peopleList"></div>
+      </div>
+
+      <div class="card">
+        <b>📞 今この部屋で通話してる人（通話に参加してなくても見える）</b>
+        <div id="callUsersList"></div>
       </div>
 
       <details>
@@ -108,6 +119,9 @@ let messagesChannel = null;
 
 /* ===== 部屋削除監視 ===== */
 let roomsWatchChannel = null;
+
+/* ===== call_participants 監視（通話中一覧をリアルタイム更新） ===== */
+let callUsersChannel = null;
 
 /* ===== 通話 ===== */
 let callChannel = null;
@@ -147,10 +161,18 @@ async function stopRoomWatchRealtime(){
   }
 }
 
+async function stopCallUsersRealtime(){
+  if (callUsersChannel){
+    try { await callUsersChannel.unsubscribe(); } catch {}
+    callUsersChannel = null;
+  }
+}
+
 async function leaveRoom(){
-  // 退室時に「通話終了 + rooms-watch解除」してからロビーへ
+  // 退室時に「通話終了 + rooms-watch解除 + call_users解除」してからロビーへ
   try { await hangupAll(); } catch {}
   try { await stopRoomWatchRealtime(); } catch {}
+  try { await stopCallUsersRealtime(); } catch {}
   goLobby();
 }
 
@@ -182,6 +204,7 @@ async function requireLoginOrRedirect(){
 async function signOut(){
   try { await hangupAll(); } catch {}
   try { await stopRoomWatchRealtime(); } catch {}
+  try { await stopCallUsersRealtime(); } catch {}
   try { await sb.auth.signOut({ scope:"local" }); } catch (e) { log("signOut", e); }
   authUser = null;
   updateTopRightUser();
@@ -254,6 +277,70 @@ async function sendMsg(){
 }
 
 /* =========================================================
+   ルーム内「通話中の人」表示（call_participants から読む）
+   ========================================================= */
+async function loadActiveCallUsers(){
+  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
+
+  const { data, error } = await sb
+    .from("call_participants")
+    .select("user_id, name, updated_at")
+    .eq("room_id", room)
+    .gte("updated_at", cutoff)
+    .order("updated_at", { ascending:false });
+
+  const box = document.getElementById("callUsersList");
+  box.innerHTML = "";
+
+  if (error){
+    log("loadActiveCallUsers error", error);
+    box.innerHTML = "<div style='color:#c33;font-size:12px;'>通話中メンバー取得失敗</div>";
+    return;
+  }
+
+  const list = (data || []).map(x=>({
+    user_id: x.user_id,
+    name: (x.name || x.user_id || "").toString()
+  }));
+
+  if (list.length === 0){
+    box.innerHTML = "<div style='color:#666;font-size:12px;'>今は誰も通話してないよ</div>";
+    return;
+  }
+
+  // 重複除去
+  const seen = new Set();
+  const uniq = [];
+  for (const p of list){
+    const k = p.user_id || p.name;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    uniq.push(p);
+  }
+
+  for (const p of uniq){
+    const row = document.createElement("div");
+    row.className = "uRow";
+    row.innerHTML = `<div>${escapeHtml(p.name)}</div><div class="mutedPill">📞 in call</div>`;
+    box.appendChild(row);
+  }
+}
+
+async function startCallUsersRealtime(){
+  if (callUsersChannel) return;
+
+  callUsersChannel = sb
+    .channel("call-users-watch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async (payload)=>{
+      const nr = payload.new || {};
+      const or = payload.old || {};
+      const rid = nr.room_id || or.room_id;
+      if (rid === room) await loadActiveCallUsers();
+    })
+    .subscribe();
+}
+
+/* =========================================================
    通話（presence + broadcast）
    ========================================================= */
 function updateMuteBtn(){
@@ -283,7 +370,7 @@ function renderPeopleFromState(){
   list.forEach(p=>{
     const row = document.createElement("div");
     row.className = "pRow";
-    row.innerHTML = `<div>${p.name}</div><div class="pill">${p.muted ? "🔇 mute" : "🎤 on"}</div>`;
+    row.innerHTML = `<div>${escapeHtml(p.name)}</div><div class="pill">${p.muted ? "🔇 mute" : "🎤 on"}</div>`;
     box.appendChild(row);
   });
 }
@@ -491,6 +578,9 @@ async function startVoice(){
     setCallState("通話参加中（接続開始…）");
     renderPeopleFromState();
 
+    // ルームの「通話中メンバー」表示も更新
+    await loadActiveCallUsers();
+
   } catch (e) {
     log("startVoice error", e);
     alert("通話開始失敗: " + (e?.message || e));
@@ -506,6 +596,8 @@ async function toggleMute(){
   await upsertCallParticipant();
   await broadcastMute();
   renderPeopleFromState();
+
+  await loadActiveCallUsers();
 }
 
 async function hangupAll(){
@@ -539,6 +631,9 @@ async function hangupAll(){
 
   setCallState("未接続");
   renderPeopleFromState();
+
+  // 通話中一覧も更新
+  await loadActiveCallUsers();
 }
 
 /* ===== 部屋削除の監視 ===== */
@@ -555,11 +650,21 @@ async function startRoomWatchRealtime(){
         const deletedRoom = payload.old?.room_name;
         if (deletedRoom === room){
           alert("部屋が削除されました。ロビーに戻ります。");
-          leaveRoom(); // 通話切断 + rooms-watch解除 → ロビー
+          leaveRoom(); // 通話切断 + 監視解除 → ロビー
         }
       }
     )
     .subscribe();
+}
+
+/* HTMLエスケープ */
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
 
 /* ===== 起動 ===== */
@@ -568,9 +673,12 @@ async function startRoomWatchRealtime(){
   if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
   await reloadName();
 
-  await startRoomWatchRealtime();  // ★部屋削除の監視スタート（await）
+  await startRoomWatchRealtime();   // ★部屋削除監視
   await startMessagesRealtime();
   await loadMessages();
+
+  await loadActiveCallUsers();      // ★追加：通話中メンバー表示
+  await startCallUsersRealtime();   // ★追加：リアルタイム更新
 
   setCallState("未接続（必要なら『通話に参加』を押してね）");
   renderPeopleFromState();
