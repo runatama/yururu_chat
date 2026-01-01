@@ -12,10 +12,9 @@
     button { padding: 6px 10px; margin: 4px 2px; cursor: pointer; }
     button:disabled { opacity: .5; cursor: not-allowed; }
     .card { border: 1px solid #ccc; background: #fafafa; padding: 10px; border-radius: 10px; margin: 10px 0; }
-    .row { display:flex; gap:8px; flex-wrap: wrap; align-items: center; }
 
     #roomsBox {
-      border: 1px solid #ccc; width: 320px; max-width: 92vw; height: 260px;
+      border: 1px solid #ccc; width: 340px; max-width: 92vw; height: 280px;
       overflow: auto; padding: 6px; margin: 10px 0; background: #fff;
     }
     .roomRow { display:flex; gap:6px; align-items:center; margin: 4px 0; }
@@ -31,10 +30,12 @@
     }
     .userPill{ font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; background:#fff; }
     .userText{ font-size:12px; color:#333; max-width:44vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
     #status { font-size: 12px; color:#666; margin-top: 6px; }
     .ok { color:#0a7; } .ng{ color:#c33; }
+
     #log { white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace; font-size:12px;
-      border:1px solid #ddd; background:#fff; padding:8px; border-radius:10px; max-height:200px; overflow:auto; }
+      border:1px solid #ddd; background:#fff; padding:8px; border-radius:10px; max-height:220px; overflow:auto; }
   </style>
 </head>
 <body>
@@ -51,11 +52,11 @@
 
   <div class="card">
     <b>🏠 部屋</b>
-    <div class="row" style="margin-top:8px;">
+    <div style="margin-top:6px;">
       <input id="room" placeholder="部屋名（例: test）" />
-      <button onclick="createRoom()" id="createBtn">部屋作成</button>
-      <button onclick="enterRoom()" id="enterBtn">入室</button>
-      <button onclick="loadRooms()" id="reloadBtn">更新</button>
+      <button onclick="createRoom()">部屋作成</button>
+      <button onclick="enterRoom()">入室</button>
+      <button onclick="loadRooms()">更新</button>
     </div>
 
     <div style="margin-top:10px;">
@@ -72,8 +73,6 @@
   </div>
 
 <script>
-/* =================== Supabase 設定 ===================
-   index(6).html / login.html と同じものを入れてね  :contentReference[oaicite:6]{index=6}  */
 const SUPABASE_URL = "YOUR_SUPABASE_URL";
 const SUPABASE_KEY = "YOUR_ANON_KEY";
 
@@ -101,9 +100,7 @@ function setStatus(text, ok=true){
   el.innerHTML = `<span class="${ok?'ok':'ng'}">${text}</span>`;
 }
 
-function goLogin(){
-  location.replace("./login.html?_r=" + Date.now());
-}
+function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
 function goRoom(roomName){
   location.replace("./room.html?room=" + encodeURIComponent(roomName) + "&_r=" + Date.now());
 }
@@ -121,7 +118,6 @@ function updateTopRightUser(){
     soBtn.style.display = "none";
     return;
   }
-
   const dn = (authUser.user_metadata?.display_name || "").trim();
   const shown = dn || (authUser.email || "user").split("@")[0];
   pill.textContent = shown;
@@ -131,10 +127,8 @@ function updateTopRightUser(){
 }
 
 async function requireLoginOrRedirect(){
-  const { data, error } = await sb.auth.getSession();
-  if (error) log("getSession error", error);
+  const { data } = await sb.auth.getSession();
   authUser = data?.session?.user || null;
-
   updateTopRightUser();
   if (!authUser){ goLogin(); return false; }
   return true;
@@ -149,8 +143,6 @@ async function signOut(){
 
 async function startRealtime(){
   if (roomsChannel) return;
-
-  // index(6).html と同じ「rooms changes 監視」 :contentReference[oaicite:7]{index=7}
   roomsChannel = sb
     .channel("rooms-ch")
     .on("postgres_changes", { event:"*", schema:"public", table:"rooms" }, async () => {
@@ -162,12 +154,11 @@ async function startRealtime(){
 async function loadRooms(){
   if (!authUser) return;
 
-  let res = await sb.from("rooms").select("room_name, created_at").order("created_at", { ascending:true });
-  if (res.error && String(res.error.message||"").includes("created_at")) {
-    res = await sb.from("rooms").select("room_name");
-  }
+  const { data, error } = await sb
+    .from("rooms")
+    .select("room_name, created_at, owner_id")
+    .order("created_at", { ascending:true });
 
-  const { data, error } = res;
   if (error){ log("loadRooms error", error); setStatus("部屋一覧取得失敗: "+error.message, false); return; }
 
   const box = document.getElementById("roomsBox");
@@ -196,6 +187,8 @@ async function loadRooms(){
     del.type = "button";
     del.className = "delBtn";
     del.textContent = "🗑";
+    del.title = "部屋削除（RLSによってはオーナーのみ）";
+
     del.onclick = async () => {
       if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
       const r2 = await sb.from("rooms").delete().eq("room_name", rn);
@@ -215,11 +208,15 @@ async function createRoom(){
   const rn = document.getElementById("room").value.trim();
   if (!rn) return alert("部屋名を入れてね！");
 
-  const { data: exists, error: e1 } = await sb.from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+  const { data: exists, error: e1 } = await sb
+    .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
   if (e1) return alert("確認失敗: " + e1.message);
   if (exists) return alert("その部屋はもうあるよ！");
 
-  const { error } = await sb.from("rooms").insert({ room_name: rn, owner_id: authUser.id });
+  const { error } = await sb
+    .from("rooms")
+    .insert({ room_name: rn, owner_id: authUser.id });
+
   if (error) return alert("作成失敗: " + error.message);
 
   await loadRooms();
@@ -229,21 +226,22 @@ async function enterRoom(){
   const rn = document.getElementById("room").value.trim();
   if (!rn) return alert("部屋名を入れてね！");
 
-  const { data: exists, error } = await sb.from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+  const { data: exists, error } = await sb
+    .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+
   if (error) return alert("確認失敗: " + error.message);
   if (!exists) return alert("その部屋はまだないよ。先に部屋作成してね！");
 
   goRoom(rn);
 }
 
-/* 起動 */
 (async ()=>{
   if (!(await requireLoginOrRedirect())) return;
   await loadRooms();
   await startRealtime();
 
   sb.auth.onAuthStateChange(async ()=>{
-    await requireLoginOrRedirect();
+    if (!(await requireLoginOrRedirect())) return;
     await loadRooms();
   });
 
