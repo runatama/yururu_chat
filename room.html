@@ -531,32 +531,9 @@ async function hangupAll(){
   renderPeopleFromState();
 }
 
-/* ===== 起動 ===== */
-(async ()=>{
-  if (!(await requireLoginOrRedirect())) return;
-  if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
-  await reloadName();
 
-  startRoomWatchRealtime(); // ← ★これを追加（部屋削除の監視スタート）
-
-  await startMessagesRealtime();
-  await loadMessages();
-
-  setCallState("未接続（必要なら『通話に参加』を押してね）");
-  renderPeopleFromState();
-  setStatus("準備OK", true);
-
-  sb.auth.onAuthStateChange(async ()=>{
-    if (!(await requireLoginOrRedirect())) return;
-    await reloadName();
-  });
-})();
-
-
-  log("ready room=", room);
-})()
-  ;
-  function startRoomWatchRealtime(){
+  /* ===== 部屋削除の監視 ===== */
+function startRoomWatchRealtime(){
   if (roomsWatchChannel) return;
 
   roomsWatchChannel = sb
@@ -565,10 +542,7 @@ async function hangupAll(){
       "postgres_changes",
       { event: "DELETE", schema: "public", table: "rooms" },
       (payload) => {
-        // 削除された部屋の名前
         const deletedRoom = payload.old.room_name;
-
-        // 今いる部屋と同じなら
         if (deletedRoom === room){
           alert("部屋が削除されました。ロビーに戻ります。");
           leaveRoom(); // 通話切断 → ロビーへ
@@ -578,9 +552,34 @@ async function hangupAll(){
     .subscribe();
 }
 
+/* ===== 起動 ===== */
+(async ()=>{
+  if (!(await requireLoginOrRedirect())) return;
+  if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
+  await reloadName();
+
+  startRoomWatchRealtime();
+
+  await startMessagesRealtime();
+  await loadMessages();
+
+  setCallState("未接続（必要なら『通話に参加』を押してね）");
+  renderPeopleFromState();
+  setStatus("準備OK", true);
+
+  log("ready room=", room); // ← ここに入れるのはOK
+
+  sb.auth.onAuthStateChange(async ()=>{
+    if (!(await requireLoginOrRedirect())) return;
+    await reloadName();
+  });
+})();
+
+
 </script>
 </body>
 </html>
+
 
 
 
