@@ -39,7 +39,6 @@
   </style>
 </head>
 <body>
-  
 
   <div class="topbar">
     <h2 style="margin:0;">ゆるるチャット - ルーム</h2>
@@ -95,8 +94,6 @@
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
-let roomsWatchChannel = null;
-  
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
   (SUPABASE_KEY || "").replace(/\s+/g, "")
@@ -108,6 +105,9 @@ let room = "";
 let name = "";
 
 let messagesChannel = null;
+
+/* ===== 部屋削除監視 ===== */
+let roomsWatchChannel = null;
 
 /* ===== 通話 ===== */
 let callChannel = null;
@@ -139,7 +139,20 @@ function setCallState(t){ document.getElementById("callState").textContent = t; 
 
 function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
 function goLobby(){ location.replace("./lobby.html?_r=" + Date.now()); }
-function leaveRoom(){ hangupAll().finally(()=>goLobby()); }
+
+async function stopRoomWatchRealtime(){
+  if (roomsWatchChannel){
+    try { await roomsWatchChannel.unsubscribe(); } catch {}
+    roomsWatchChannel = null;
+  }
+}
+
+async function leaveRoom(){
+  // 退室時に「通話終了 + rooms-watch解除」してからロビーへ
+  try { await hangupAll(); } catch {}
+  try { await stopRoomWatchRealtime(); } catch {}
+  goLobby();
+}
 
 function updateTopRightUser(){
   const pill = document.getElementById("userNamePill");
@@ -168,6 +181,7 @@ async function requireLoginOrRedirect(){
 
 async function signOut(){
   try { await hangupAll(); } catch {}
+  try { await stopRoomWatchRealtime(); } catch {}
   try { await sb.auth.signOut({ scope:"local" }); } catch (e) { log("signOut", e); }
   authUser = null;
   updateTopRightUser();
@@ -189,7 +203,6 @@ async function reloadName(){
 
 /* =========================================================
    チャット（messages）
-   ✅ message カラムに合わせる
    ========================================================= */
 async function startMessagesRealtime(){
   if (messagesChannel) return;
@@ -242,7 +255,6 @@ async function sendMsg(){
 
 /* =========================================================
    通話（presence + broadcast）
-   call_participants を alive 判定にも使う
    ========================================================= */
 function updateMuteBtn(){
   document.getElementById("muteBtn").textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
@@ -424,7 +436,6 @@ function closePC(peerId){
 
 /* ===== call_participants（alive） ===== */
 async function upsertCallParticipant(){
-  // ✅ call_participants のカラムに合わせる
   const { error } = await sb.from("call_participants").upsert({
     room_id: room,
     user_id: myUid(),
@@ -459,7 +470,6 @@ async function startVoice(){
       updateMuteBtn();
     }
 
-    // 既存PCへもトラックを追加（遅延参加対策）
     for (const [pid, pc] of pcs){
       if (!pc) continue;
       const senders = pc.getSenders().filter(s=>s.track && s.track.kind==="audio");
@@ -531,37 +541,10 @@ async function hangupAll(){
   renderPeopleFromState();
 }
 
-
-  /* ===== 起動 ===== */
-(async ()=>{
-  if (!(await requireLoginOrRedirect())) return;
-  if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
-  await reloadName();
-
-  startRoomWatchRealtime(); // ← ★部屋削除の監視スタート
-
-  await startMessagesRealtime();
-  await loadMessages();
-
-  setCallState("未接続（必要なら『通話に参加』を押してね）");
-  renderPeopleFromState();
-  setStatus("準備OK", true);
-
-  log("ready room=", room); // ← ★ここに入れる（IIFEの中ならOK）
-
-  sb.auth.onAuthStateChange(async ()=>{
-    if (!(await requireLoginOrRedirect())) return;
-    await reloadName();
-  });
-})();
-
 /* ===== 部屋削除の監視 ===== */
 async function startRoomWatchRealtime(){
-  // すでに監視してるなら一旦止めて作り直す（多重登録防止）
-  if (roomsWatchChannel){
-    try { await roomsWatchChannel.unsubscribe(); } catch {}
-    roomsWatchChannel = null;
-  }
+  // 多重登録防止：いったん解除して作り直す
+  await stopRoomWatchRealtime();
 
   roomsWatchChannel = sb
     .channel("rooms-watch")
@@ -569,26 +552,37 @@ async function startRoomWatchRealtime(){
       "postgres_changes",
       { event: "DELETE", schema: "public", table: "rooms" },
       (payload) => {
-        const deletedRoom = payload.old.room_name;
+        const deletedRoom = payload.old?.room_name;
         if (deletedRoom === room){
           alert("部屋が削除されました。ロビーに戻ります。");
-          leaveRoom(); // 通話切断 → ロビーへ
+          leaveRoom(); // 通話切断 + rooms-watch解除 → ロビー
         }
       }
     )
     .subscribe();
 }
 
+/* ===== 起動 ===== */
+(async ()=>{
+  if (!(await requireLoginOrRedirect())) return;
+  if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
+  await reloadName();
 
+  await startRoomWatchRealtime();  // ★部屋削除の監視スタート（await）
+  await startMessagesRealtime();
+  await loadMessages();
 
+  setCallState("未接続（必要なら『通話に参加』を押してね）");
+  renderPeopleFromState();
+  setStatus("準備OK", true);
 
+  log("ready room=", room);
+
+  sb.auth.onAuthStateChange(async ()=>{
+    if (!(await requireLoginOrRedirect())) return;
+    await reloadName();
+  });
+})();
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
