@@ -162,7 +162,7 @@ let callUsersChannel = null;
 let callChannel = null;
 let localStream = null;
 
-// ★追加：送信音量（マイク）を 1-100 で調整するための WebAudio
+// ★送信音量（マイク）を 1-100 で調整するための WebAudio
 let audioCtx = null;
 let micSource = null;
 let micGainNode = null;
@@ -176,7 +176,7 @@ const mutedMap = new Map();   // peerId -> muted(boolean)
 let heartbeatTimer = null;
 const CALL_ALIVE_SEC = 30;
 
-// ★追加：相手ごとの受信音量
+// ★相手ごとの受信音量
 const peerVolume = new Map(); // peerId -> 0.0-1.0
 
 /* ===== util ===== */
@@ -215,7 +215,6 @@ async function stopCallUsersRealtime(){
 }
 
 async function leaveRoom(){
-  // 退室時に「通話終了 + rooms-watch解除 + call_users解除」してからロビーへ
   try { await hangupAll(); } catch {}
   try { await stopRoomWatchRealtime(); } catch {}
   try { await stopCallUsersRealtime(); } catch {}
@@ -324,7 +323,6 @@ async function sendMsg(){
 
 /* =========================================================
    ルーム内「通話中の人」表示（call_participants から読む）
-   （※ここは「通話してるか」だけ。ミュート表示は“通話参加者リスト”のみ）
    ========================================================= */
 async function loadActiveCallUsers(){
   const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
@@ -404,6 +402,33 @@ function setMyMicVolume(v){
   }
 }
 
+/* ★追加：presenceStateから表示名を引く */
+function getDisplayNameByPeerId(peerId){
+  try {
+    if (!callChannel) return peerId;
+    const state = callChannel.presenceState();
+    const metas = state?.[peerId];
+    if (!metas || !metas.length) return peerId;
+    const meta = metas[0] || {};
+    return (meta?.name || peerId);
+  } catch {
+    return peerId;
+  }
+}
+
+/* ★追加：既にある音量カードのタイトルをまとめて更新 */
+function refreshAudioTitles(){
+  try {
+    for (const pid of pcs.keys()){
+      const wrap = document.getElementById("audioWrap-" + pid);
+      if (!wrap) continue;
+      const titleDiv = wrap.querySelector(".audioTitleRow .peerTitle");
+      if (!titleDiv) continue;
+      titleDiv.textContent = "相手: " + getDisplayNameByPeerId(pid);
+    }
+  } catch {}
+}
+
 function renderPeopleFromState(){
   if (!callChannel) {
     document.getElementById("peopleList").innerHTML = "<div style='color:#666;font-size:12px;'>未接続</div>";
@@ -430,6 +455,9 @@ function renderPeopleFromState(){
     row.innerHTML = `<div>${escapeHtml(p.name)}</div><div class="pill">${p.muted ? "🔇 mute" : "🎤 on"}</div>`;
     box.appendChild(row);
   });
+
+  // ★ここで音量カード側も表示名に合わせる（後から同期されても直る）
+  refreshAudioTitles();
 }
 
 async function initCallChannel(){
@@ -529,7 +557,8 @@ function ensureAudioEl(peerId){
   titleRow.className = "audioTitleRow";
 
   const title = document.createElement("div");
-  title.textContent = "相手: " + peerId;
+  title.className = "peerTitle";
+  title.textContent = "相手: " + getDisplayNameByPeerId(peerId);
 
   const pill = document.createElement("div");
   pill.className = "pill";
@@ -580,6 +609,10 @@ function ensureAudioEl(peerId){
   wrap.appendChild(ctl);
 
   document.getElementById("audios").appendChild(wrap);
+
+  // ★作った直後にも一回更新（presenceが後から来ても即反映しやすい）
+  refreshAudioTitles();
+
   return el;
 }
 
@@ -662,7 +695,6 @@ function stopHeartbeat(){
 function buildProcessedMicStreamIfNeeded(){
   if (!localStream) return;
 
-  // すでに作ってるなら何もしない（再参加で二重にならない）
   if (processedStream && micGainNode && audioCtx) return;
 
   audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -688,23 +720,19 @@ async function startVoice(){
     if (!localStream){
       localStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
 
-      // マイク送信音量を調整できるように加工Streamを作る
       buildProcessedMicStreamIfNeeded();
 
       micMuted = false;
 
-      // 送信用トラック側でミュート制御（processedStreamがある場合）
       const sendStream = getSendStream();
       const sendTrack = sendStream?.getAudioTracks?.()[0] || null;
       if (sendTrack) sendTrack.enabled = true;
 
       updateMuteBtn();
     } else {
-      // 既にローカルがあるけど processedStream が無い場合だけ作る
       buildProcessedMicStreamIfNeeded();
     }
 
-    // 既存のPCに送信トラックが無ければ追加
     const sendStream = getSendStream();
     for (const [pid, pc] of pcs){
       if (!pc) continue;
@@ -727,7 +755,6 @@ async function startVoice(){
     setCallState("通話参加中（接続開始…）");
     renderPeopleFromState();
 
-    // ルームの「通話中メンバー」表示も更新
     await loadActiveCallUsers();
 
   } catch (e) {
@@ -742,12 +769,10 @@ async function toggleMute(){
 
   micMuted = !micMuted;
 
-  // 送信用トラック側でミュート（processedStreamがあればそっち、無ければlocal）
   const sendStream = getSendStream();
   const sendTrack = sendStream?.getAudioTracks?.()[0] || null;
   if (sendTrack) sendTrack.enabled = !micMuted;
 
-  // 互換のため localStream 側も切り替え
   if (localStream){
     for (const t of localStream.getAudioTracks()) t.enabled = !micMuted;
   }
@@ -806,13 +831,11 @@ async function hangupAll(){
   setCallState("未接続");
   renderPeopleFromState();
 
-  // 通話中一覧も更新
   await loadActiveCallUsers();
 }
 
 /* ===== 部屋削除の監視 ===== */
 async function startRoomWatchRealtime(){
-  // 多重登録防止：いったん解除して作り直す
   await stopRoomWatchRealtime();
 
   roomsWatchChannel = sb
@@ -824,7 +847,7 @@ async function startRoomWatchRealtime(){
         const deletedRoom = payload.old?.room_name;
         if (deletedRoom === room){
           alert("部屋が削除されました。ロビーに戻ります。");
-          leaveRoom(); // 通話切断 + 監視解除 → ロビー
+          leaveRoom();
         }
       }
     )
@@ -850,12 +873,12 @@ function escapeHtml(s){
   if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
   await reloadName();
 
-  await startRoomWatchRealtime();   // ★部屋削除監視
+  await startRoomWatchRealtime();
   await startMessagesRealtime();
   await loadMessages();
 
-  await loadActiveCallUsers();      // ★通話中メンバー表示
-  await startCallUsersRealtime();   // ★リアルタイム更新
+  await loadActiveCallUsers();
+  await startCallUsersRealtime();
 
   setCallState("未接続（必要なら『通話に参加』を押してね）");
   renderPeopleFromState();
