@@ -232,11 +232,13 @@ function resetMode(){
 
 /* =================== メインへ =================== */
 function gotoMain(){
-  // ✅ split構成なので lobby.html に移動する
   const u = new URL("./lobby.html", location.href);
   u.searchParams.set("_r", String(Date.now()));
-  // ✅ スマホで戻る/キャッシュが変になるのを防ぐ
-  location.replace(u.toString());
+
+  // ✅ スマホ対策：セッション保存を待つ
+  setTimeout(() => {
+    location.replace(u.toString());
+  }, 500); // 300〜500ms 推奨
 }
 
 
@@ -504,6 +506,7 @@ async function deleteAccount(){
 </script>
 </body>
 </html>
+
 
 
 
