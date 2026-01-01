@@ -42,6 +42,34 @@
       padding:6px; border:1px solid #eee; border-radius:10px; background:#fff; margin:6px 0;
     }
     .mutedPill{ font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; background:#fafafa; }
+
+    .audioWrap{
+      border: 1px solid #eee;
+      border-radius: 10px;
+      padding: 8px;
+      margin-top: 8px;
+      background: #fff;
+    }
+    .audioTitleRow{
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      align-items:center;
+      font-size:12px;
+      margin-bottom:6px;
+      color:#333;
+    }
+    .audioCtlRow{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      margin-top:6px;
+      font-size:12px;
+    }
+    .audioCtlRow input[type="range"]{
+      flex:1;
+      min-width: 140px;
+    }
   </style>
 </head>
 <body>
@@ -72,6 +100,13 @@
         <button onclick="startVoice()" id="startVoiceBtn">通話に参加（開始）</button>
         <button onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
         <button onclick="hangupAll()" id="hangupBtn">通話退出</button>
+
+        <div style="margin-top:6px; font-size:12px;">
+          自分のマイク音量: <b><span id="myVolLabel">100</span></b>
+          <input id="myVol" type="range" min="1" max="100" value="100" oninput="setMyMicVolume(this.value)" />
+          <div class="hint">※ 送信音量（あなたの声の大きさ）</div>
+        </div>
+
         <div id="callState" style="font-size:12px; margin-top:6px;">未接続</div>
         <div id="audios" style="margin-top:8px;"></div>
       </div>
@@ -102,8 +137,8 @@
   </div>
 
 <script>
-    const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
@@ -126,12 +161,23 @@ let callUsersChannel = null;
 /* ===== 通話 ===== */
 let callChannel = null;
 let localStream = null;
+
+// ★追加：送信音量（マイク）を 1-100 で調整するための WebAudio
+let audioCtx = null;
+let micSource = null;
+let micGainNode = null;
+let processedStream = null;   // Gain通過後の送信用Stream
+let myMicGain = 1.0;          // 0.0-1.0（UIは1-100）
+
 let micMuted = false;
 
 const pcs = new Map();        // peerId -> RTCPeerConnection
 const mutedMap = new Map();   // peerId -> muted(boolean)
 let heartbeatTimer = null;
 const CALL_ALIVE_SEC = 30;
+
+// ★追加：相手ごとの受信音量
+const peerVolume = new Map(); // peerId -> 0.0-1.0
 
 /* ===== util ===== */
 function log(...args){
@@ -278,6 +324,7 @@ async function sendMsg(){
 
 /* =========================================================
    ルーム内「通話中の人」表示（call_participants から読む）
+   （※ここは「通話してるか」だけ。ミュート表示は“通話参加者リスト”のみ）
    ========================================================= */
 async function loadActiveCallUsers(){
   const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
@@ -345,6 +392,16 @@ async function startCallUsersRealtime(){
    ========================================================= */
 function updateMuteBtn(){
   document.getElementById("muteBtn").textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
+}
+
+function setMyMicVolume(v){
+  const n = Math.max(1, Math.min(100, Number(v)));
+  document.getElementById("myVolLabel").textContent = String(n);
+  myMicGain = n / 100;
+
+  if (micGainNode){
+    micGainNode.gain.value = myMicGain;
+  }
 }
 
 function renderPeopleFromState(){
@@ -460,17 +517,74 @@ async function broadcastMute(){
 }
 
 function ensureAudioEl(peerId){
-  const id = "audio-" + peerId;
-  let el = document.getElementById(id);
-  if (el) return el;
-  el = document.createElement("audio");
-  el.id = id;
+  const wrapId = "audioWrap-" + peerId;
+  let wrap = document.getElementById(wrapId);
+  if (wrap) return wrap.querySelector("audio");
+
+  wrap = document.createElement("div");
+  wrap.id = wrapId;
+  wrap.className = "audioWrap";
+
+  const titleRow = document.createElement("div");
+  titleRow.className = "audioTitleRow";
+
+  const title = document.createElement("div");
+  title.textContent = "相手: " + peerId;
+
+  const pill = document.createElement("div");
+  pill.className = "pill";
+  pill.textContent = "🔊 recv";
+
+  titleRow.appendChild(title);
+  titleRow.appendChild(pill);
+
+  const el = document.createElement("audio");
+  el.id = "audio-" + peerId;
   el.autoplay = true;
   el.controls = true;
   el.style.display = "block";
   el.style.width = "100%";
-  document.getElementById("audios").appendChild(el);
+
+  const initVol = peerVolume.get(peerId) ?? 1.0;
+  el.volume = initVol;
+
+  const ctl = document.createElement("div");
+  ctl.className = "audioCtlRow";
+
+  const labelText = document.createElement("span");
+  labelText.textContent = "相手音量:";
+
+  const label = document.createElement("b");
+  label.id = "peerVolLabel-" + peerId;
+  label.textContent = String(Math.round(initVol * 100));
+
+  const range = document.createElement("input");
+  range.type = "range";
+  range.min = "1";
+  range.max = "100";
+  range.value = String(Math.round(initVol * 100));
+  range.oninput = () => {
+    const n = Math.max(1, Math.min(100, Number(range.value)));
+    const v = n / 100;
+    peerVolume.set(peerId, v);
+    label.textContent = String(n);
+    el.volume = v;
+  };
+
+  ctl.appendChild(labelText);
+  ctl.appendChild(label);
+  ctl.appendChild(range);
+
+  wrap.appendChild(titleRow);
+  wrap.appendChild(el);
+  wrap.appendChild(ctl);
+
+  document.getElementById("audios").appendChild(wrap);
   return el;
+}
+
+function getSendStream(){
+  return processedStream || localStream;
 }
 
 async function ensurePC(peerId){
@@ -494,9 +608,10 @@ async function ensurePC(peerId){
     el.srcObject = ev.streams[0];
   };
 
-  if (localStream){
-    for (const t of localStream.getTracks()){
-      pc.addTrack(t, localStream);
+  const sendStream = getSendStream();
+  if (sendStream){
+    for (const t of sendStream.getTracks()){
+      pc.addTrack(t, sendStream);
     }
   }
 }
@@ -517,8 +632,8 @@ function closePC(peerId){
   try { pc.close(); } catch {}
   pcs.delete(peerId);
 
-  const el = document.getElementById("audio-" + peerId);
-  if (el) el.remove();
+  const wrap = document.getElementById("audioWrap-" + peerId);
+  if (wrap) wrap.remove();
 }
 
 /* ===== call_participants（alive） ===== */
@@ -543,6 +658,26 @@ function stopHeartbeat(){
   if (heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
 }
 
+/* ===== マイクを Gain 経由の送信用Streamにする ===== */
+function buildProcessedMicStreamIfNeeded(){
+  if (!localStream) return;
+
+  // すでに作ってるなら何もしない（再参加で二重にならない）
+  if (processedStream && micGainNode && audioCtx) return;
+
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  micSource = audioCtx.createMediaStreamSource(localStream);
+  micGainNode = audioCtx.createGain();
+  micGainNode.gain.value = myMicGain;
+
+  const dest = audioCtx.createMediaStreamDestination();
+  micSource.connect(micGainNode);
+  micGainNode.connect(dest);
+
+  processedStream = dest.stream;
+}
+
+/* ===== 通話開始 ===== */
 async function startVoice(){
   if (!authUser) return alert("先にログインしてね！");
   if (!room || !name) return alert("部屋が変です（URL確認）");
@@ -552,16 +687,30 @@ async function startVoice(){
 
     if (!localStream){
       localStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
+
+      // マイク送信音量を調整できるように加工Streamを作る
+      buildProcessedMicStreamIfNeeded();
+
       micMuted = false;
-      for (const t of localStream.getAudioTracks()) t.enabled = true;
+
+      // 送信用トラック側でミュート制御（processedStreamがある場合）
+      const sendStream = getSendStream();
+      const sendTrack = sendStream?.getAudioTracks?.()[0] || null;
+      if (sendTrack) sendTrack.enabled = true;
+
       updateMuteBtn();
+    } else {
+      // 既にローカルがあるけど processedStream が無い場合だけ作る
+      buildProcessedMicStreamIfNeeded();
     }
 
+    // 既存のPCに送信トラックが無ければ追加
+    const sendStream = getSendStream();
     for (const [pid, pc] of pcs){
       if (!pc) continue;
       const senders = pc.getSenders().filter(s=>s.track && s.track.kind==="audio");
-      if (senders.length === 0){
-        for (const t of localStream.getTracks()) pc.addTrack(t, localStream);
+      if (senders.length === 0 && sendStream){
+        for (const t of sendStream.getTracks()) pc.addTrack(t, sendStream);
       }
     }
 
@@ -587,10 +736,22 @@ async function startVoice(){
   }
 }
 
+/* ===== ミュート ===== */
 async function toggleMute(){
-  if (!localStream) return alert("先に『通話に参加（開始）』を押してね！");
+  if (!localStream && !processedStream) return alert("先に『通話に参加（開始）』を押してね！");
+
   micMuted = !micMuted;
-  for (const t of localStream.getAudioTracks()) t.enabled = !micMuted;
+
+  // 送信用トラック側でミュート（processedStreamがあればそっち、無ければlocal）
+  const sendStream = getSendStream();
+  const sendTrack = sendStream?.getAudioTracks?.()[0] || null;
+  if (sendTrack) sendTrack.enabled = !micMuted;
+
+  // 互換のため localStream 側も切り替え
+  if (localStream){
+    for (const t of localStream.getAudioTracks()) t.enabled = !micMuted;
+  }
+
   updateMuteBtn();
 
   await upsertCallParticipant();
@@ -600,6 +761,7 @@ async function toggleMute(){
   await loadActiveCallUsers();
 }
 
+/* ===== 通話退出 ===== */
 async function hangupAll(){
   stopHeartbeat();
 
@@ -617,6 +779,18 @@ async function hangupAll(){
   if (localStream){
     try { localStream.getTracks().forEach(t=>t.stop()); } catch {}
     localStream = null;
+  }
+
+  if (processedStream){
+    try { processedStream.getTracks().forEach(t=>t.stop()); } catch {}
+    processedStream = null;
+  }
+
+  if (audioCtx){
+    try { await audioCtx.close(); } catch {}
+    audioCtx = null;
+    micSource = null;
+    micGainNode = null;
   }
 
   mutedMap.clear();
@@ -669,6 +843,9 @@ function escapeHtml(s){
 
 /* ===== 起動 ===== */
 (async ()=>{
+  // UI 初期化（マイク音量）
+  setMyMicVolume(document.getElementById("myVol").value);
+
   if (!(await requireLoginOrRedirect())) return;
   if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
   await reloadName();
@@ -677,8 +854,8 @@ function escapeHtml(s){
   await startMessagesRealtime();
   await loadMessages();
 
-  await loadActiveCallUsers();      // ★追加：通話中メンバー表示
-  await startCallUsersRealtime();   // ★追加：リアルタイム更新
+  await loadActiveCallUsers();      // ★通話中メンバー表示
+  await startCallUsersRealtime();   // ★リアルタイム更新
 
   setCallState("未接続（必要なら『通話に参加』を押してね）");
   renderPeopleFromState();
