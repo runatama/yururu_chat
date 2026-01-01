@@ -68,30 +68,42 @@
   </div>
 
   <div class="card">
-    <b>🏠 部屋</b>
-    <div style="margin-top:6px;">
-      <input id="room" placeholder="部屋名（例: test）" />
-      <button onclick="createRoom()">部屋作成</button>
-      <button onclick="enterRoom()">入室</button>
-      <button onclick="loadRooms()">更新</button>
-    </div>
+      <b>🏠 部屋</b>
+      <!-- ===== 表示名変更 ===== -->
+      <div style="margin-top:10px; padding-top:10px; border-top:1px dashed #ddd;">
+          <b>📝 表示名</b>
+          <div style="margin-top:6px;">
+              <input id="displayName" placeholder="表示名（例: ゆるたま）" />
+              <button type="button" onclick="saveDisplayName()">保存</button>
+          </div>
+          <div style="font-size:12px;color:#666;">
+              ※ 右上の名前表示・通話表示にも反映されます
+          </div>
+      </div>
 
-    <div style="margin-top:10px;">
-      <b>部屋一覧</b>
-      <div id="roomsBox"></div>
-    </div>
+      <div style="margin-top:6px;">
+          <input id="room" placeholder="部屋名（例: test）" />
+          <button onclick="createRoom()">部屋作成</button>
+          <button onclick="enterRoom()">入室</button>
+          <button onclick="loadRooms()">更新</button>
+      </div>
 
-    <details style="margin-top:8px;">
-      <summary>🔧 デバッグログ</summary>
-      <div id="log"></div>
-    </details>
+      <div style="margin-top:10px;">
+          <b>部屋一覧</b>
+          <div id="roomsBox"></div>
+      </div>
 
-    <div id="status"></div>
+      <details style="margin-top:8px;">
+          <summary>🔧 デバッグログ</summary>
+          <div id="log"></div>
+      </details>
+
+      <div id="status"></div>
   </div>
 
 <script>
-const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+    const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
@@ -374,21 +386,52 @@ function escapeHtml(s){
     .replaceAll(">","&gt;")
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
-}
+    }
+    /* ===== 表示名保存 ===== */
+    async function saveDisplayName() {
+        if (!authUser) return alert("ログインしてね！");
 
-(async ()=>{
-  if (!(await requireLoginOrRedirect())) return;
-  await loadRooms();
-  await startRealtime();
-  await startCallParticipantsRealtime(); // ★追加：通話中表示もリアルタイム更新
+        const input = document.getElementById("displayName");
+        if (!input) return;
 
-  sb.auth.onAuthStateChange(async ()=>{
-    if (!(await requireLoginOrRedirect())) return;
-    await loadRooms();
-  });
+        const name = input.value.trim();
+        if (!name) return alert("表示名を入力してね！");
 
-  log("ready");
-})();
+        const { data, error } = await sb.auth.updateUser({
+            data: { display_name: name }
+        });
+
+        if (error) {
+            alert("保存失敗: " + error.message);
+            return;
+        }
+
+        // ローカル反映
+        if (data?.user) authUser = data.user;
+        updateTopRightUser();
+
+        setStatus("表示名を保存しました！", true);
+    }
+
+
+    (async () => {
+        if (!(await requireLoginOrRedirect())) return;
+
+        document.getElementById("displayName").value =
+            (authUser.user_metadata?.display_name || "").trim();
+
+        await loadRooms();
+        await startRealtime();
+        await startCallParticipantsRealtime();
+
+        sb.auth.onAuthStateChange(async () => {
+            if (!(await requireLoginOrRedirect())) return;
+            await loadRooms();
+        });
+
+        log("ready");
+    })();
+
 </script>
 </body>
 </html>
