@@ -17,7 +17,7 @@
       border: 1px solid #ccc; width: 340px; max-width: 92vw; height: 280px;
       overflow: auto; padding: 6px; margin: 10px 0; background: #fff;
     }
-    .roomRow { display:flex; gap:6px; align-items:center; margin: 4px 0; }
+    .roomRow { display:flex; gap:6px; align-items:center; margin: 6px 0; }
     .roomBtn { flex:1; text-align:left; padding: 8px; border: 1px solid #ddd; background:#fff; border-radius: 10px; }
     .roomBtn:hover { background:#f3f3f3; }
     .delBtn { width: 44px; padding: 8px; border: 1px solid #ddd; background:#fff; border-radius: 10px; }
@@ -36,6 +36,23 @@
 
     #log { white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace; font-size:12px;
       border:1px solid #ddd; background:#fff; padding:8px; border-radius:10px; max-height:220px; overflow:auto; }
+
+    .callLine{
+      margin-top:4px;
+      font-size:12px;
+      color:#555;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .badge{
+      font-size:11px;
+      padding:2px 6px;
+      border-radius:999px;
+      border:1px solid #ddd;
+      background:#fafafa;
+      margin-left:6px;
+    }
   </style>
 </head>
 <body>
@@ -83,6 +100,7 @@ const sb = supabase.createClient(
 
 let authUser = null;
 let roomsChannel = null;
+let callParticipantsChannel = null;
 
 function log(...args){
   const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
@@ -141,11 +159,25 @@ async function signOut(){
   goLogin();
 }
 
+/* ===== Realtime ===== */
 async function startRealtime(){
   if (roomsChannel) return;
+
   roomsChannel = sb
     .channel("rooms-ch")
     .on("postgres_changes", { event:"*", schema:"public", table:"rooms" }, async () => {
+      await loadRooms();
+    })
+    .subscribe();
+}
+
+/* call_participants が動いたら部屋一覧も更新（通話中表示が変わる） */
+async function startCallParticipantsRealtime(){
+  if (callParticipantsChannel) return;
+
+  callParticipantsChannel = sb
+    .channel("call-participants-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async () => {
       await loadRooms();
     })
     .subscribe();
@@ -155,7 +187,6 @@ async function startRealtime(){
 const CALL_ALIVE_SEC = 30;
 
 async function isRoomInCall(roomName){
-  // 30秒以内に生存更新がある人が1人でもいたら「通話中」
   const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
 
   const { data, error } = await sb
@@ -173,6 +204,48 @@ async function isRoomInCall(roomName){
   return (data || []).length > 0;
 }
 
+/* ===== ロビーで「各部屋の通話中メンバー」をまとめて取得 ===== */
+async function fetchActiveCallUsersByRoom(){
+  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
+
+  const { data, error } = await sb
+    .from("call_participants")
+    .select("room_id, name, user_id, updated_at")
+    .gte("updated_at", cutoff)
+    .order("updated_at", { ascending:false });
+
+  if (error){
+    log("fetchActiveCallUsersByRoom error", error);
+    return new Map();
+  }
+
+  const map = new Map(); // room_id -> [{name,user_id}]
+  for (const row of (data || [])){
+    const rid = row.room_id;
+    if (!rid) continue;
+    if (!map.has(rid)) map.set(rid, []);
+    map.get(rid).push({
+      name: (row.name || row.user_id || "").toString(),
+      user_id: row.user_id
+    });
+  }
+
+  // 重複除去（同一 user_id が複数あった時）
+  for (const [rid, arr] of map.entries()){
+    const seen = new Set();
+    const out = [];
+    for (const a of arr){
+      const k = a.user_id || a.name;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(a);
+    }
+    map.set(rid, out);
+  }
+
+  return map;
+}
+
 async function loadRooms(){
   if (!authUser) return;
 
@@ -186,6 +259,8 @@ async function loadRooms(){
     setStatus("部屋一覧取得失敗: "+error.message, false);
     return;
   }
+
+  const activeMap = await fetchActiveCallUsersByRoom();
 
   const box = document.getElementById("roomsBox");
   box.innerHTML = "";
@@ -209,13 +284,26 @@ async function loadRooms(){
     btn.onclick = () => document.getElementById("room").value = rn;
     btn.ondblclick = () => goRoom(rn);
 
+    // 通話中メンバー表示（あれば）
+    const users = activeMap.get(rn) || [];
+    if (users.length > 0){
+      const names = users.map(x=>x.name).filter(Boolean);
+      const line = document.createElement("div");
+      line.className = "callLine";
+      const shown = names.slice(0, 4).join("、");
+      const more = names.length > 4 ? ` …(+${names.length-4})` : "";
+      line.innerHTML = `📞 通話中: ${escapeHtml(shown + more)} <span class="badge">${names.length}</span>`;
+      btn.appendChild(line);
+      btn.title = "通話中: " + names.join("、");
+    }
+
     const del = document.createElement("button");
     del.type = "button";
     del.className = "delBtn";
     del.textContent = "🗑";
     del.title = "通話中は削除できません";
 
-    // 一覧表示時点の判定
+    // 一覧表示時点の判定（削除ボタン制御）
     const inCall = await isRoomInCall(rn);
     if (inCall){
       del.disabled = true;
@@ -278,10 +366,21 @@ async function enterRoom(){
   goRoom(rn);
 }
 
+/* HTMLエスケープ（部屋名/表示名安全に） */
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
 (async ()=>{
   if (!(await requireLoginOrRedirect())) return;
   await loadRooms();
   await startRealtime();
+  await startCallParticipantsRealtime(); // ★追加：通話中表示もリアルタイム更新
 
   sb.auth.onAuthStateChange(async ()=>{
     if (!(await requireLoginOrRedirect())) return;
