@@ -232,11 +232,11 @@ function resetMode(){
 
 /* =================== メインへ =================== */
 function gotoMain(){
-  // キャッシュで変な状態にならないように一応バスター
-  const u = new URL("./index.html", location.href);
+  const u = new URL("./lobby.html", location.href);
   u.searchParams.set("_r", String(Date.now()));
   location.href = u.toString();
 }
+
 
 /* =================== セッション表示 =================== */
 function setAuthPill(){
@@ -447,3 +447,4 @@ async function deleteAccount(){
 </script>
 </body>
 </html>
+
