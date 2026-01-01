@@ -151,6 +151,29 @@ async function startRealtime(){
     .subscribe();
 }
 
+  // ===== 通話中かどうか判定（call_participants の updated_at で見る）=====
+const CALL_ALIVE_SEC = 30;
+
+async function isRoomInCall(roomName){
+  // 30秒以内に生存更新がある人が1人でもいたら「通話中」
+  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
+
+  const { data, error } = await sb
+    .from("call_participants")
+    .select("user_id")
+    .eq("room_id", roomName)
+    .gte("updated_at", cutoff)
+    .limit(1);
+
+  if (error){
+    log("isRoomInCall error", error);
+    // 判定できない時は安全側（削除させない）に倒す
+    return true;
+  }
+  return (data || []).length > 0;
+}
+
+
 async function loadRooms(){
   if (!authUser) return;
 
@@ -261,5 +284,6 @@ async function enterRoom(){
 </script>
 </body>
 </html>
+
 
 
