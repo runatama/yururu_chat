@@ -6,6 +6,7 @@
   <title>ゆるるチャット - Lobby</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+  <!-- ================= UI: lobby(11) ================= -->
   <style>
     :root{
       --bg1:#0b1220;
@@ -55,12 +56,16 @@
       background:rgba(255,255,255,.06);
       box-shadow:var(--shadow);
       font-size:12px;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+      max-width: 62vw;
     }
     .userPill{
       padding:2px 8px;
       border-radius:999px;
       background:rgba(255,255,255,.10);
       border:1px solid var(--line);
+      white-space: nowrap;
     }
     .userText{
       color:var(--muted);
@@ -158,6 +163,9 @@
       margin-top:6px;
       font-size:12px;
       color:var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
 
     .badge{
@@ -198,42 +206,43 @@
       overflow:auto;
       white-space:pre-wrap;
     }
+
+    /* 小さめ画面でもボタンが詰まらないように */
+    .row > button{ white-space:nowrap; }
   </style>
 </head>
 
 <body>
 
-<!-- ===== 上部 ===== -->
+<!-- ================= UI: lobby(11) ================= -->
 <div class="topbar">
   <h2>🎧 ゆるるチャット – ロビー</h2>
   <div class="userBox">
     <span class="userPill" id="userNamePill">未ログイン</span>
     <span class="userText" id="userMailText"></span>
-    <button onclick="goLogin()" id="goLoginBtn" style="display:none;">ログイン</button>
-    <button onclick="signOut()" id="signOutBtn">ログアウト</button>
+    <button class="btnPrimary" onclick="goLogin()" id="goLoginBtn" style="display:none;">ログイン</button>
+    <button class="btnDanger" onclick="signOut()" id="signOutBtn">ログアウト</button>
   </div>
 </div>
 
-<!-- ===== 表示名 ===== -->
 <div class="card">
   <div class="sectionTitle">📝 表示名</div>
   <div class="row">
     <input id="displayName" placeholder="表示名（例: ゆるたま）" />
-    <button class="btnPrimary" onclick="saveDisplayName()">保存</button>
+    <button class="btnPrimary" type="button" onclick="saveDisplayName()">保存</button>
   </div>
   <div style="font-size:12px;color:var(--muted);margin-top:6px;">
-    ※ ロビー・通話・チャットに反映されます
+    ※ 右上の名前表示・通話表示にも反映されます
   </div>
 </div>
 
-<!-- ===== ルーム操作 ===== -->
 <div class="card">
   <div class="sectionTitle">🏠 ルーム</div>
   <div class="row">
     <input id="room" placeholder="部屋名（例: test）" />
-    <button class="btnPrimary" onclick="createRoom()">作成</button>
-    <button onclick="enterRoom()">入室</button>
-    <button onclick="loadRooms()">更新</button>
+    <button class="btnPrimary" type="button" onclick="createRoom()">作成</button>
+    <button type="button" onclick="enterRoom()">入室</button>
+    <button type="button" onclick="loadRooms()">更新</button>
   </div>
 
   <div class="sectionTitle" style="margin-top:14px;">📋 部屋一覧</div>
@@ -248,12 +257,11 @@
 </div>
 
 <script>
-/* ====== ここから下は【元の lobby (5).html の JS】そのまま ====== */
-/* ※ 機能は一切変更してません（見た目だけ） */
-
+/* =================== Supabase 設定（SYSTEM = lobby(10)） =================== */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
+/* ★重要：login.html と同じ auth 設定で createClient（ロビーで「切れる」を防ぐ） */
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
   (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
@@ -267,16 +275,378 @@ const sb = supabase.createClient(
   }
 );
 
+/* =================== 状態 =================== */
+let authUser = null;
+let roomsChannel = null;
+let callParticipantsChannel = null;
 
-let authUser=null;
-let roomsChannel=null;
-let callParticipantsChannel=null;
+/* =================== ログ =================== */
+function log(...args){
+  const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
+  console.log("[lobby]", ...args);
+  const el = document.getElementById("log");
+  if (!el) return;
+  el.textContent += s + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
+window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
 
-/* …（以降 JS は **君が貼ってくれた lobby (5).html と同一**）… */
+function setStatus(text, ok=true){
+  const el = document.getElementById("status");
+  el.innerHTML = `<span class="${ok?'ok':'ng'}">${escapeHtml(text)}</span>`;
+}
 
-/* ★省略してないよ。このまま続きも同じでOK */
+/* =================== 移動 =================== */
+function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
+function goRoom(roomName){
+  location.replace("./room.html?room=" + encodeURIComponent(roomName) + "&_r=" + Date.now());
+}
+
+/* =================== 右上ユーザー表示 =================== */
+function updateTopRightUser(){
+  const pill = document.getElementById("userNamePill");
+  const mail = document.getElementById("userMailText");
+  const goBtn = document.getElementById("goLoginBtn");
+  const soBtn = document.getElementById("signOutBtn");
+
+  if (!authUser){
+    pill.textContent = "未ログイン";
+    mail.textContent = "";
+    goBtn.style.display = "inline-block";
+    soBtn.style.display = "none";
+    return;
+  }
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  const shown = dn || (authUser.email || "user").split("@")[0];
+  pill.textContent = shown;
+  mail.textContent = authUser.email || "";
+  goBtn.style.display = "none";
+  soBtn.style.display = "inline-block";
+}
+
+/* =================== セッション復元（SYSTEM = lobby(10)） =================== */
+async function refreshAuth(){
+  const { data, error } = await sb.auth.getSession();
+  if (error) log("getSession error", error);
+
+  authUser = data?.session?.user || null;
+  updateTopRightUser();
+
+  if (!authUser) return false;
+
+  // 表示名入力欄へ反映（空のときだけ）
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  const dnEl = document.getElementById("displayName");
+  if (dnEl && !dnEl.value) dnEl.value = dn;
+
+  return true;
+}
+
+/* ロビーでは「未ログインならloginへ」 */
+async function requireLoginOrRedirect(){
+  const ok = await refreshAuth();
+  if (!ok){
+    goLogin();
+    return false;
+  }
+  return true;
+}
+
+/* =================== ログアウト =================== */
+async function signOut(){
+  try { await sb.auth.signOut({ scope:"local" }); } catch (e) { log("signOut", e); }
+  authUser = null;
+  updateTopRightUser();
+  goLogin();
+}
+
+/* =================== Realtime =================== */
+async function startRealtime(){
+  if (roomsChannel) return;
+
+  roomsChannel = sb
+    .channel("rooms-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"rooms" }, async () => {
+      await loadRooms();
+    })
+    .subscribe();
+}
+
+/* call_participants が動いたら部屋一覧も更新（通話中表示が変わる） */
+async function startCallParticipantsRealtime(){
+  if (callParticipantsChannel) return;
+
+  callParticipantsChannel = sb
+    .channel("call-participants-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async () => {
+      await loadRooms();
+    })
+    .subscribe();
+}
+
+/* =================== 通話中かどうか判定 =================== */
+const CALL_ALIVE_SEC = 30;
+
+async function isRoomInCall(roomName){
+  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
+
+  const { data, error } = await sb
+    .from("call_participants")
+    .select("user_id")
+    .eq("room_id", roomName)
+    .gte("updated_at", cutoff)
+    .limit(1);
+
+  if (error){
+    log("isRoomInCall error", error);
+    // 判定できない時は安全側（削除させない）
+    return true;
+  }
+  return (data || []).length > 0;
+}
+
+/* =================== ロビーで「各部屋の通話中メンバー」をまとめて取得 =================== */
+async function fetchActiveCallUsersByRoom(){
+  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
+
+  const { data, error } = await sb
+    .from("call_participants")
+    .select("room_id, name, user_id, updated_at")
+    .gte("updated_at", cutoff)
+    .order("updated_at", { ascending:false });
+
+  if (error){
+    log("fetchActiveCallUsersByRoom error", error);
+    return new Map();
+  }
+
+  const map = new Map(); // room_id -> [{name,user_id}]
+  for (const row of (data || [])){
+    const rid = row.room_id;
+    if (!rid) continue;
+    if (!map.has(rid)) map.set(rid, []);
+    map.get(rid).push({
+      name: (row.name || row.user_id || "").toString(),
+      user_id: row.user_id
+    });
+  }
+
+  // 重複除去（同一 user_id が複数あった時）
+  for (const [rid, arr] of map.entries()){
+    const seen = new Set();
+    const out = [];
+    for (const a of arr){
+      const k = a.user_id || a.name;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(a);
+    }
+    map.set(rid, out);
+  }
+
+  return map;
+}
+
+/* =================== 部屋一覧読み込み =================== */
+async function loadRooms(){
+  if (!authUser) return;
+
+  const { data, error } = await sb
+    .from("rooms")
+    .select("room_name, created_at, owner_id")
+    .order("created_at", { ascending:true });
+
+  if (error){
+    log("loadRooms error", error);
+    setStatus("部屋一覧取得失敗: " + error.message, false);
+    return;
+  }
+
+  const activeMap = await fetchActiveCallUsersByRoom();
+
+  const box = document.getElementById("roomsBox");
+  box.innerHTML = "";
+
+  if (!data || data.length === 0){
+    box.innerHTML = "<div style='color:var(--muted);font-size:12px;'>まだ部屋がないよ（部屋作成してね）</div>";
+    setStatus("部屋なし", true);
+    return;
+  }
+
+  for (const r of data){
+    const rn = r.room_name;
+
+    const row = document.createElement("div");
+    row.className = "roomRow";
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "roomBtn";
+    btn.textContent = rn;
+    btn.onclick = () => document.getElementById("room").value = rn;
+    btn.ondblclick = () => goRoom(rn);
+
+    // 通話中メンバー表示（あれば）
+    const users = activeMap.get(rn) || [];
+    if (users.length > 0){
+      const names = users.map(x=>x.name).filter(Boolean);
+      const line = document.createElement("div");
+      line.className = "callLine";
+      const shown = names.slice(0, 4).join("、");
+      const more = names.length > 4 ? ` …(+${names.length-4})` : "";
+      line.innerHTML = `📞 通話中: ${escapeHtml(shown + more)} <span class="badge">${names.length}</span>`;
+      btn.appendChild(line);
+      btn.title = "通話中: " + names.join("、");
+    }
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "delBtn";
+    del.textContent = "🗑";
+    del.title = "通話中は削除できません";
+
+    // 一覧表示時点の判定（削除ボタン制御）
+    const inCall = await isRoomInCall(rn);
+    if (inCall){
+      del.disabled = true;
+      del.style.opacity = "0.4";
+      del.style.cursor = "not-allowed";
+    }
+
+    del.onclick = async () => {
+      // クリック直前にも再判定（レース対策）
+      const nowInCall = await isRoomInCall(rn);
+      if (nowInCall){
+        alert("この部屋は通話中なので削除できません。");
+        await loadRooms();
+        return;
+      }
+
+      if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
+
+      const r2 = await sb.from("rooms").delete().eq("room_name", rn);
+      if (r2.error){ alert("削除失敗: " + r2.error.message); return; }
+      await loadRooms();
+    };
+
+    row.appendChild(btn);
+    row.appendChild(del);
+    box.appendChild(row);
+  }
+
+  setStatus(`部屋一覧OK（${data.length}件）`, true);
+}
+
+/* =================== 部屋作成 / 入室 =================== */
+async function createRoom(){
+  const rn = document.getElementById("room").value.trim();
+  if (!rn) return alert("部屋名を入れてね！");
+
+  const { data: exists, error: e1 } = await sb
+    .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+  if (e1) return alert("確認失敗: " + e1.message);
+  if (exists) return alert("その部屋はもうあるよ！");
+
+  const { error } = await sb
+    .from("rooms")
+    .insert({ room_name: rn, owner_id: authUser.id });
+
+  if (error) return alert("作成失敗: " + error.message);
+
+  await loadRooms();
+}
+
+async function enterRoom(){
+  const rn = document.getElementById("room").value.trim();
+  if (!rn) return alert("部屋名を入れてね！");
+
+  const { data: exists, error } = await sb
+    .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+
+  if (error) return alert("確認失敗: " + error.message);
+  if (!exists) return alert("その部屋はまだないよ。先に部屋作成してね！");
+
+  goRoom(rn);
+}
+
+/* =================== 表示名保存 =================== */
+async function saveDisplayName() {
+  if (!authUser) return alert("ログインしてね！");
+
+  const input = document.getElementById("displayName");
+  if (!input) return;
+
+  const dn = input.value.trim();
+  if (!dn) return alert("表示名を入力してね！");
+
+  const { data, error } = await sb.auth.updateUser({
+    data: { display_name: dn }
+  });
+
+  if (error) {
+    alert("保存失敗: " + error.message);
+    return;
+  }
+
+  // ローカル反映
+  if (data?.user) authUser = data.user;
+  updateTopRightUser();
+
+  setStatus("表示名を保存しました！", true);
+}
+
+/* =================== HTMLエスケープ =================== */
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+/* =================== 起動（SYSTEM = lobby(10)） =================== */
+(async () => {
+  // ★セッションがURLに含まれるケースも拾う（安全のため）
+  try {
+    const url = new URL(location.href);
+    const hasAuthParams =
+      url.searchParams.has("code") ||
+      url.searchParams.has("type") ||
+      url.searchParams.has("access_token") ||
+      url.searchParams.has("refresh_token") ||
+      (location.hash && (location.hash.includes("access_token=") || location.hash.includes("refresh_token=")));
+
+    if (hasAuthParams) {
+      const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
+      if (error) log("getSessionFromUrl error", error);
+      if (data?.session?.user) log("OAuth session OK", data.session.user.email);
+      history.replaceState({}, document.title, "./lobby.html");
+    }
+  } catch (e) {
+    log("init session url exception", e);
+  }
+
+  if (!(await requireLoginOrRedirect())) return;
+
+  document.getElementById("displayName").value =
+    (authUser.user_metadata?.display_name || "").trim();
+
+  await loadRooms();
+  await startRealtime();
+  await startCallParticipantsRealtime();
+
+  sb.auth.onAuthStateChange(async () => {
+    // 状態変化時は、必ずセッション復元してから画面を更新
+    const ok = await refreshAuth();
+    if (!ok) { goLogin(); return; }
+    await loadRooms();
+  });
+
+  log("ready");
+})();
 </script>
 
 </body>
 </html>
-
