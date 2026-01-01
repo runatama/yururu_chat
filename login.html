@@ -464,14 +464,43 @@ async function deleteAccount(){
 (async () => {
   await reloadSession();
 
+  // ✅ 追加：メール確認リンクで戻ってきたっぽい時は自動でロビーへ
+  // （URLに code / access_token / type などが付くケースが多い）
+  const url = new URL(location.href);
+  const hasAuthParams =
+    url.searchParams.has("code") ||
+    url.searchParams.has("type") ||
+    url.searchParams.has("access_token") ||
+    url.searchParams.has("refresh_token") ||
+    url.searchParams.has("token");
+
+  if (authUser && hasAuthParams) {
+    gotoMain(); // lobby.html へ
+    return;
+  }
+
+  // ✅ 追加：ログイン状態が確定した瞬間に（メール確認直後含む）自動でロビーへ
   sb.auth.onAuthStateChange(async () => {
     await reloadSession();
+    const u2 = new URL(location.href);
+    const hasAuthParams2 =
+      u2.searchParams.has("code") ||
+      u2.searchParams.has("type") ||
+      u2.searchParams.has("access_token") ||
+      u2.searchParams.has("refresh_token") ||
+      u2.searchParams.has("token");
+
+    if (authUser && hasAuthParams2) {
+      gotoMain();
+    }
   });
 
   log("ready. authUser=", authUser?.id || null);
 })();
+
 </script>
 </body>
 </html>
+
 
 
