@@ -1,200 +1,96 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ゆるるチャット - Room</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ゆるるチャット - Room</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <style>
-        body {
-            font-family: sans-serif;
-            padding: 12px;
-        }
+  <style>
+    body { font-family: sans-serif; padding: 12px; }
+    input { width: 260px; padding: 6px; margin: 4px 0; }
+    button { padding: 6px 10px; margin: 4px 2px; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .card { border: 1px solid #ccc; background: #fafafa; padding: 10px; border-radius: 10px; margin: 10px 0; }
 
-        input {
-            width: 260px;
-            padding: 6px;
-            margin: 4px 0;
-        }
+    .topbar{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .userBox{
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;
+      border:1px solid #ddd; background:#fafafa; padding:6px 10px; border-radius:999px;
+    }
+    .userPill{ font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; background:#fff; }
+    .userText{ font-size:12px; color:#333; max-width:44vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-        button {
-            padding: 6px 10px;
-            margin: 4px 2px;
-            cursor: pointer;
-        }
+    #status { font-size: 12px; color:#666; margin-top: 6px; }
+    .ok { color:#0a7; } .ng{ color:#c33; }
 
-            button:disabled {
-                opacity: .5;
-                cursor: not-allowed;
-            }
+    .layout { display:grid; grid-template-columns: 360px 1fr; gap:12px; align-items:start; }
+    @media (max-width: 900px){ .layout{ grid-template-columns: 1fr; } }
 
-        .card {
-            border: 1px solid #ccc;
-            background: #fafafa;
-            padding: 10px;
-            border-radius: 10px;
-            margin: 10px 0;
-        }
+    #chat { border:1px solid #ccc; height:360px; overflow:auto; padding:8px; background:#fff; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace; font-size:12px;
+      border:1px solid #ddd; background:#fff; padding:8px; border-radius:10px; max-height:220px; overflow:auto; }
 
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .userBox {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-            border: 1px solid #ddd;
-            background: #fafafa;
-            padding: 6px 10px;
-            border-radius: 999px;
-        }
-
-        .userPill {
-            font-size: 12px;
-            padding: 2px 8px;
-            border-radius: 999px;
-            border: 1px solid #ddd;
-            background: #fff;
-        }
-
-        .userText {
-            font-size: 12px;
-            color: #333;
-            max-width: 44vw;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        #status {
-            font-size: 12px;
-            color: #666;
-            margin-top: 6px;
-        }
-
-        .ok {
-            color: #0a7;
-        }
-
-        .ng {
-            color: #c33;
-        }
-
-        .layout {
-            display: grid;
-            grid-template-columns: 360px 1fr;
-            gap: 12px;
-            align-items: start;
-        }
-
-        @media (max-width: 900px) {
-            .layout {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        #chat {
-            border: 1px solid #ccc;
-            height: 360px;
-            overflow: auto;
-            padding: 8px;
-            background: #fff;
-        }
-
-        #log {
-            white-space: pre-wrap;
-            font-family: ui-monospace, Menlo, monospace;
-            font-size: 12px;
-            border: 1px solid #ddd;
-            background: #fff;
-            padding: 8px;
-            border-radius: 10px;
-            max-height: 200px;
-            overflow: auto;
-        }
-
-        #peopleList .pRow {
-            display: flex;
-            justify-content: space-between;
-            gap: 8px;
-            padding: 6px;
-            border: 1px solid #eee;
-            border-radius: 10px;
-            background: #fff;
-            margin: 6px 0;
-        }
-
-        .pill {
-            font-size: 12px;
-            padding: 2px 8px;
-            border-radius: 999px;
-            border: 1px solid #ddd;
-            background: #fafafa;
-        }
-    </style>
+    #peopleList .pRow{
+      display:flex; justify-content:space-between; gap:8px;
+      padding:6px; border:1px solid #eee; border-radius:10px; background:#fff; margin:6px 0;
+    }
+    .pill { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; background:#fafafa; }
+  </style>
 </head>
 <body>
 
-    <div class="topbar">
-        <h2 style="margin:0;">ゆるるチャット - ルーム</h2>
-        <div class="userBox">
-            <span class="userPill" id="userNamePill">未ログイン</span>
-            <span class="userText" id="userMailText"></span>
-            <button onclick="goLobby()">ロビーへ</button>
-            <button onclick="signOut()" id="signOutBtn">ログアウト</button>
-        </div>
+  <div class="topbar">
+    <h2 style="margin:0;">ゆるるチャット - ルーム</h2>
+    <div class="userBox">
+      <span class="userPill" id="userNamePill">未ログイン</span>
+      <span class="userText" id="userMailText"></span>
+      <button onclick="goLobby()">ロビーへ</button>
+      <button onclick="signOut()" id="signOutBtn">ログアウト</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <b>🏠 現在の部屋</b>
+    <div style="margin-top:6px;">
+      <input id="roomNameView" disabled />
+      <button onclick="leaveRoom()">退室</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="card">
+        <b>🎤 音声通話（複数人）</b><br/>
+        <button onclick="startVoice()" id="startVoiceBtn">通話に参加（開始）</button>
+        <button onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
+        <button onclick="hangupAll()" id="hangupBtn">通話退出</button>
+        <div id="callState" style="font-size:12px; margin-top:6px;">未接続</div>
+        <div id="audios" style="margin-top:8px;"></div>
+      </div>
+
+      <div class="card">
+        <b>👥 参加者（通話）</b>
+        <div id="peopleList"></div>
+      </div>
+
+      <details>
+        <summary>🔧 デバッグログ</summary>
+        <div id="log"></div>
+      </details>
     </div>
 
-    <div class="card">
-        <b>🏠 現在の部屋</b>
-        <div style="margin-top:6px;">
-            <input id="roomNameView" disabled />
-            <button onclick="leaveRoom()">退室</button>
-        </div>
-        <div id="status"></div>
+    <div>
+      <div id="chat"></div>
+      <div style="margin-top:8px;">
+        <input id="msg" placeholder="メッセージ" />
+        <button onclick="sendMsg()">送信</button>
+      </div>
     </div>
+  </div>
 
-    <div class="layout">
-        <div>
-            <div class="card">
-                <b>🎤 音声通話（複数人）</b><br />
-                <button onclick="startVoice()" id="startVoiceBtn">通話に参加（開始）</button>
-                <button onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
-                <button onclick="hangupAll()" id="hangupBtn">通話退出</button>
-                <div id="callState" style="font-size:12px; margin-top:6px;">未接続</div>
-                <div id="audios" style="margin-top:8px;"></div>
-            </div>
-
-            <div class="card">
-                <b>👥 参加者（通話）</b>
-                <div id="peopleList"></div>
-            </div>
-
-            <details>
-                <summary>🔧 デバッグログ</summary>
-                <div id="log"></div>
-            </details>
-        </div>
-
-        <div>
-            <div id="chat"></div>
-            <div style="margin-top:8px;">
-                <input id="msg" placeholder="メッセージ" />
-                <button onclick="sendMsg()">送信</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-/* =================== Supabase 設定 ===================
-   index(6).html / login.html と同じものを入れてね :contentReference[oaicite:10]{index=10} */
+<script>
 const SUPABASE_URL = "YOUR_SUPABASE_URL";
 const SUPABASE_KEY = "YOUR_ANON_KEY";
 
@@ -208,7 +104,6 @@ let authUser = null;
 let room = "";
 let name = "";
 
-const SYSTEM_NAME = "__system__";
 let messagesChannel = null;
 
 /* ===== 通話 ===== */
@@ -261,8 +156,7 @@ function myUid(){ return authUser?.id || null; }
 
 /* ===== 起動・ログイン必須 ===== */
 async function requireLoginOrRedirect(){
-  const { data, error } = await sb.auth.getSession();
-  if (error) log("getSession error", error);
+  const { data } = await sb.auth.getSession();
   authUser = data?.session?.user || null;
   updateTopRightUser();
   if (!authUser){ goLogin(); return false; }
@@ -292,7 +186,7 @@ async function reloadName(){
 
 /* =========================================================
    チャット（messages）
-   - index(6).html と同じく messages の changes を監視する :contentReference[oaicite:11]{index=11}
+   ✅ message カラムに合わせる
    ========================================================= */
 async function startMessagesRealtime(){
   if (messagesChannel) return;
@@ -300,9 +194,9 @@ async function startMessagesRealtime(){
   messagesChannel = sb
     .channel("messages-ch")
     .on("postgres_changes", { event:"*", schema:"public", table:"messages" }, async (payload)=>{
-      const newRow = payload.new || {};
-      const oldRow = payload.old || {};
-      const rid = newRow.room_id || oldRow.room_id;
+      const nr = payload.new || {};
+      const or = payload.old || {};
+      const rid = nr.room_id || or.room_id;
       if (rid === room) await loadMessages();
     })
     .subscribe();
@@ -311,7 +205,7 @@ async function startMessagesRealtime(){
 async function loadMessages(){
   const { data, error } = await sb
     .from("messages")
-    .select("id, room_id, name, body, created_at")
+    .select("id, room_id, name, message, created_at, user_id")
     .eq("room_id", room)
     .order("created_at", { ascending:true })
     .limit(200);
@@ -322,15 +216,7 @@ async function loadMessages(){
   box.innerHTML = "";
   (data || []).forEach(m=>{
     const line = document.createElement("div");
-    const n = m.name || "";
-    const b = m.body || "";
-    if (n === SYSTEM_NAME){
-      line.style.color = "#666";
-      line.style.fontSize = "12px";
-      line.textContent = b;
-    } else {
-      line.textContent = `${n}: ${b}`;
-    }
+    line.textContent = `${m.name || ""}: ${m.message || ""}`;
     box.appendChild(line);
   });
   box.scrollTop = box.scrollHeight;
@@ -340,13 +226,20 @@ async function sendMsg(){
   const v = document.getElementById("msg").value.trim();
   if (!v) return;
   document.getElementById("msg").value = "";
-  const { error } = await sb.from("messages").insert({ room_id: room, name, body: v });
+
+  const { error } = await sb.from("messages").insert({
+    room_id: room,
+    name,
+    message: v,
+    user_id: myUid()
+  });
+
   if (error){ alert("送信失敗: " + error.message); }
 }
 
 /* =========================================================
-   通話（Realtime presence + broadcast signal）
-   - あなたの index(6).html の startVoice() 方式を採用 :contentReference[oaicite:12]{index=12}
+   通話（presence + broadcast）
+   call_participants を alive 判定にも使う
    ========================================================= */
 function updateMuteBtn(){
   document.getElementById("muteBtn").textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
@@ -491,27 +384,19 @@ async function ensurePC(peerId){
   pc.onicecandidate = async (ev)=>{
     if (ev.candidate) await sendSignal(peerId, { kind:"ice", candidate: ev.candidate });
   };
-
-  pc.onconnectionstatechange = ()=>{
-    log("pc state", peerId, pc.connectionState);
-  };
-  pc.oniceconnectionstatechange = ()=>{
-    log("ice state", peerId, pc.iceConnectionState);
-  };
+  pc.onconnectionstatechange = ()=> log("pc state", peerId, pc.connectionState);
+  pc.oniceconnectionstatechange = ()=> log("ice state", peerId, pc.iceConnectionState);
 
   pc.ontrack = (ev)=>{
     const el = ensureAudioEl(peerId);
     el.srcObject = ev.streams[0];
   };
 
-  // 自分の音声トラックを相手へ
   if (localStream){
     for (const t of localStream.getTracks()){
       pc.addTrack(t, localStream);
     }
   }
-
-  return pc;
 }
 
 async function maybeMakeOffer(peerId){
@@ -534,16 +419,16 @@ function closePC(peerId){
   if (el) el.remove();
 }
 
+/* ===== call_participants（alive） ===== */
 async function upsertCallParticipant(){
-  // index(6).html と同じ思想：call_participants に居る=通話中（alive判定に使う） :contentReference[oaicite:13]{index=13}
-  // テーブル定義例: room_id(text), user_id(uuid), name(text), muted(bool), updated_at(timestamptz)
+  // ✅ call_participants のカラムに合わせる
   const { error } = await sb.from("call_participants").upsert({
     room_id: room,
     user_id: myUid(),
     name,
-    muted: micMuted,
     updated_at: new Date().toISOString()
   }, { onConflict: "room_id,user_id" });
+
   if (error) log("upsertCallParticipant error", error);
 }
 
@@ -569,10 +454,9 @@ async function startVoice(){
       micMuted = false;
       for (const t of localStream.getAudioTracks()) t.enabled = true;
       updateMuteBtn();
-      log("mic ok");
     }
 
-    // すでに作ってあるPCへもトラックを追加（遅延参加対策）
+    // 既存PCへもトラックを追加（遅延参加対策）
     for (const [pid, pc] of pcs){
       if (!pc) continue;
       const senders = pc.getSenders().filter(s=>s.track && s.track.kind==="audio");
@@ -584,11 +468,8 @@ async function startVoice(){
     await upsertCallParticipant();
     startHeartbeat();
 
-    // presenceに居る全員へ接続準備
     const state = callChannel.presenceState();
     const peers = Object.keys(state).filter(k => k !== myUid());
-    log("startVoice peers", peers);
-
     for (const pid of peers) await ensurePC(pid);
 
     await broadcastHello();
@@ -617,15 +498,17 @@ async function toggleMute(){
 async function hangupAll(){
   stopHeartbeat();
 
-  // call_participants から削除（通話中フラグを消す）
   if (authUser && room){
-    try { await sb.from("call_participants").delete().eq("room_id", room).eq("user_id", myUid()); } catch {}
+    try {
+      await sb.from("call_participants")
+        .delete()
+        .eq("room_id", room)
+        .eq("user_id", myUid());
+    } catch {}
   }
 
-  // PC全閉じ
   for (const pid of Array.from(pcs.keys())) closePC(pid);
 
-  // マイク停止
   if (localStream){
     try { localStream.getTracks().forEach(t=>t.stop()); } catch {}
     localStream = null;
@@ -635,7 +518,6 @@ async function hangupAll(){
   micMuted = false;
   updateMuteBtn();
 
-  // presence離脱
   if (callChannel){
     try { await callChannel.untrack(); } catch {}
     try { await callChannel.unsubscribe(); } catch {}
@@ -655,9 +537,9 @@ async function hangupAll(){
   await startMessagesRealtime();
   await loadMessages();
 
-  // 通話はボタンを押すまで開始しない（あなたの方式と同じ） :contentReference[oaicite:14]{index=14}
   setCallState("未接続（必要なら『通話に参加』を押してね）");
   renderPeopleFromState();
+  setStatus("準備OK", true);
 
   sb.auth.onAuthStateChange(async ()=>{
     if (!(await requireLoginOrRedirect())) return;
@@ -666,6 +548,6 @@ async function hangupAll(){
 
   log("ready room=", room);
 })();
-    </script>
+</script>
 </body>
 </html>
