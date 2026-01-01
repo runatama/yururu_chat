@@ -39,6 +39,8 @@
   </style>
 </head>
 <body>
+  
+<let roomsWatchChannel = null;
 
   <div class="topbar">
     <h2 style="margin:0;">ゆるるチャット - ルーム</h2>
@@ -534,6 +536,8 @@ async function hangupAll(){
   if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
   await reloadName();
 
+  startRoomWatchRealtime(); // ← ★これを追加（部屋削除の監視スタート）
+
   await startMessagesRealtime();
   await loadMessages();
 
@@ -545,10 +549,36 @@ async function hangupAll(){
     if (!(await requireLoginOrRedirect())) return;
     await reloadName();
   });
+})();
+
 
   log("ready room=", room);
-})();
+})()
+  ;
+  function startRoomWatchRealtime(){
+  if (roomsWatchChannel) return;
+
+  roomsWatchChannel = sb
+    .channel("rooms-watch")
+    .on(
+      "postgres_changes",
+      { event: "DELETE", schema: "public", table: "rooms" },
+      (payload) => {
+        // 削除された部屋の名前
+        const deletedRoom = payload.old.room_name;
+
+        // 今いる部屋と同じなら
+        if (deletedRoom === room){
+          alert("部屋が削除されました。ロビーに戻ります。");
+          leaveRoom(); // 通話切断 → ロビーへ
+        }
+      }
+    )
+    .subscribe();
+}
+
 </script>
 </body>
 </html>
+
 
