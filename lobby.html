@@ -170,7 +170,7 @@ async function loadRooms(){
     return;
   }
 
-  data.forEach(r => {
+    for (const r of data){
     const rn = r.room_name;
 
     const row = document.createElement("div");
@@ -187,9 +187,17 @@ async function loadRooms(){
     del.type = "button";
     del.className = "delBtn";
     del.textContent = "🗑";
-    del.title = "部屋削除（RLSによってはオーナーのみ）";
+    del.title = "通話中は削除できません";
+
+    const inCall = await isRoomInCall(rn);
+    if (inCall){
+      del.disabled = true;
+      del.style.opacity = "0.4";
+      del.style.cursor = "not-allowed";
+    }
 
     del.onclick = async () => {
+      if (del.disabled) return;
       if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
       const r2 = await sb.from("rooms").delete().eq("room_name", rn);
       if (r2.error){ alert("削除失敗: " + r2.error.message); return; }
@@ -199,7 +207,8 @@ async function loadRooms(){
     row.appendChild(btn);
     row.appendChild(del);
     box.appendChild(row);
-  });
+  }
+
 
   setStatus(`部屋一覧OK（${data.length}件）`, true);
 }
@@ -247,7 +256,10 @@ async function enterRoom(){
 
   log("ready");
 })();
+
+  
 </script>
 </body>
 </html>
+
 
