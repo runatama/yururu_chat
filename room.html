@@ -7,133 +7,518 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
-    body { font-family: sans-serif; padding: 12px; }
-    input { width: 260px; padding: 6px; margin: 4px 0; }
-    button { padding: 6px 10px; margin: 4px 2px; cursor: pointer; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    .card { border: 1px solid #ccc; background: #fafafa; padding: 10px; border-radius: 10px; margin: 10px 0; }
+    :root{
+      --bg1:#0b1220;
+      --bg2:#0a1a2a;
 
-    .topbar{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+      --text:#eaf2ff;
+      --muted:rgba(234,242,255,.70);
+      --muted2:rgba(234,242,255,.55);
+
+      --line:rgba(255,255,255,.10);
+      --line2:rgba(255,255,255,.16);
+
+      --accent:#6ee7ff;
+      --accent2:#a78bfa;
+
+      --good:#3be0a8;
+      --bad:#ff6b6b;
+      --warn:#ffd166;
+
+      --radius:18px;
+      --shadow: 0 18px 50px rgba(0,0,0,.45);
+      --shadow2: 0 10px 28px rgba(0,0,0,.35);
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(900px 600px at 15% 18%, rgba(110,231,255,.25), transparent 55%),
+        radial-gradient(900px 600px at 85% 22%, rgba(167,139,250,.22), transparent 55%),
+        radial-gradient(900px 600px at 50% 100%, rgba(59,224,168,.12), transparent 60%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+      padding: 18px 16px 28px;
+      overflow-x:hidden;
+    }
+
+    /* 背景ノイズ */
+    .grain{
+      position:fixed; inset:0;
+      pointer-events:none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.25'/%3E%3C/svg%3E");
+      opacity:.08;
+      mix-blend-mode: overlay;
+    }
+
+    .wrap{ max-width: 1100px; margin: 0 auto; }
+
+    /* ===== Topbar ===== */
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom: 14px;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width:0;
+    }
+    .logo{
+      width:42px; height:42px;
+      border-radius: 14px;
+      background:
+        radial-gradient(16px 16px at 30% 30%, rgba(255,255,255,.9), transparent 55%),
+        linear-gradient(135deg, rgba(110,231,255,.95), rgba(167,139,250,.88));
+      box-shadow: 0 14px 30px rgba(110,231,255,.14), 0 14px 30px rgba(167,139,250,.10);
+      position:relative;
+      overflow:hidden;
+      flex: 0 0 auto;
+    }
+    .logo::after{
+      content:"";
+      position:absolute; inset:-30%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+      transform: rotate(20deg);
+      animation: sheen 3.2s infinite;
+    }
+    @keyframes sheen{
+      0%{ transform: translateX(-40%) rotate(20deg); opacity:.0; }
+      20%{ opacity:.6; }
+      50%{ opacity:.25; }
+      100%{ transform: translateX(40%) rotate(20deg); opacity:0; }
+    }
+
+    .titles{ min-width:0; }
+    h2{
+      margin:0;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: .02em;
+      line-height: 1.1;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 52vw;
+    }
+    .sub{
+      margin:6px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 58vw;
+    }
+
     .userBox{
-      display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;
-      border:1px solid #ddd; background:#fafafa; padding:6px 10px; border-radius:999px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      box-shadow: var(--shadow2);
     }
-    .userPill{ font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; background:#fff; }
-    .userText{ font-size:12px; color:#333; max-width:44vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-    #status { font-size: 12px; color:#666; margin-top: 6px; }
-    .ok { color:#0a7; } .ng{ color:#c33; }
-
-    .layout { display:grid; grid-template-columns: 360px 1fr; gap:12px; align-items:start; }
-    @media (max-width: 900px){ .layout{ grid-template-columns: 1fr; } }
-
-    #chat { border:1px solid #ccc; height:360px; overflow:auto; padding:8px; background:#fff; }
-    #log { white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace; font-size:12px;
-      border:1px solid #ddd; background:#fff; padding:8px; border-radius:10px; max-height:220px; overflow:auto; }
-
-    #peopleList .pRow{
-      display:flex; justify-content:space-between; gap:8px;
-      padding:6px; border:1px solid #eee; border-radius:10px; background:#fff; margin:6px 0;
+    .userPill{
+      font-size:12px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: rgba(234,242,255,.92);
+      font-weight: 800;
+      white-space:nowrap;
     }
-    .pill { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; background:#fafafa; }
+    .userText{
+      font-size:12px;
+      color: var(--muted);
+      max-width: 34vw;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
 
+    /* ===== Buttons / Inputs ===== */
+    button{
+      padding: 10px 12px;
+      margin: 0;
+      cursor:pointer;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      font-weight: 800;
+      transition: transform .08s ease, filter .12s ease, background .12s ease;
+    }
+    button:hover{ filter: brightness(1.08); }
+    button:active{ transform: translateY(1px) scale(.99); }
+    button:disabled{ opacity: .55; cursor: not-allowed; }
+
+    .btnPrimary{
+      background: linear-gradient(135deg, rgba(110,231,255,.92), rgba(167,139,250,.88));
+      border-color: rgba(255,255,255,.18);
+      color: #07101c;
+      box-shadow: 0 18px 35px rgba(110,231,255,.12), 0 18px 35px rgba(167,139,250,.10);
+    }
+    .btnGhost{ background: rgba(255,255,255,.06); }
+    .btnDanger{
+      background: rgba(255,107,107,.14);
+      border-color: rgba(255,107,107,.26);
+    }
+
+    input{
+      width: 100%;
+      padding: 12px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.22);
+      color: var(--text);
+      outline:none;
+      transition: border-color .12s ease, box-shadow .12s ease;
+    }
+    input::placeholder{ color: rgba(234,242,255,.38); }
+    input:focus{
+      border-color: rgba(110,231,255,.55);
+      box-shadow: 0 0 0 4px rgba(110,231,255,.12);
+    }
+
+    /* ===== Cards ===== */
+    .card{
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      padding: 16px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin: 12px 0;
+      position:relative;
+      overflow:hidden;
+    }
+    .card::before{
+      content:"";
+      position:absolute;
+      inset:-2px;
+      border-radius: var(--radius);
+      background:
+        radial-gradient(600px 220px at 20% 0%, rgba(110,231,255,.14), transparent 60%),
+        radial-gradient(600px 220px at 80% 0%, rgba(167,139,250,.12), transparent 60%);
+      pointer-events:none;
+    }
+    .card > *{ position:relative; z-index:1; }
+
+    .cardTitle{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom: 10px;
+    }
+    .cardTitle b{
+      font-size: 13px;
+      color: rgba(234,242,255,.92);
+      letter-spacing:.02em;
+    }
+    .hint{
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-top: 6px;
+    }
+
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+
+    /* ===== Status line ===== */
+    #status{
+      font-size:12px;
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      color: var(--muted);
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .ok{ color: var(--good); }
+    .ng{ color: var(--bad); }
+    .dot{
+      width:10px; height:10px; border-radius:999px;
+      background: rgba(255,255,255,.35);
+      box-shadow: 0 0 0 4px rgba(255,255,255,.06);
+      flex:0 0 auto;
+    }
+    #status.okLine{ border-color: rgba(59,224,168,.25); background: rgba(59,224,168,.08); color: rgba(234,242,255,.85); }
+    #status.okLine .dot{ background: var(--good); box-shadow: 0 0 0 4px rgba(59,224,168,.13); }
+    #status.ngLine{ border-color: rgba(255,107,107,.25); background: rgba(255,107,107,.10); color: rgba(234,242,255,.88); }
+    #status.ngLine .dot{ background: var(--bad); box-shadow: 0 0 0 4px rgba(255,107,107,.13); }
+
+    /* ===== Layout ===== */
+    .layout{
+      display:grid;
+      grid-template-columns: 390px 1fr;
+      gap: 14px;
+      align-items:start;
+    }
+    @media (max-width: 980px){
+      .layout{ grid-template-columns: 1fr; }
+      h2{ max-width: 70vw; }
+      .sub{ max-width: 80vw; }
+      .userText{ max-width: 60vw; }
+    }
+
+    /* ===== Chat ===== */
+    #chat{
+      border: 1px solid var(--line);
+      height: 420px;
+      overflow:auto;
+      padding: 10px;
+      border-radius: var(--radius);
+      background: rgba(0,0,0,.22);
+      box-shadow: var(--shadow2);
+    }
+    #chat > div{
+      padding: 8px 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.05);
+      margin: 8px 0;
+      color: rgba(234,242,255,.90);
+      font-size: 13px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .chatSend{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      margin-top:10px;
+    }
+    .chatSend input{ flex: 1 1 auto; }
+    .chatSend button{ flex: 0 0 auto; }
+
+    /* ===== Lists ===== */
+    .pill{
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      color: rgba(234,242,255,.86);
+      white-space:nowrap;
+    }
+    .pillOn{ border-color: rgba(59,224,168,.28); background: rgba(59,224,168,.10); }
+    .pillMute{ border-color: rgba(255,107,107,.28); background: rgba(255,107,107,.12); }
+
+    #peopleList .pRow,
     #callUsersList .uRow{
-      display:flex; justify-content:space-between; gap:8px;
-      padding:6px; border:1px solid #eee; border-radius:10px; background:#fff; margin:6px 0;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding: 10px 10px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 16px;
+      background: rgba(255,255,255,.05);
+      margin: 8px 0;
+      align-items:center;
     }
-    .mutedPill{ font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; background:#fafafa; }
+    .mutedPill{
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(110,231,255,.18);
+      background: rgba(110,231,255,.10);
+      color: rgba(234,242,255,.86);
+    }
 
+    /* ===== Audio blocks ===== */
     .audioWrap{
-      border: 1px solid #eee;
-      border-radius: 10px;
-      padding: 8px;
-      margin-top: 8px;
-      background: #fff;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 16px;
+      padding: 10px;
+      margin-top: 10px;
+      background: rgba(255,255,255,.05);
     }
     .audioTitleRow{
       display:flex;
       justify-content:space-between;
-      gap:8px;
+      gap:10px;
       align-items:center;
-      font-size:12px;
-      margin-bottom:6px;
-      color:#333;
+      font-size: 12px;
+      margin-bottom: 8px;
+      color: rgba(234,242,255,.90);
     }
     .audioCtlRow{
       display:flex;
-      gap:8px;
+      gap:10px;
       align-items:center;
-      margin-top:6px;
-      font-size:12px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
     }
     .audioCtlRow input[type="range"]{
-      flex:1;
-      min-width: 140px;
+      flex: 1;
+      min-width: 160px;
     }
+    audio{
+      width:100%;
+      border-radius: 14px;
+      background: rgba(0,0,0,.20);
+      border: 1px solid rgba(255,255,255,.10);
+    }
+
+    /* ===== Range ===== */
+    input[type="range"]{
+      accent-color: var(--accent);
+    }
+
+    /* ===== Log ===== */
+    details{ margin-top: 12px; }
+    summary{
+      cursor:pointer;
+      color: rgba(234,242,255,.85);
+      font-weight: 900;
+      font-size: 12px;
+      user-select:none;
+    }
+    #log{
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      padding: 10px;
+      border-radius: 16px;
+      max-height: 220px;
+      overflow: auto;
+      color: rgba(234,242,255,.88);
+      margin-top: 10px;
+    }
+
+    /* 小さめボタン行 */
+    .btnRow{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+
+    /* 現在の部屋 input */
+    #roomNameView{ max-width: 420px; }
   </style>
 </head>
+
 <body>
+  <div class="grain"></div>
+  <div class="wrap">
 
-  <div class="topbar">
-    <h2 style="margin:0;">ゆるるチャット - ルーム</h2>
-    <div class="userBox">
-      <span class="userPill" id="userNamePill">未ログイン</span>
-      <span class="userText" id="userMailText"></span>
-      <button onclick="goLobby()">ロビーへ</button>
-      <button onclick="signOut()" id="signOutBtn">ログアウト</button>
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="titles">
+          <h2>ゆるるチャット - ルーム</h2>
+          <div class="sub">通話 / チャット / 参加者がここで全部まとまる</div>
+        </div>
+      </div>
+
+      <div class="userBox">
+        <span class="userPill" id="userNamePill">未ログイン</span>
+        <span class="userText" id="userMailText"></span>
+        <button class="btnGhost" onclick="goLobby()">ロビーへ</button>
+        <button class="btnDanger" onclick="signOut()" id="signOutBtn">ログアウト</button>
+      </div>
     </div>
-  </div>
 
-  <div class="card">
-    <b>🏠 現在の部屋</b>
-    <div style="margin-top:6px;">
-      <input id="roomNameView" disabled />
-      <button onclick="leaveRoom()">退室</button>
+    <!-- 現在の部屋 -->
+    <div class="card">
+      <div class="cardTitle">
+        <b>🏠 現在の部屋</b>
+        <span class="pill" id="roomPill">Room</span>
+      </div>
+
+      <div class="row" style="margin-top:6px;">
+        <input id="roomNameView" disabled />
+        <button class="btnGhost" onclick="leaveRoom()">退室</button>
+      </div>
+
+      <div id="status"><span class="dot"></span><span>未接続</span></div>
     </div>
-    <div id="status"></div>
-  </div>
 
-  <div class="layout">
-    <div>
-      <div class="card">
-        <b>🎤 音声通話（複数人）</b><br/>
-        <button onclick="startVoice()" id="startVoiceBtn">通話に参加（開始）</button>
-        <button onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
-        <button onclick="hangupAll()" id="hangupBtn">通話退出</button>
+    <div class="layout">
+      <!-- 左カラム -->
+      <div>
+        <div class="card">
+          <div class="cardTitle">
+            <b>🎤 音声通話（複数人）</b>
+            <span class="pill" id="callStatePill">Call</span>
+          </div>
 
-        <div style="margin-top:6px; font-size:12px;">
-          自分のマイク音量: <b><span id="myVolLabel">100</span></b>
-          <input id="myVol" type="range" min="1" max="100" value="100" oninput="setMyMicVolume(this.value)" />
-          <div class="hint">※ 送信音量（あなたの声の大きさ）</div>
+          <div class="btnRow">
+            <button class="btnPrimary" onclick="startVoice()" id="startVoiceBtn">通話に参加（開始）</button>
+            <button class="btnGhost" onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
+            <button class="btnDanger" onclick="hangupAll()" id="hangupBtn">通話退出</button>
+          </div>
+
+          <div style="margin-top:12px; font-size:12px; color:var(--muted);">
+            自分のマイク音量: <b><span id="myVolLabel">100</span></b>
+            <input id="myVol" type="range" min="1" max="100" value="100" oninput="setMyMicVolume(this.value)" />
+            <div class="hint">※ 送信音量（あなたの声の大きさ）</div>
+          </div>
+
+          <div id="callState" style="font-size:12px; margin-top:10px; color:var(--muted);">未接続</div>
+          <div id="audios" style="margin-top:10px;"></div>
         </div>
 
-        <div id="callState" style="font-size:12px; margin-top:6px;">未接続</div>
-        <div id="audios" style="margin-top:8px;"></div>
+        <div class="card">
+          <div class="cardTitle">
+            <b>👥 参加者（通話：チャンネル接続中のみ表示）</b>
+            <span class="pill">Presence</span>
+          </div>
+          <div id="peopleList"></div>
+        </div>
+
+        <div class="card">
+          <div class="cardTitle">
+            <b>📞 今この部屋で通話してる人（通話に参加してなくても見える）</b>
+            <span class="pill">call_participants</span>
+          </div>
+          <div id="callUsersList"></div>
+        </div>
+
+        <details>
+          <summary>🔧 デバッグログ</summary>
+          <div id="log"></div>
+        </details>
       </div>
 
-      <div class="card">
-        <b>👥 参加者（通話：チャンネル接続中のみ表示）</b>
-        <div id="peopleList"></div>
-      </div>
+      <!-- 右カラム -->
+      <div>
+        <div class="card">
+          <div class="cardTitle">
+            <b>💬 チャット</b>
+            <span class="pill">Messages</span>
+          </div>
 
-      <div class="card">
-        <b>📞 今この部屋で通話してる人（通話に参加してなくても見える）</b>
-        <div id="callUsersList"></div>
-      </div>
+          <div id="chat"></div>
 
-      <details>
-        <summary>🔧 デバッグログ</summary>
-        <div id="log"></div>
-      </details>
+          <div class="chatSend">
+            <input id="msg" placeholder="メッセージ" />
+            <button class="btnPrimary" onclick="sendMsg()">送信</button>
+          </div>
+
+          <div class="hint small" style="font-size:11px; color:var(--muted2); margin-top:10px;">
+            ※ 改行したい時は短文で分けるのがおすすめ（今はEnter送信ではないよ）
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div>
-      <div id="chat"></div>
-      <div style="margin-top:8px;">
-        <input id="msg" placeholder="メッセージ" />
-        <button onclick="sendMsg()">送信</button>
-      </div>
-    </div>
   </div>
 
 <script>
@@ -193,9 +578,15 @@ window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reaso
 
 function setStatus(text, ok=true){
   const el = document.getElementById("status");
-  el.innerHTML = `<span class="${ok?'ok':'ng'}">${text}</span>`;
+  el.classList.remove("okLine","ngLine");
+  el.classList.add(ok ? "okLine" : "ngLine");
+  el.innerHTML = `<span class="dot"></span><span>${text}</span>`;
 }
-function setCallState(t){ document.getElementById("callState").textContent = t; }
+function setCallState(t){
+  document.getElementById("callState").textContent = t;
+  const pill = document.getElementById("callStatePill");
+  if (pill) pill.textContent = t.includes("未接続") ? "Call" : "On";
+}
 
 function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
 function goLobby(){ location.replace("./lobby.html?_r=" + Date.now()); }
@@ -261,6 +652,8 @@ function readRoomFromUrl(){
   room = (u.searchParams.get("room") || "").trim();
   if (!room) return false;
   document.getElementById("roomNameView").value = room;
+  const rp = document.getElementById("roomPill");
+  if (rp) rp.textContent = room || "Room";
   return true;
 }
 
@@ -339,7 +732,7 @@ async function loadActiveCallUsers(){
 
   if (error){
     log("loadActiveCallUsers error", error);
-    box.innerHTML = "<div style='color:#c33;font-size:12px;'>通話中メンバー取得失敗</div>";
+    box.innerHTML = "<div style='color:#ff6b6b;font-size:12px;'>通話中メンバー取得失敗</div>";
     return;
   }
 
@@ -349,7 +742,7 @@ async function loadActiveCallUsers(){
   }));
 
   if (list.length === 0){
-    box.innerHTML = "<div style='color:#666;font-size:12px;'>今は誰も通話してないよ</div>";
+    box.innerHTML = "<div style='color:rgba(234,242,255,.65);font-size:12px;'>今は誰も通話してないよ</div>";
     return;
   }
 
@@ -431,7 +824,7 @@ function refreshAudioTitles(){
 
 function renderPeopleFromState(){
   if (!callChannel) {
-    document.getElementById("peopleList").innerHTML = "<div style='color:#666;font-size:12px;'>未接続</div>";
+    document.getElementById("peopleList").innerHTML = "<div style='color:rgba(234,242,255,.65);font-size:12px;'>未接続</div>";
     return;
   }
   const state = callChannel.presenceState();
@@ -452,7 +845,7 @@ function renderPeopleFromState(){
   list.forEach(p=>{
     const row = document.createElement("div");
     row.className = "pRow";
-    row.innerHTML = `<div>${escapeHtml(p.name)}</div><div class="pill">${p.muted ? "🔇 mute" : "🎤 on"}</div>`;
+    row.innerHTML = `<div>${escapeHtml(p.name)}</div><div class="pill ${p.muted ? "pillMute" : "pillOn"}">${p.muted ? "🔇 mute" : "🎤 on"}</div>`;
     box.appendChild(row);
   });
 
@@ -571,8 +964,6 @@ function ensureAudioEl(peerId){
   el.id = "audio-" + peerId;
   el.autoplay = true;
   el.controls = true;
-  el.style.display = "block";
-  el.style.width = "100%";
 
   const initVol = peerVolume.get(peerId) ?? 1.0;
   el.volume = initVol;
