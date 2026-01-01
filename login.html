@@ -302,9 +302,35 @@ async function signUp() {
     email,
     password: pass,
     options: {
-      emailRedirectTo: "https://yururu-chat.pages.dev"
+      emailRedirectTo: location.origin + "/login.html"
     }
   });
+
+  if (error) { showAuthError("新規登録失敗", error); return; }
+
+  log("signUp data", data);
+  alert("新規登録OK！メール確認が必要なら、メールを確認してからログインしてね！");
+  await reloadSession();
+
+  if (!authUser) {
+    setMode("signin");
+    setStatus("メール確認が必要なら先に確認 → その後ログインしてね", true);
+  }
+}
+
+
+  if (error) { showAuthError("新規登録失敗", error); return; }
+
+  log("signUp data", data);
+  alert("新規登録OK！メール確認が必要なら、メールを確認してからログインしてね！");
+  await reloadSession();
+
+  if (!authUser) {
+    setMode("signin");
+    setStatus("メール確認が必要なら先に確認 → その後ログインしてね", true);
+  }
+}
+
 
   if (error) { showAuthError("新規登録失敗", error); return; }
 
@@ -447,4 +473,5 @@ async function deleteAccount(){
 </script>
 </body>
 </html>
+
 
