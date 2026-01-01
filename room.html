@@ -556,8 +556,12 @@ async function hangupAll(){
 })();
 
 /* ===== 部屋削除の監視 ===== */
-function startRoomWatchRealtime(){
-  if (roomsWatchChannel) return;
+async function startRoomWatchRealtime(){
+  // すでに監視してるなら一旦止めて作り直す（多重登録防止）
+  if (roomsWatchChannel){
+    try { await roomsWatchChannel.unsubscribe(); } catch {}
+    roomsWatchChannel = null;
+  }
 
   roomsWatchChannel = sb
     .channel("rooms-watch")
@@ -577,9 +581,11 @@ function startRoomWatchRealtime(){
 
 
 
+
 </script>
 </body>
 </html>
+
 
 
 
