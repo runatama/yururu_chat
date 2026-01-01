@@ -567,7 +567,7 @@ function startRoomWatchRealtime(){
   renderPeopleFromState();
   setStatus("準備OK", true);
 
-  log("ready room=", room); // ← ここに入れるのはOK
+  log("ready room=", room); // ← ★ここに置く
 
   sb.auth.onAuthStateChange(async ()=>{
     if (!(await requireLoginOrRedirect())) return;
@@ -576,9 +576,11 @@ function startRoomWatchRealtime(){
 })();
 
 
+
 </script>
 </body>
 </html>
+
 
 
 
