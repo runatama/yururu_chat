@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ゆるるチャット - Lobby</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body { font-family: sans-serif; padding: 12px; }
+    input { width: 260px; padding: 6px; margin: 4px 0; }
+    button { padding: 6px 10px; margin: 4px 2px; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .card { border: 1px solid #ccc; background: #fafafa; padding: 10px; border-radius: 10px; margin: 10px 0; }
+    .row { display:flex; gap:8px; flex-wrap: wrap; align-items: center; }
+
+    #roomsBox {
+      border: 1px solid #ccc; width: 320px; max-width: 92vw; height: 260px;
+      overflow: auto; padding: 6px; margin: 10px 0; background: #fff;
+    }
+    .roomRow { display:flex; gap:6px; align-items:center; margin: 4px 0; }
+    .roomBtn { flex:1; text-align:left; padding: 8px; border: 1px solid #ddd; background:#fff; border-radius: 10px; }
+    .roomBtn:hover { background:#f3f3f3; }
+    .delBtn { width: 44px; padding: 8px; border: 1px solid #ddd; background:#fff; border-radius: 10px; }
+    .delBtn:hover { background:#ffecec; }
+
+    .topbar{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .userBox{
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;
+      border:1px solid #ddd; background:#fafafa; padding:6px 10px; border-radius:999px;
+    }
+    .userPill{ font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; background:#fff; }
+    .userText{ font-size:12px; color:#333; max-width:44vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #status { font-size: 12px; color:#666; margin-top: 6px; }
+    .ok { color:#0a7; } .ng{ color:#c33; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, Menlo, monospace; font-size:12px;
+      border:1px solid #ddd; background:#fff; padding:8px; border-radius:10px; max-height:200px; overflow:auto; }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h2 style="margin:0;">ゆるるチャット - ロビー</h2>
+    <div class="userBox">
+      <span class="userPill" id="userNamePill">未ログイン</span>
+      <span class="userText" id="userMailText"></span>
+      <button type="button" onclick="goLogin()" id="goLoginBtn" style="display:none;">ログインへ</button>
+      <button type="button" onclick="signOut()" id="signOutBtn">ログアウト</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <b>🏠 部屋</b>
+    <div class="row" style="margin-top:8px;">
+      <input id="room" placeholder="部屋名（例: test）" />
+      <button onclick="createRoom()" id="createBtn">部屋作成</button>
+      <button onclick="enterRoom()" id="enterBtn">入室</button>
+      <button onclick="loadRooms()" id="reloadBtn">更新</button>
+    </div>
+
+    <div style="margin-top:10px;">
+      <b>部屋一覧</b>
+      <div id="roomsBox"></div>
+    </div>
+
+    <details style="margin-top:8px;">
+      <summary>🔧 デバッグログ</summary>
+      <div id="log"></div>
+    </details>
+
+    <div id="status"></div>
+  </div>
+
+<script>
+/* =================== Supabase 設定 ===================
+   index(6).html / login.html と同じものを入れてね  :contentReference[oaicite:6]{index=6}  */
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_KEY = "YOUR_ANON_KEY";
+
+const sb = supabase.createClient(
+  SUPABASE_URL.trim(),
+  (SUPABASE_KEY || "").replace(/\s+/g, "")
+);
+
+let authUser = null;
+let roomsChannel = null;
+
+function log(...args){
+  const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
+  console.log("[lobby]", ...args);
+  const el = document.getElementById("log");
+  if (!el) return;
+  el.textContent += s + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
+window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
+
+function setStatus(text, ok=true){
+  const el = document.getElementById("status");
+  el.innerHTML = `<span class="${ok?'ok':'ng'}">${text}</span>`;
+}
+
+function goLogin(){
+  location.replace("./login.html?_r=" + Date.now());
+}
+function goRoom(roomName){
+  location.replace("./room.html?room=" + encodeURIComponent(roomName) + "&_r=" + Date.now());
+}
+
+function updateTopRightUser(){
+  const pill = document.getElementById("userNamePill");
+  const mail = document.getElementById("userMailText");
+  const goBtn = document.getElementById("goLoginBtn");
+  const soBtn = document.getElementById("signOutBtn");
+
+  if (!authUser){
+    pill.textContent = "未ログイン";
+    mail.textContent = "";
+    goBtn.style.display = "inline-block";
+    soBtn.style.display = "none";
+    return;
+  }
+
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  const shown = dn || (authUser.email || "user").split("@")[0];
+  pill.textContent = shown;
+  mail.textContent = authUser.email || "";
+  goBtn.style.display = "none";
+  soBtn.style.display = "inline-block";
+}
+
+async function requireLoginOrRedirect(){
+  const { data, error } = await sb.auth.getSession();
+  if (error) log("getSession error", error);
+  authUser = data?.session?.user || null;
+
+  updateTopRightUser();
+  if (!authUser){ goLogin(); return false; }
+  return true;
+}
+
+async function signOut(){
+  try { await sb.auth.signOut({ scope:"local" }); } catch (e) { log("signOut", e); }
+  authUser = null;
+  updateTopRightUser();
+  goLogin();
+}
+
+async function startRealtime(){
+  if (roomsChannel) return;
+
+  // index(6).html と同じ「rooms changes 監視」 :contentReference[oaicite:7]{index=7}
+  roomsChannel = sb
+    .channel("rooms-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"rooms" }, async () => {
+      await loadRooms();
+    })
+    .subscribe();
+}
+
+async function loadRooms(){
+  if (!authUser) return;
+
+  let res = await sb.from("rooms").select("room_name, created_at").order("created_at", { ascending:true });
+  if (res.error && String(res.error.message||"").includes("created_at")) {
+    res = await sb.from("rooms").select("room_name");
+  }
+
+  const { data, error } = res;
+  if (error){ log("loadRooms error", error); setStatus("部屋一覧取得失敗: "+error.message, false); return; }
+
+  const box = document.getElementById("roomsBox");
+  box.innerHTML = "";
+
+  if (!data || data.length === 0){
+    box.innerHTML = "<div>まだ部屋がないよ（部屋作成してね）</div>";
+    setStatus("部屋なし", true);
+    return;
+  }
+
+  data.forEach(r => {
+    const rn = r.room_name;
+
+    const row = document.createElement("div");
+    row.className = "roomRow";
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "roomBtn";
+    btn.textContent = rn;
+    btn.onclick = () => document.getElementById("room").value = rn;
+    btn.ondblclick = () => goRoom(rn);
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "delBtn";
+    del.textContent = "🗑";
+    del.onclick = async () => {
+      if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
+      const r2 = await sb.from("rooms").delete().eq("room_name", rn);
+      if (r2.error){ alert("削除失敗: " + r2.error.message); return; }
+      await loadRooms();
+    };
+
+    row.appendChild(btn);
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+
+  setStatus(`部屋一覧OK（${data.length}件）`, true);
+}
+
+async function createRoom(){
+  const rn = document.getElementById("room").value.trim();
+  if (!rn) return alert("部屋名を入れてね！");
+
+  const { data: exists, error: e1 } = await sb.from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+  if (e1) return alert("確認失敗: " + e1.message);
+  if (exists) return alert("その部屋はもうあるよ！");
+
+  const { error } = await sb.from("rooms").insert({ room_name: rn, owner_id: authUser.id });
+  if (error) return alert("作成失敗: " + error.message);
+
+  await loadRooms();
+}
+
+async function enterRoom(){
+  const rn = document.getElementById("room").value.trim();
+  if (!rn) return alert("部屋名を入れてね！");
+
+  const { data: exists, error } = await sb.from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+  if (error) return alert("確認失敗: " + error.message);
+  if (!exists) return alert("その部屋はまだないよ。先に部屋作成してね！");
+
+  goRoom(rn);
+}
+
+/* 起動 */
+(async ()=>{
+  if (!(await requireLoginOrRedirect())) return;
+  await loadRooms();
+  await startRealtime();
+
+  sb.auth.onAuthStateChange(async ()=>{
+    await requireLoginOrRedirect();
+    await loadRooms();
+  });
+
+  log("ready");
+})();
+</script>
+</body>
+</html>
