@@ -532,7 +532,30 @@ async function hangupAll(){
 }
 
 
-  /* ===== 部屋削除の監視 ===== */
+  /* ===== 起動 ===== */
+(async ()=>{
+  if (!(await requireLoginOrRedirect())) return;
+  if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
+  await reloadName();
+
+  startRoomWatchRealtime(); // ← ★部屋削除の監視スタート
+
+  await startMessagesRealtime();
+  await loadMessages();
+
+  setCallState("未接続（必要なら『通話に参加』を押してね）");
+  renderPeopleFromState();
+  setStatus("準備OK", true);
+
+  log("ready room=", room); // ← ★ここに入れる（IIFEの中ならOK）
+
+  sb.auth.onAuthStateChange(async ()=>{
+    if (!(await requireLoginOrRedirect())) return;
+    await reloadName();
+  });
+})();
+
+/* ===== 部屋削除の監視 ===== */
 function startRoomWatchRealtime(){
   if (roomsWatchChannel) return;
 
@@ -552,34 +575,12 @@ function startRoomWatchRealtime(){
     .subscribe();
 }
 
-/* ===== 起動 ===== */
-(async ()=>{
-  if (!(await requireLoginOrRedirect())) return;
-  if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
-  await reloadName();
-
-  startRoomWatchRealtime();
-
-  await startMessagesRealtime();
-  await loadMessages();
-
-  setCallState("未接続（必要なら『通話に参加』を押してね）");
-  renderPeopleFromState();
-  setStatus("準備OK", true);
-
-  log("ready room=", room); // ← ★ここに置く
-
-  sb.auth.onAuthStateChange(async ()=>{
-    if (!(await requireLoginOrRedirect())) return;
-    await reloadName();
-  });
-})();
-
 
 
 </script>
 </body>
 </html>
+
 
 
 
