@@ -151,7 +151,7 @@ async function startRealtime(){
     .subscribe();
 }
 
-  // ===== 通話中かどうか判定（call_participants の updated_at で見る）=====
+/* ===== 通話中かどうか判定（call_participants の updated_at で見る）===== */
 const CALL_ALIVE_SEC = 30;
 
 async function isRoomInCall(roomName){
@@ -167,12 +167,11 @@ async function isRoomInCall(roomName){
 
   if (error){
     log("isRoomInCall error", error);
-    // 判定できない時は安全側（削除させない）に倒す
+    // 判定できない時は安全側（削除させない）
     return true;
   }
   return (data || []).length > 0;
 }
-
 
 async function loadRooms(){
   if (!authUser) return;
@@ -182,7 +181,11 @@ async function loadRooms(){
     .select("room_name, created_at, owner_id")
     .order("created_at", { ascending:true });
 
-  if (error){ log("loadRooms error", error); setStatus("部屋一覧取得失敗: "+error.message, false); return; }
+  if (error){
+    log("loadRooms error", error);
+    setStatus("部屋一覧取得失敗: "+error.message, false);
+    return;
+  }
 
   const box = document.getElementById("roomsBox");
   box.innerHTML = "";
@@ -193,7 +196,7 @@ async function loadRooms(){
     return;
   }
 
-    for (const r of data){
+  for (const r of data){
     const rn = r.room_name;
 
     const row = document.createElement("div");
@@ -212,6 +215,7 @@ async function loadRooms(){
     del.textContent = "🗑";
     del.title = "通話中は削除できません";
 
+    // 一覧表示時点の判定
     const inCall = await isRoomInCall(rn);
     if (inCall){
       del.disabled = true;
@@ -220,8 +224,16 @@ async function loadRooms(){
     }
 
     del.onclick = async () => {
-      if (del.disabled) return;
+      // クリック直前にも再判定（レース対策）
+      const nowInCall = await isRoomInCall(rn);
+      if (nowInCall){
+        alert("この部屋は通話中なので削除できません。");
+        await loadRooms();
+        return;
+      }
+
       if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
+
       const r2 = await sb.from("rooms").delete().eq("room_name", rn);
       if (r2.error){ alert("削除失敗: " + r2.error.message); return; }
       await loadRooms();
@@ -231,7 +243,6 @@ async function loadRooms(){
     row.appendChild(del);
     box.appendChild(row);
   }
-
 
   setStatus(`部屋一覧OK（${data.length}件）`, true);
 }
@@ -279,11 +290,6 @@ async function enterRoom(){
 
   log("ready");
 })();
-
-  
 </script>
 </body>
 </html>
-
-
-
