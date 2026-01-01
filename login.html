@@ -151,8 +151,8 @@
 
 <script>
 /* =================== Supabase 設定 =================== */
-const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+    const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
@@ -230,16 +230,17 @@ function resetMode(){
   document.getElementById("formCard").style.display = "none";
 }
 
-/* =================== メインへ =================== */
-function gotoMain(){
-  const u = new URL("./lobby.html", location.href);
-  u.searchParams.set("_r", String(Date.now()));
+    /* =================== メインへ =================== */
+    function gotoMain() {
+        const u = new URL("./lobby.html", location.href);
+        u.searchParams.set("_r", String(Date.now()));
 
-  // ✅ スマホ対策：セッション保存を待つ
-  setTimeout(() => {
-    location.replace(u.toString());
-  }, 500); // 300〜500ms 推奨
-}
+        // ✅ スマホ対策：セッション保存を待つ
+        setTimeout(() => {
+            location.replace(u.toString());
+        }, 500); // 300〜500ms 推奨
+    }
+
 
 
 
@@ -296,7 +297,7 @@ async function doPrimary(){
 }
 
 /* =================== Auth操作 =================== */
-async function signUp() {
+    async function signUp() {
   const email = document.getElementById("email").value.trim();
   const pass = document.getElementById("pass").value;
 
@@ -324,30 +325,6 @@ async function signUp() {
 }
 
 
-  if (error) { showAuthError("新規登録失敗", error); return; }
-
-  log("signUp data", data);
-  alert("新規登録OK！メール確認が必要なら、メールを確認してからログインしてね！");
-  await reloadSession();
-
-  if (!authUser) {
-    setMode("signin");
-    setStatus("メール確認が必要なら先に確認 → その後ログインしてね", true);
-  }
-}
-
-
-  if (error) { showAuthError("新規登録失敗", error); return; }
-
-  log("signUp data", data);
-  alert("新規登録OK！メール確認が必要なら、メールを確認してからログインしてね！");
-  await reloadSession();
-
-  if (!authUser) {
-    setMode("signin");
-    setStatus("メール確認が必要なら先に確認 → その後ログインしてね", true);
-  }
-}
 
 async function signIn() {
   const email = document.getElementById("email").value.trim();
@@ -465,49 +442,32 @@ async function deleteAccount(){
   }
 }
 
-/* 起動時 */
-(async () => {
-  await reloadSession();
+    /* 起動時 */
+    (async () => {
+        await reloadSession();
 
-  // ✅ 追加：メール確認リンクで戻ってきたっぽい時は自動でロビーへ
-  // （URLに code / access_token / type などが付くケースが多い）
-  const url = new URL(location.href);
-  const hasAuthParams =
-    url.searchParams.has("code") ||
-    url.searchParams.has("type") ||
-    url.searchParams.has("access_token") ||
-    url.searchParams.has("refresh_token") ||
-    url.searchParams.has("token");
+        const url = new URL(location.href);
+        const hasAuthParams =
+            url.searchParams.has("code") ||
+            url.searchParams.has("type") ||
+            url.searchParams.has("access_token") ||
+            url.searchParams.has("refresh_token");
 
-  if (authUser && hasAuthParams) {
-    gotoMain(); // lobby.html へ
-    return;
-  }
+        if (authUser && hasAuthParams) {
+            gotoMain();
+            return;
+        }
 
-  // ✅ 追加：ログイン状態が確定した瞬間に（メール確認直後含む）自動でロビーへ
-  sb.auth.onAuthStateChange(async () => {
-    await reloadSession();
-    const u2 = new URL(location.href);
-    const hasAuthParams2 =
-      u2.searchParams.has("code") ||
-      u2.searchParams.has("type") ||
-      u2.searchParams.has("access_token") ||
-      u2.searchParams.has("refresh_token") ||
-      u2.searchParams.has("token");
+        sb.auth.onAuthStateChange(async () => {
+            await reloadSession();
+            if (authUser) {
+                gotoMain();
+            }
+        });
+    })();
 
-    if (authUser && hasAuthParams2) {
-      gotoMain();
-    }
-  });
-
-  log("ready. authUser=", authUser?.id || null);
-})();
 
 </script>
 </body>
 </html>
-
-
-
-
 
