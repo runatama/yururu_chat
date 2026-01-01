@@ -40,7 +40,6 @@
 </head>
 <body>
   
-<let roomsWatchChannel = null;
 
   <div class="topbar">
     <h2 style="margin:0;">ゆるるチャット - ルーム</h2>
@@ -96,6 +95,8 @@
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
+let roomsWatchChannel = null;
+  
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
   (SUPABASE_KEY || "").replace(/\s+/g, "")
@@ -580,5 +581,6 @@ async function hangupAll(){
 </script>
 </body>
 </html>
+
 
 
