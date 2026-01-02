@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ゆるるチャット - Profile</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root{
+      --bg1:#0b1220;
+      --bg2:#0a1a2a;
+      --card:#0f1a2cdd;
+      --line:rgba(255,255,255,.10);
+      --text:#eaf2ff;
+      --muted:rgba(234,242,255,.65);
+      --accent:#6ee7ff;
+      --accent2:#a78bfa;
+      --good:#3be0a8;
+      --bad:#ff6b6b;
+      --radius:18px;
+      --shadow: 0 18px 50px rgba(0,0,0,.45);
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(900px 600px at 15% 20%, rgba(110,231,255,.25), transparent 55%),
+        radial-gradient(900px 600px at 85% 25%, rgba(167,139,250,.22), transparent 55%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+      padding: 20px;
+      min-height:100vh;
+    }
+
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom:16px;
+      flex-wrap:wrap;
+    }
+    h2{ margin:0; }
+
+    .btn{
+      cursor:pointer;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.08);
+      color:var(--text);
+      padding:10px 14px;
+      font-weight:800;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn:hover{ filter:brightness(1.1); }
+    .btn:disabled{ opacity:.5; cursor:not-allowed; }
+    .btnPrimary{
+      background:linear-gradient(135deg, var(--accent), var(--accent2));
+      color:#08131f;
+      border:none;
+    }
+    .btnDanger{
+      background:rgba(255,107,107,.18);
+      border-color:rgba(255,107,107,.4);
+    }
+
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:16px;
+      margin-bottom:16px;
+      max-width: 760px;
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    input{
+      padding:12px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+      color:var(--text);
+      width:100%;
+    }
+
+    .hint{ font-size:12px; color:var(--muted); line-height:1.6; }
+
+    .avatarBig{
+      width:96px;height:96px;border-radius:50%;
+      object-fit:cover;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10);
+      box-shadow: 0 10px 26px rgba(0,0,0,.25);
+    }
+    .avatarFallback{
+      width:96px;height:96px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:32px;font-weight:900;
+      border:1px solid rgba(255,255,255,.16);
+      background: radial-gradient(circle at 30% 30%, rgba(110,231,255,.28), rgba(167,139,250,.18));
+      color: rgba(234,242,255,.92);
+      user-select:none;
+    }
+
+    #status{
+      margin-top:10px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .ok{ color:var(--good); }
+    .ng{ color:var(--bad); }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <h2>👤 プロフィール</h2>
+    <div class="row">
+      <button class="btn" type="button" onclick="goBack()">⬅ 戻る</button>
+      <button class="btn btnDanger" type="button" onclick="signOut()">🚪 ログアウト</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="align-items:flex-start;">
+      <div id="avatarBox"></div>
+      <div style="flex:1; min-width:260px;">
+        <div style="font-weight:900;margin-bottom:8px;">📝 表示名</div>
+        <div class="row">
+          <input id="displayName" placeholder="表示名（例: ゆるたま）" />
+          <button class="btn btnPrimary" type="button" onclick="saveDisplayName()">保存</button>
+        </div>
+
+        <div style="height:12px;"></div>
+
+        <div style="font-weight:900;margin-bottom:8px;">🖼️ プロフィールアイコン（画像アップ方式）</div>
+        <div class="row">
+          <input id="avatarFile" type="file" accept="image/*" style="max-width:320px;" />
+          <button class="btn btnPrimary" type="button" onclick="uploadAvatar()">アップロード</button>
+          <button class="btn btnDanger" type="button" onclick="removeAvatar()">削除</button>
+        </div>
+        <div class="hint" style="margin-top:8px;">
+          ・おすすめ: 正方形（1:1） / 2MB以下<br>
+          ・アップした画像は Storage の <b>avatar-images</b> に保存して、URLをユーザー情報（user_metadata）に保存するよ
+        </div>
+
+        <div id="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:900;margin-bottom:8px;">✅ 反映される場所</div>
+    <div class="hint">
+      ・右上アカウント（ロビー/ルーム）<br>
+      ・ルームのメッセージ一覧（名前の左）<br>
+      ・通話参加一覧（Presence）<br>
+      ・「今の部屋で通話してる人」（call_participants）
+    </div>
+  </div>
+
+<script>
+/* =================== Supabase 設定 =================== */
+const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+
+const sb = supabase.createClient(
+  SUPABASE_URL.trim(),
+  (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
+  {
+    auth: {
+      flowType: "pkce",
+      detectSessionInUrl: true,
+      autoRefreshToken: true,
+      persistSession: true
+    }
+  }
+);
+
+/* 画像用（Public bucket名） */
+const AVATAR_BUCKET = "avatar-images";
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2MB
+
+let authUser = null;
+
+/* =================== util =================== */
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+function getInitial(s){
+  const t = String(s || "").trim();
+  if (!t) return "?";
+  return Array.from(t)[0] || "?";
+}
+function setStatus(text, ok=true){
+  const el = document.getElementById("status");
+  el.innerHTML = `<span class="${ok?'ok':'ng'}">${escapeHtml(text)}</span>`;
+}
+function safeFileName(name){
+  return String(name || "avatar.png").replace(/[^\w.\-]+/g, "_");
+}
+function getBackUrl(){
+  const p = new URLSearchParams(location.search);
+  const back = (p.get("back") || "").trim();
+  const room = (p.get("room") || "").trim();
+  if (back === "room" && room){
+    return "./room.html?room=" + encodeURIComponent(room);
+  }
+  return "./lobby.html";
+}
+function goBack(){
+  location.replace(getBackUrl());
+}
+
+/* =================== auth =================== */
+async function requireLoginOrRedirect(){
+  const { data } = await sb.auth.getSession();
+  authUser = data?.session?.user || null;
+  if(!authUser){
+    location.replace("./login.html");
+    return false;
+  }
+  return true;
+}
+
+async function signOut(){
+  try { await sb.auth.signOut({ scope:"local" }); } catch {}
+  location.replace("./login.html");
+}
+
+/* =================== UI =================== */
+function renderAvatar(){
+  const box = document.getElementById("avatarBox");
+  const dn = (authUser?.user_metadata?.display_name || "").trim();
+  const em = (authUser?.email || "").trim();
+  const label = dn || (em ? em.split("@")[0] : "user");
+  const url = (authUser?.user_metadata?.avatar_url || "").trim();
+
+  if (url){
+    box.innerHTML = `<img class="avatarBig" src="${escapeHtml(url)}" alt="avatar" />`;
+  }else{
+    box.innerHTML = `<div class="avatarFallback">${escapeHtml(getInitial(label))}</div>`;
+  }
+}
+
+async function refreshUI(){
+  const dn = (authUser?.user_metadata?.display_name || "").trim();
+  document.getElementById("displayName").value = dn;
+  renderAvatar();
+}
+
+/* =================== 保存（表示名） =================== */
+async function saveDisplayName(){
+  const dn = document.getElementById("displayName").value.trim();
+  if (!dn) return setStatus("表示名を入力してね！", false);
+
+  const { data, error } = await sb.auth.updateUser({ data: { display_name: dn } });
+  if (error) return setStatus("保存失敗: " + error.message, false);
+
+  if (data?.user) authUser = data.user;
+  await refreshUI();
+  setStatus("表示名を保存しました！", true);
+}
+
+/* =================== アバターUP =================== */
+async function uploadAvatar(){
+  const file = document.getElementById("avatarFile").files?.[0];
+  if (!file) return setStatus("画像ファイルを選んでね！", false);
+  if (file.size > MAX_AVATAR_BYTES) return setStatus("画像が大きすぎるよ（最大2MB）", false);
+
+  const safeName = safeFileName(file.name);
+  const path = `${authUser.id}/${Date.now()}_${safeName}`;
+
+  setStatus("アップロード中…", true);
+
+  const { error: upErr } = await sb
+    .storage
+    .from(AVATAR_BUCKET)
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || "image/*"
+    });
+
+  if (upErr) return setStatus("アップロード失敗: " + upErr.message, false);
+
+  const { data: pub } = sb.storage.from(AVATAR_BUCKET).getPublicUrl(path);
+  const url = pub?.publicUrl;
+  if (!url) return setStatus("publicUrl が取れなかった…", false);
+
+  const { data, error } = await sb.auth.updateUser({ data: { avatar_url: url } });
+  if (error) return setStatus("保存失敗: " + error.message, false);
+
+  if (data?.user) authUser = data.user;
+
+  // UIリセット
+  document.getElementById("avatarFile").value = "";
+  await refreshUI();
+  setStatus("アイコンを更新しました！", true);
+}
+
+async function removeAvatar(){
+  const { data, error } = await sb.auth.updateUser({ data: { avatar_url: "" } });
+  if (error) return setStatus("削除失敗: " + error.message, false);
+  if (data?.user) authUser = data.user;
+  await refreshUI();
+  setStatus("アイコンを削除しました！", true);
+}
+
+/* =================== 起動 =================== */
+(async ()=>{
+  if (!(await requireLoginOrRedirect())) return;
+
+  // URLにセッションが含まれてたら拾う（保険）
+  try{
+    const url = new URL(location.href);
+    const hasAuthParams =
+      url.searchParams.has("code") ||
+      url.searchParams.has("type") ||
+      url.searchParams.has("access_token") ||
+      url.searchParams.has("refresh_token") ||
+      (location.hash && (location.hash.includes("access_token=") || location.hash.includes("refresh_token=")));
+
+    if (hasAuthParams) {
+      const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
+      if (!error && data?.session?.user) authUser = data.session.user;
+      history.replaceState({}, document.title, "./profile.html?back=" + encodeURIComponent(new URLSearchParams(location.search).get("back")||"") + "&room=" + encodeURIComponent(new URLSearchParams(location.search).get("room")||""));
+    }
+  }catch{}
+
+  await refreshUI();
+
+  sb.auth.onAuthStateChange(async (event, session)=>{
+    authUser = session?.user || null;
+    if (!authUser){
+      location.replace("./login.html");
+      return;
+    }
+    await refreshUI();
+  });
+})();
+</script>
+</body>
+</html>
