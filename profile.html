@@ -203,6 +203,14 @@ function escapeHtml(s){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
+function escapeAttr(s){
+  // 属性値向け（srcなど）
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;");
+}
 function getInitial(s){
   const t = String(s || "").trim();
   if (!t) return "?";
@@ -247,7 +255,6 @@ async function requireLoginOrRedirect(){
   return true;
 }
 
-
 async function signOut(){
   try { await sb.auth.signOut({ scope:"local" }); } catch {}
   location.replace("./login.html");
@@ -262,7 +269,7 @@ function renderAvatar(){
   const url = (authUser?.user_metadata?.avatar_url || "").trim();
 
   if (url){
-    box.innerHTML = `<img class="avatarBig" src="${escapeHtml(url)}" alt="avatar" />`;
+    box.innerHTML = `<img class="avatarBig" src="${escapeAttr(url)}" alt="avatar" loading="lazy" referrerpolicy="no-referrer" />`;
   }else{
     box.innerHTML = `<div class="avatarFallback">${escapeHtml(getInitial(label))}</div>`;
   }
@@ -272,6 +279,17 @@ async function refreshUI(){
   const dn = (authUser?.user_metadata?.display_name || "").trim();
   document.getElementById("displayName").value = dn;
   renderAvatar();
+}
+
+/* =================== 共通：最新userを取り直す（別端末反映のコア） =================== */
+async function refetchLatestUser(fallbackUser){
+  try{
+    await sb.auth.refreshSession();
+  }catch{}
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) console.warn("getUser error:", uErr);
+  if (u?.user) return u.user;
+  return fallbackUser || null;
 }
 
 /* =================== 保存（表示名） =================== */
@@ -285,23 +303,8 @@ async function saveDisplayName(){
   });
   if (error) return setStatus("保存失敗: " + error.message, false);
 
-  // ② セッションを更新（重要）
-  // → 他端末・他ページで古い user_metadata を掴まないため
-  await sb.auth.refreshSession();
-
-  // ③ サーバーから「最新の user」を取り直す（超重要）
-  const { data: u, error: uErr } = await sb.auth.getUser();
-  if (uErr) {
-    console.warn("getUser error:", uErr);
-  }
-
-  // ④ authUser を最新で上書き
-  if (u?.user) {
-    authUser = u.user;
-  } else if (data?.user) {
-    // 念のためのフォールバック
-    authUser = data.user;
-  }
+  // ②〜④ 最新userを取り直す
+  authUser = await refetchLatestUser(data?.user || authUser);
 
   // ⑤ 画面再描画
   await refreshUI();
@@ -337,7 +340,8 @@ async function uploadAvatar(){
   const { data, error } = await sb.auth.updateUser({ data: { avatar_url: url } });
   if (error) return setStatus("保存失敗: " + error.message, false);
 
-  if (data?.user) authUser = data.user;
+  // ★別端末反映のため：最新userを取り直す
+  authUser = await refetchLatestUser(data?.user || authUser);
 
   // UIリセット
   document.getElementById("avatarFile").value = "";
@@ -348,15 +352,16 @@ async function uploadAvatar(){
 async function removeAvatar(){
   const { data, error } = await sb.auth.updateUser({ data: { avatar_url: "" } });
   if (error) return setStatus("削除失敗: " + error.message, false);
-  if (data?.user) authUser = data.user;
+
+  // ★別端末反映のため：最新userを取り直す
+  authUser = await refetchLatestUser(data?.user || authUser);
+
   await refreshUI();
   setStatus("アイコンを削除しました！", true);
 }
 
 /* =================== 起動 =================== */
 (async ()=>{
-  if (!(await requireLoginOrRedirect())) return;
-
   // URLにセッションが含まれてたら拾う（保険）
   try{
     const url = new URL(location.href);
@@ -370,25 +375,37 @@ async function removeAvatar(){
     if (hasAuthParams) {
       const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
       if (!error && data?.session?.user) authUser = data.session.user;
-      history.replaceState({}, document.title, "./profile.html?back=" + encodeURIComponent(new URLSearchParams(location.search).get("back")||"") + "&room=" + encodeURIComponent(new URLSearchParams(location.search).get("room")||""));
+
+      // back/roomだけ残してURLをきれいにする
+      const sp = new URLSearchParams(location.search);
+      const back = sp.get("back") || "";
+      const room = sp.get("room") || "";
+      history.replaceState({}, document.title,
+        "./profile.html?back=" + encodeURIComponent(back) + "&room=" + encodeURIComponent(room)
+      );
     }
   }catch{}
+
+  if (!(await requireLoginOrRedirect())) return;
+
+  // ここでも最新userを取り直しておく（超安定）
+  authUser = await refetchLatestUser(authUser);
 
   await refreshUI();
 
   sb.auth.onAuthStateChange(async (event, session)=>{
-  const sessionUser = session?.user || null;
-  if (!sessionUser){
-    location.replace("./login.html");
-    return;
-  }
+    const sessionUser = session?.user || null;
+    if (!sessionUser){
+      location.replace("./login.html");
+      return;
+    }
 
-  // ★重要：状態変化後も最新userへ
-  const { data: u } = await sb.auth.getUser();
-  authUser = u?.user || sessionUser;
+    // ★状態変化後も最新userへ
+    const { data: u } = await sb.auth.getUser();
+    authUser = u?.user || sessionUser;
 
-  await refreshUI();
-});
+    await refreshUI();
+  });
 
 })();
 </script>
