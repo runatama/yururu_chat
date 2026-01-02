@@ -328,6 +328,17 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
+    /* ★期限切れ表示用 */
+    .msgExpired{
+      font-size:13px;
+      line-height:1.5;
+      color: rgba(234,242,255,.55);
+      border: 1px dashed rgba(255,255,255,.16);
+      background: rgba(255,255,255,.04);
+      padding: 10px 12px;
+      border-radius: 14px;
+      margin-top: 6px;
+    }
     .msgImg{
       margin-top:8px;
       width:100%;
@@ -605,15 +616,15 @@ const sb = supabase.createClient(
 const IMAGE_BUCKET = "chat-images";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 
+/* ★ 画像だけ投稿のダミー文字（DB制約回避用） */
+const IMAGE_PLACEHOLDER = "[image]";
+
 /* ===== 状態 ===== */
 let authUser = null;
 let room = "";
 let name = "";
 
 let messagesChannel = null;
-
-/* ===== 部屋削除監視 ===== */
-let roomsWatchChannel = null;
 
 /* ===== call_participants 監視（通話中一覧をリアルタイム更新） ===== */
 let callUsersChannel = null;
@@ -687,7 +698,6 @@ function leaveRoom(){
 /* =================== 表示更新 =================== */
 function setReady(ok, sub){
   const dot = document.getElementById("readyDot");
-  const title = document.getElementById("readyTitle");
   const subEl = document.getElementById("readySub");
   const badge = document.getElementById("readyBadge");
 
@@ -700,7 +710,6 @@ function setReady(ok, sub){
     badge.className = "badge bad";
     badge.textContent = "NG";
   }
-  title.textContent = "準備OK";
   subEl.textContent = sub || "";
 }
 
@@ -787,13 +796,17 @@ async function loadMessages(){
     wrap.appendChild(head);
 
     const bodyText = (m.message || "").trim();
-    if (bodyText){
+    const isImagePlaceholder = (bodyText === IMAGE_PLACEHOLDER);
+
+    // ✅ 通常の文章は表示（[image]は表示しない）
+    if (bodyText && !isImagePlaceholder){
       const body = document.createElement("div");
       body.className = "msgBody";
       body.textContent = bodyText;
       wrap.appendChild(body);
     }
 
+    // ✅ 画像があるなら表示
     if (m.image_url){
       const img = document.createElement("img");
       img.className = "msgImg";
@@ -801,6 +814,14 @@ async function loadMessages(){
       img.loading = "lazy";
       img.alt = "image";
       wrap.appendChild(img);
+    }
+
+    // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
+    if (isImagePlaceholder && !m.image_url){
+      const ex = document.createElement("div");
+      ex.className = "msgExpired";
+      ex.textContent = "🗑️ 画像は期限切れで削除されました";
+      wrap.appendChild(ex);
     }
 
     box.appendChild(wrap);
@@ -868,8 +889,8 @@ async function sendImage(){
 
     if(!data?.publicUrl) throw new Error("Public URL取得失敗");
 
-    // ★★★ ここが重要 ★★★
-    const msgForDb = caption ? caption : "[image]";
+    // ★★★ DB制約回避：画像だけなら [image] を入れる ★★★
+    const msgForDb = caption ? caption : IMAGE_PLACEHOLDER;
 
     const ins = await sb.from("messages").insert({
       room_id: room,
@@ -895,7 +916,6 @@ async function sendImage(){
     btn.disabled = false;
   }
 }
-
 
 /* =========================================================
    ルーム内「通話中の人」表示（call_participants から読む）
@@ -1245,10 +1265,8 @@ async function joinCall(){
   buildProcessedMicStreamIfNeeded();
   applyMicGain();
 
-  // 既存PCにトラック反映（入り直し用）
   const sendStream = getSendStream();
   for (const [peerId, pc] of pcs){
-    // addTrack 重複回避は簡易で close->recreate に任せる
     try{
       for (const t of sendStream.getTracks()){
         pc.addTrack(t, sendStream);
@@ -1256,7 +1274,6 @@ async function joinCall(){
     }catch{}
   }
 
-  // presence track
   if (callChannel){
     await callChannel.track({
       user_id: myUid(),
@@ -1290,8 +1307,6 @@ async function leaveCall(){
   processedStream = null;
   micSource = null;
   micGainNode = null;
-  // audioCtx は残してもOK（再作成を避ける）
-  // if (audioCtx) { try{ audioCtx.close(); }catch{} audioCtx=null; }
 
   if (callChannel){
     try{ await callChannel.untrack(); }catch{}
@@ -1317,7 +1332,6 @@ async function toggleMute(){
     }
   }
 
-  // presence更新
   if (callChannel){
     await callChannel.track({
       user_id: myUid(),
@@ -1327,7 +1341,6 @@ async function toggleMute(){
     });
   }
 
-  // 相手へ通知（通話参加者だけ分かれば良い）
   for (const [peerId] of pcs){
     await sendSignal(peerId, { kind:"mute", muted: micMuted });
   }
@@ -1339,7 +1352,6 @@ function onPresenceSync(){
 }
 function onPresenceJoin(key, presences){
   refreshPresenceList();
-  // join した相手にoffer
   maybeMakeOffer(key);
 }
 function onPresenceLeave(key, presences){
@@ -1395,11 +1407,9 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 
 /* =================== 起動 =================== */
 (async ()=>{
-  // 1) login check
   if (!(await requireLoginOrRedirect())) return;
   updateTop();
 
-  // 2) room check
   room = getRoomFromUrl();
   if (!room){
     alert("部屋が指定されてないよ！");
@@ -1413,15 +1423,12 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 
   await reloadName();
 
-  // 3) load + realtime
   await loadMessages();
   await startMessagesRealtime();
 
-  // 4) call participants
   await loadActiveCallUsers();
   await startCallParticipantsRealtime();
 
-  // 5) UI
   setReady(true, "待機中");
 
   sb.auth.onAuthStateChange(async ()=>{
@@ -1435,4 +1442,3 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 </script>
 </body>
 </html>
-
