@@ -350,13 +350,23 @@ function updateTopRightUser(){
 
 /* =================== セッション復元（SYSTEM = lobby(10)） =================== */
 async function refreshAuth(){
-  const { data, error } = await sb.auth.getSession();
-  if (error) log("getSession error", error);
+  // まずセッション確認（ログインしてるか）
+  const { data: ses, error: sesErr } = await sb.auth.getSession();
+  if (sesErr) log("getSession error", sesErr);
 
-  authUser = data?.session?.user || null;
+  const sessionUser = ses?.session?.user || null;
+  if (!sessionUser){
+    authUser = null;
+    updateTopRightUser();
+    return false;
+  }
+
+  // ★ここが重要：サーバーから最新userを取り直す
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) log("getUser error", uErr);
+
+  authUser = u?.user || sessionUser;  // 取れたら最新、ダメならsessionのuser
   updateTopRightUser();
-
-  if (!authUser) return false;
 
   // 表示名入力欄へ反映（空のときだけ）
   const dn = (authUser.user_metadata?.display_name || "").trim();
@@ -365,6 +375,7 @@ async function refreshAuth(){
 
   return true;
 }
+
 
 /* ロビーでは「未ログインならloginへ」 */
 async function requireLoginOrRedirect(){
@@ -681,3 +692,4 @@ function escapeHtml(s){
 
 </body>
 </html>
+
