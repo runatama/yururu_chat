@@ -776,7 +776,7 @@ async function startMessagesRealtime(){
 
   messagesChannel = sb
     .channel("messages-ch")
-    .on("postgres_changes", { event:"*", schema:"public", table:"messages" }, async (payload)=>{
+    .on("postgres_changes", { event:"*", schema:"public", table:"messages_v2" }, async (payload)=>{
       const nr = payload.new || {};
       const or = payload.old || {};
       const rid = nr.room_id || or.room_id;
@@ -798,7 +798,7 @@ function fmtTime(iso){
 
 async function loadMessages(){
   const { data, error } = await sb
-    .from("messages")
+    .from("messages_v2")
     .select("id, room_id, name, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by")
     .eq("room_id", room)
     .order("created_at", { ascending:true })
@@ -903,7 +903,7 @@ async function sendMsg(){
   if (!v) return;
   document.getElementById("msg").value = "";
 
-  const { error } = await sb.from("messages").insert({
+  const { error } = await sb.from("messages_v2").insert({
     room_id: room,
     name,
     message: v,
@@ -949,7 +949,7 @@ async function sendImage(){
     const imageUrl = pub?.publicUrl;
     if (!imageUrl) throw new Error("publicUrl が取得できなかった…");
 
-    const { error: insErr } = await sb.from("messages").insert({
+    const { error: insErr } = await sb.from("messages_v2").insert({
       room_id: room,
       name,
       message: IMAGE_PLACEHOLDER,
@@ -998,7 +998,7 @@ async function deleteMessage(m){
     console.log("[delete] payload=", payload);
 
     const { data, error } = await sb
-      .from("messages")
+      .from("messages_v2")
       .update(payload)
       .eq("id", m.id)
       .eq("user_id", uid)
@@ -1627,4 +1627,5 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 </script>
 </body>
 </html>
+
 
