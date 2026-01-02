@@ -934,7 +934,7 @@ function extractStoragePathFromPublicUrl(url){
   return url.substring(i + marker.length);
 }
 
-    async async function deleteMessage(m){
+    async function deleteMessage(m){
   try{
     if (!m?.id) return;
     if ((m.user_id || "") !== myUid()) return;
@@ -1578,13 +1578,22 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 
   setReady(true, "待機中");
 
-  sb.auth.onAuthStateChange(async ()=>{
-    const { data } = await sb.auth.getSession();
-    authUser = data?.session?.user || null;
+  sb.auth.onAuthStateChange(async (event, session)=> {
+    authUser = session?.user || null;
     updateTop();
+
+    // ログアウト/セッション切れは即ログインへ
+    if (event === "SIGNED_OUT" || !authUser){
+      location.href = "./login.html";
+      return;
+    }
+
+    // 表示名が変わった可能性があるので再取得
+    await reloadName();
   });
 
   log("ready room=", room);
+, room);
 })();
 </script>
 </body>
