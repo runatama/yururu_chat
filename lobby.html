@@ -345,7 +345,7 @@ function updateTopRightUser(){
 
   // ★ アイコンは「名前の横に1個だけ」
   pill.innerHTML = `
-    ${avatarHtml(authUser.user_metadata?.avatar_url || "", shown)}
+    ${avatarHtml(authUser.user_metadata?.avatar_url || "", shown, authUser.user_metadata?.avatar_ver || "")}
     <span>${escapeHtml(shown)}</span>
   `;
 }
@@ -363,6 +363,9 @@ async function refreshAuth(){
     updateTopRightUser();
     return false;
   }
+
+  // ★重要：他端末の更新を拾うため、まずトークンを更新してから user を取得
+  try{ await sb.auth.refreshSession(); }catch(e){ log('refreshSession warn', e); }
 
   // ★ここが重要：サーバーから最新userを取り直す
   const { data: u, error: uErr } = await sb.auth.getUser();
@@ -636,8 +639,15 @@ async function saveDisplayName() {
 /* =================== HTMLエスケープ =================== */
 function escapeAttr(s){ return escapeHtml(s).replaceAll('`','&#096;'); }
 function getInitial(s){ const t=String(s||'').trim(); if(!t) return '?'; return Array.from(t)[0] || '?'; }
-function avatarHtml(url, label){
+function normalizeAvatarUrl(url, ver){
   const u = String(url||'').trim();
+  if (!u) return '';
+  const v = String(ver||'').trim();
+  if (!v) return u;
+  return u + (u.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(v);
+}
+function avatarHtml(url, label, ver){
+  const u = normalizeAvatarUrl(url, ver);
   if (u) return `<img class="avatarSm" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
   return `<span class="avatarSmFb">${escapeHtml(getInitial(label))}</span>`;
 }
