@@ -675,10 +675,6 @@ function shouldCreateOffer(peerId){
   // 文字列比較で固定（必ず片方だけがOffer担当）
   return String(myUid()) < String(peerId);
 }
-function isPolitePeer(peerId){
-  // offer衝突時に受け入れる側（Perfect Negotiationの考え方）
-  return String(myUid()) > String(peerId);
-}
 let heartbeatTimer = null;
 const CALL_ALIVE_SEC = 30;
 
@@ -805,7 +801,7 @@ async function loadMessages(){
     .from("messages")
     .select("id, room_id, name, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by")
     .eq("room_id", room)
-        .order("created_at", { ascending:true })
+    .order("created_at", { ascending:true })
     .limit(200);
 
   if (error){ log("loadMessages error", error); return; }
@@ -918,23 +914,69 @@ async function sendMsg(){
   if (error){ alert("送信失敗: " + error.message); }
 }
 
+/* ===== 画像送信 ===== */
+async function sendImage(){
+  try{
+    const fileInput = document.getElementById("imgFile");
+    const file = fileInput.files?.[0];
+    if (!file){
+      alert("画像ファイルを選んでね！");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES){
+      alert("画像が大きすぎるよ（最大5MB）");
+      return;
+    }
+
+    // 画像だけ送る場合もOK：msg本文は空でOK（画像行は別insert）
+    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+    const path = `${room}/${myUid()}/${Date.now()}_${safeName}`;
+
+    setUploadHint("アップロード中…");
+
+    const { error: upErr } = await sb
+      .storage
+      .from(IMAGE_BUCKET)
+      .upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || "image/*"
+      });
+
+    if (upErr) throw upErr;
+
+    const { data: pub } = sb.storage.from(IMAGE_BUCKET).getPublicUrl(path);
+    const imageUrl = pub?.publicUrl;
+    if (!imageUrl) throw new Error("publicUrl が取得できなかった…");
+
+    const { error: insErr } = await sb.from("messages").insert({
+      room_id: room,
+      name,
+      message: IMAGE_PLACEHOLDER,
+      image_url: imageUrl,
+      user_id: myUid()
+    });
+
+    if (insErr) throw insErr;
+
+    // UIリセット
+    fileInput.value = "";
+    document.getElementById("imgName").textContent = "未選択";
+    setUploadHint("※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）");
+
+    await loadMessages();
+  }catch(e){
+    log("sendImage error", e);
+    alert("画像送信に失敗: " + (e?.message || e));
+    setUploadHint("※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）");
+  }
+}
 
 /* =========================================================
    🗑️ 自分の投稿だけ削除（本文 + 画像）
-   - UI: 自分の投稿にだけゴミ箱が出る
-   - DB: messages を自分だけ delete（RLS推奨）
-   - Storage: 画像がある場合は bucket から削除も試みる
+   - deletedフラグで「削除されました」表示にする
    ========================================================= */
-function extractStoragePathFromPublicUrl(url){
-  // 例: https://xxx.supabase.co/storage/v1/object/public/chat-images/ROOM/UID/xxx.png
-  if (!url) return "";
-  const marker = `/storage/v1/object/public/${IMAGE_BUCKET}/`;
-  const i = url.indexOf(marker);
-  if (i < 0) return "";
-  return url.substring(i + marker.length);
-}
-
-    async async function deleteMessage(m){
+async function deleteMessage(m){
   try{
     if (!m?.id) return;
     if ((m.user_id || "") !== myUid()) return;
@@ -960,6 +1002,7 @@ function extractStoragePathFromPublicUrl(url){
     alert("削除に失敗: " + (e?.message || e));
   }
 }
+
 /* =========================================================
    ルーム内「通話中の人」表示（call_participants から読む）
    ========================================================= */
@@ -1082,13 +1125,11 @@ function attachTracksToPC(peerId){
   const senders = pc.getSenders ? pc.getSenders() : [];
   const hasAudioSender = senders.some(s => s.track && s.track.kind === "audio");
 
-  // まだ送信トラックが無いなら追加
   if (!hasAudioSender){
     for (const t of sendStream.getTracks()){
       pc.addTrack(t, sendStream);
     }
   }else{
-    // 既にあるなら差し替え（音量処理したStreamに切り替え）
     for (const t of sendStream.getTracks()){
       const sender = senders.find(s => s.track && s.track.kind === t.kind);
       if (sender && sender.track !== t){
@@ -1103,7 +1144,6 @@ function attachTracksToAllPCs(){
     attachTracksToPC(peerId);
   }
 }
-
 
 function ensureAudioEl(peerId){
   const id = "audio-" + peerId;
@@ -1124,7 +1164,6 @@ function ensureAudioEl(peerId){
   el.playsInline = true;
   el.controls = true;
 
-  // 初期音量
   const v = peerVolume.get(peerId) ?? 1.0;
   el.volume = v;
 
@@ -1167,7 +1206,6 @@ function ensureAudioEl(peerId){
 }
 
 function refreshAudioTitles(){
-  // presence の名前でタイトル更新
   const st = callChannel?.presenceState?.() || {};
   for (const [peerId] of pcs){
     const pres = st[peerId]?.[0];
@@ -1217,13 +1255,8 @@ async function maybeMakeOffer(peerId){
   const pc = pcs.get(peerId);
   if (!pc) return;
 
-  // こちらがOffer担当じゃないなら何もしない（衝突防止）
   if (!shouldCreateOffer(peerId)) return;
-
-  // すでに作成中ならスキップ
   if (makingOffer.get(peerId)) return;
-
-  // stable以外はOffer作れない
   if (pc.signalingState !== "stable") return;
 
   try{
@@ -1268,7 +1301,6 @@ async function onSignal(payload){
   if (!from || !data) return;
   if (to && to !== myUid()) return;
 
-  // ★ hello: 接続開始の合図（衝突回避のため、UIDが小さい側だけofferを作る）
   if (data.kind === "hello"){
     await ensurePC(from);
     if (String(myUid()) < String(from)){
@@ -1287,7 +1319,6 @@ async function onSignal(payload){
 
     if (desc.type === "offer"){
       try{
-        // ★ 衝突回避：もし自分がoffer中ならrollbackしてから相手offerを受ける
         if (pc.signalingState !== "stable"){
           try{ await pc.setLocalDescription({ type: "rollback" }); }catch{}
         }
@@ -1302,7 +1333,6 @@ async function onSignal(payload){
     }
 
     if (desc.type === "answer"){
-      // ★ こちらがofferを出している時だけanswerを適用（stableなら無視）
       if (pc.signalingState !== "have-local-offer"){
         log("ignore answer (wrong state)", from, pc.signalingState);
         return;
@@ -1331,6 +1361,7 @@ async function onSignal(payload){
     return;
   }
 }
+
 /* ===== call_participants（alive） ===== */
 async function upsertCallParticipant(){
   const { error } = await sb.from("call_participants").upsert({
@@ -1383,20 +1414,14 @@ async function joinCall(){
     localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
   }
 
-  // ===== ここから追加 =====
-
-  // マイク音量調整用（既存ならOK）
   buildProcessedMicStreamIfNeeded();
   applyMicGain();
   if (audioCtx && audioCtx.state === "suspended") {
-  await audioCtx.resume();
-}
+    await audioCtx.resume();
+  }
 
-  // 既に作ってあるPCがあれば、ここで送信トラックを付け直す
   attachTracksToAllPCs();
 
-
-  // presence に参加情報を載せる
   if (callChannel){
     await callChannel.track({
       user_id: myUid(),
@@ -1406,37 +1431,30 @@ async function joinCall(){
     });
   }
 
-  // ★★★ すでに部屋にいる人全員に hello（PC用意） + 片方だけOffer作成 ★★★
   const state = callChannel.presenceState() || {};
   for (const peerId of Object.keys(state)){
     if (peerId === myUid()) continue;
 
-    // 相手にPCを作ってもらう
     await sendSignal(peerId, { kind: "hello" });
-
-    // 自分もPC準備
     await ensurePC(peerId);
-
-    // Offer担当（UID小さい側）だけOfferを出す
     await maybeMakeOffer(peerId);
   }
 
   document.getElementById("callState").textContent = "通話に参加中";
   setReady(true, "通話準備OK");
   startHeartbeat();
-  // ===== ここまで追加 =====
 }
 
 async function leaveCall(){
   try{
-  await sb
-    .from("call_participants")
-    .delete()
-    .eq("room_id", room)
-    .eq("user_id", myUid());
-}catch(e){
-  log("call_participants delete error", e);
-}
+    await sb
+      .from("call_participants")
+      .delete()
+      .eq("room_id", room)
+      .eq("user_id", myUid());
+  }catch(e){
+    log("call_participants delete error", e);
+  }
 
   stopHeartbeat();
 
@@ -1582,13 +1600,11 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
     authUser = session?.user || null;
     updateTop();
 
-    // ログアウト/セッション切れは即ログインへ
     if (event === "SIGNED_OUT" || !authUser){
       location.href = "./login.html";
       return;
     }
 
-    // 表示名が変わった可能性があるので再取得
     await reloadName();
   });
 
@@ -1597,4 +1613,3 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 </script>
 </body>
 </html>
-
