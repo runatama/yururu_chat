@@ -115,6 +115,45 @@
       white-space:nowrap;
     }
 
+.avatar{
+  width:26px;height:26px;border-radius:50%;
+  object-fit:cover;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.10);
+  flex:0 0 auto;
+}
+.avatar.sm{ width:22px;height:22px; }
+.avatarFallback{
+  width:26px;height:26px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:900;
+  color:rgba(234,242,255,.9);
+  border:1px solid rgba(255,255,255,.14);
+  background: radial-gradient(circle at 30% 30%, rgba(120,167,255,.35), rgba(166,139,255,.22));
+  flex:0 0 auto;
+  user-select:none;
+}
+.avatarFallback.sm{ width:22px;height:22px;font-size:11px; }
+.userBtn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  cursor:pointer;
+  color:var(--muted);
+  font-size:12px;
+}
+.userBtn:hover{ background: rgba(255,255,255,.06); }
+.nameText{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  max-width: 240px;
+}
+
     .wrap{
       max-width:1100px;
       margin:0 auto;
@@ -475,7 +514,7 @@
       </div>
 
       <div class="topActions">
-        <span class="pill" id="userPill">未ログイン</span>
+        <button class="userBtn" id="userPill" type="button" onclick="goProfile()">未ログイン</button>
         <button class="btn primary" onclick="goLobby()">🏠 ロビーへ</button>
         <button class="btn danger" onclick="doLogout()">🚪 ログアウト</button>
       </div>
@@ -647,6 +686,7 @@ const IMAGE_PLACEHOLDER = "[image]";
 let authUser = null;
 let room = "";
 let name = "";
+let myAvatarUrl = "";
 
 let messagesChannel = null;
 
@@ -714,9 +754,32 @@ function escapeHtml(s){
     .replaceAll("'","&#039;");
 }
 
+function escapeAttr(s){
+  return escapeHtml(s).replaceAll("`","&#096;");
+}
+function getInitial(s){
+  const t = String(s || "").trim();
+  if (!t) return "?";
+  return Array.from(t)[0] || "?";
+}
+function avatarHtml(url, label, size=""){
+  const cls = size ? `avatar ${size}` : "avatar";
+  const fbCls = size ? `avatarFallback ${size}` : "avatarFallback";
+  const u = String(url || "").trim();
+  if (u){
+    return `<img class="${cls}" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
+  }
+  return `<div class="${fbCls}">${escapeHtml(getInitial(label))}</div>`;
+}
+
+
 /* =================== ナビ =================== */
 function goLobby(){
   location.href = "./lobby.html";
+}
+function goProfile(){
+  const rn = encodeURIComponent(room || "");
+  location.href = "./profile.html?back=room&room=" + rn + "&_r=" + Date.now();
 }
 async function doLogout(){
   await sb.auth.signOut();
@@ -748,7 +811,10 @@ function updateTop(){
   const pill = document.getElementById("userPill");
   const dn = (authUser?.user_metadata?.display_name || "").trim();
   const em = (authUser?.email || "").trim();
-  pill.textContent = dn ? `👤 ${dn}` : (em ? `👤 ${em}` : "未ログイン");
+  const shown = dn ? dn : (em ? em : "未ログイン");
+
+  const av = (authUser?.user_metadata?.avatar_url || "").trim();
+  pill.innerHTML = `${avatarHtml(av, shown)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
 }
 
 /* =================== ログイン必須 =================== */
@@ -766,7 +832,9 @@ async function requireLoginOrRedirect(){
 async function reloadName(){
   const dn = (authUser.user_metadata?.display_name || "").trim();
   name = dn || (authUser.email || "user").split("@")[0];
+  myAvatarUrl = (authUser.user_metadata?.avatar_url || "").trim();
 }
+
 
 /* =========================================================
    チャット（messages）
@@ -799,7 +867,7 @@ function fmtTime(iso){
 async function loadMessages(){
   const { data, error } = await sb
     .from("messages_v2")
-    .select("id, room_id, name, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by")
+    .select("id, room_id, name, avatar_url, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by")
     .eq("room_id", room)
     .order("created_at", { ascending:true })
     .limit(200);
@@ -816,7 +884,10 @@ async function loadMessages(){
     head.className = "msgHead";
 
     const left = document.createElement("div");
-    left.textContent = (m.name || "");
+    left.style.display = "flex";
+    left.style.alignItems = "center";
+    left.style.gap = "8px";
+    left.innerHTML = `${avatarHtml(m.avatar_url, (m.name || ""), "sm")} <span class="nameText">${escapeHtml(m.name || "")}</span>`;
 
     // 右側（時刻 + 削除ボタン）
     const actions = document.createElement("div");
@@ -906,6 +977,7 @@ async function sendMsg(){
   const { error } = await sb.from("messages_v2").insert({
     room_id: room,
     name,
+    avatar_url: myAvatarUrl,
     message: v,
     image_url: null,
     user_id: myUid()
@@ -931,7 +1003,7 @@ async function sendImage(){
     // 画像だけ送る場合もOK：msg本文は空でOK（画像行は別insert）
     const safeName = file.name.replace(/[^\w.\-]+/g, "_");
     const roomKey = safeKey(room);
-　　const path = `${roomKey}/${myUid()}/${Date.now()}_${safeName}`;
+    const path = `${roomKey}/${myUid()}/${Date.now()}_${safeName}`;
 
 
     setUploadHint("アップロード中…");
@@ -954,6 +1026,7 @@ async function sendImage(){
     const { error: insErr } = await sb.from("messages_v2").insert({
       room_id: room,
       name,
+      avatar_url: myAvatarUrl,
       message: IMAGE_PLACEHOLDER,
       image_url: imageUrl,
       user_id: myUid()
@@ -1027,7 +1100,7 @@ async function loadActiveCallUsers(){
 
   const { data, error } = await sb
     .from("call_participants")
-    .select("user_id, name, updated_at")
+    .select("user_id, name, avatar_url, updated_at")
     .eq("room_id", room)
     .gte("updated_at", cutoff)
     .order("updated_at", { ascending:false });
@@ -1043,7 +1116,8 @@ async function loadActiveCallUsers(){
 
   const list = (data || []).map(x=>({
     user_id: x.user_id,
-    name: (x.name || x.user_id || "").toString()
+    name: (x.name || x.user_id || "").toString(),
+    avatar_url: (x.avatar_url || "").toString()
   }));
 
   if (list.length === 0){
@@ -1064,7 +1138,7 @@ async function loadActiveCallUsers(){
     const row = document.createElement("div");
     row.className = "listItem";
     row.innerHTML = `
-      <div class="name">🎧 ${escapeHtml(p.name)}</div>
+      <div class="name">🎧 ${avatarHtml(p.avatar_url, p.name, "sm")} <span class="nameText">${escapeHtml(p.name)}</span></div>
       <div class="sub"><span class="badge good">通話中</span></div>
     `;
     box.appendChild(row);
@@ -1119,6 +1193,7 @@ async function startCallChannel(){
       await callChannel.track({
         user_id: myUid(),
         name,
+        avatar_url: myAvatarUrl,
         muted: micMuted,
         at: new Date().toISOString()
       });
@@ -1384,6 +1459,7 @@ async function upsertCallParticipant(){
     room_id: room,
     user_id: myUid(),
     name,
+    avatar_url: myAvatarUrl,
     updated_at: new Date().toISOString()
   }, { onConflict: "room_id,user_id" });
 
@@ -1563,7 +1639,7 @@ async function refreshPresenceList(){
     const row = document.createElement("div");
     row.className = "listItem";
     row.innerHTML = `
-      <div class="name">${muted ? "🔇" : "🎤"} ${escapeHtml(nm)}</div>
+      <div class="name">${muted ? "🔇" : "🎤"} ${avatarHtml(p.avatar_url, nm, "sm")} <span class="nameText">${escapeHtml(nm)}</span></div>
       <div class="sub"><span class="badge ${muted ? "bad" : "good"}">${muted ? "ミュート" : "発話OK"}</span></div>
     `;
     box.appendChild(row);
@@ -1589,6 +1665,7 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 /* =================== 起動 =================== */
 (async ()=>{
   if (!(await requireLoginOrRedirect())) return;
+  await reloadName();
   updateTop();
 
   room = getRoomFromUrl();
@@ -1602,7 +1679,6 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
   document.getElementById("roomChip").textContent = room;
   document.getElementById("subTitle").textContent = "Room: " + room;
 
-  await reloadName();
 
   await loadMessages();
   await startMessagesRealtime();
@@ -1614,22 +1690,24 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 
   sb.auth.onAuthStateChange(async (event, session)=> {
     authUser = session?.user || null;
-    updateTop();
-
-    if (event === "SIGNED_OUT" || !authUser){
+    if (!authUser){
+      updateTop();
       location.href = "./login.html";
       return;
     }
-
     await reloadName();
+    updateTop();
   });
 
   log("ready room=", room);
 })();
 
-  function safeKey(s){
-  // 日本語や記号を "_" に変換（Storage用）
-  return String(s || "").replace(/[^\w\-]+/g, "_") || "room";
+function safeKey(s){
+  // Storageのキーに使える文字だけにする（英数字 _ -）
+  let t = String(s || "").trim();
+  t = t.replace(/[^a-zA-Z0-9_-]+/g, "_");
+  t = t.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+  return t || "room";
 }
 
 </script>
