@@ -567,10 +567,9 @@
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
-/* ★ログイン切れ対策：pkce/persistSession あり */
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
-  (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
+  SUPABASE_KEY.trim(),
   {
     auth: {
       flowType: "pkce",
@@ -581,9 +580,90 @@ const sb = supabase.createClient(
   }
 );
 
-/* 画像用（Public bucket名） */
+/* ===== 画像用 ===== */
 const IMAGE_BUCKET = "chat-images";
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/* ===== util ===== */
+function log(...args){
+  console.log("[room]", ...args);
+  const el = document.getElementById("log");
+  if(el){
+    el.textContent += args.map(a=>typeof a==="string"?a:JSON.stringify(a)).join(" ") + "\n";
+    el.scrollTop = el.scrollHeight;
+  }
+}
+
+/* =========================================================
+   ★ 画像送信（修正版・完全）
+   ========================================================= */
+async function sendImage(){
+  const fileEl = document.getElementById("imgFile");
+  const file = fileEl.files?.[0];
+  const caption = document.getElementById("msg").value.trim();
+
+  if(!file) return alert("画像を選んでね！");
+  if(file.size > MAX_IMAGE_BYTES) return alert("画像は5MBまで！");
+  if(!file.type.startsWith("image/")) return alert("画像ファイルだけだよ！");
+
+  const btn = document.getElementById("sendImgBtn");
+  btn.disabled = true;
+  setUploadHint("画像アップロード中…");
+
+  try{
+    const uid = authUser?.id;
+    if(!uid) throw new Error("ログイン情報がありません");
+
+    /* ★ 安全なパスに変換（ここ重要） */
+    const safeRoom = (room || "room").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeUid  = uid.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    const ext = file.name.split(".").pop().toLowerCase().replace(/[^a-z0-9]/g,"") || "png";
+    const path = `${safeRoom}/${safeUid}/${Date.now()}_${Math.random().toString(16).slice(2)}.${ext}`;
+
+    const up = await sb.storage.from(IMAGE_BUCKET).upload(path, file, {
+      cacheControl: "3600",
+      upsert: false
+    });
+    if(up.error) throw up.error;
+
+    const { data } = sb.storage.from(IMAGE_BUCKET).getPublicUrl(path);
+    if(!data?.publicUrl) throw new Error("Public URL の取得に失敗しました");
+
+    const ins = await sb.from("messages").insert({
+      room_id: room,
+      name,
+      message: caption,
+      image_url: data.publicUrl,
+      user_id: uid
+    });
+    if(ins.error) throw ins.error;
+
+    fileEl.value = "";
+    document.getElementById("msg").value = "";
+    document.getElementById("imgName").textContent = "未選択";
+    setUploadHint("画像送信OK！");
+    await loadMessages();
+
+  }catch(e){
+    log("sendImage error", e);
+
+    if(String(e.message).includes("Bucket not found")){
+      alert(
+        "画像送信失敗：\n" +
+        "Storage に『chat-images』バケットが存在しません。\n\n" +
+        "Supabase → Storage → New bucket\n" +
+        "名前: chat-images / Public: ON"
+      );
+    }else{
+      alert("画像送信失敗: " + e.message);
+    }
+
+    setUploadHint("画像送信失敗…");
+  }finally{
+    btn.disabled = false;
+  }
+}
 
 /* ===== 状態 ===== */
 let authUser = null;
@@ -1445,3 +1525,4 @@ function escapeHtml(s){
 </script>
 </body>
 </html>
+
