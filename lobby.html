@@ -324,7 +324,6 @@ function updateTopRightUser(){
   const mail = document.getElementById("userMailText");
   const goBtn = document.getElementById("goLoginBtn");
   const soBtn = document.getElementById("signOutBtn");
-  const av = document.getElementById("userAvatar");
 
   if (!authUser){
     pill.textContent = '未ログイン';
@@ -341,7 +340,7 @@ function updateTopRightUser(){
 
   const avatarUrl = (authUser.user_metadata?.avatar_url || "").trim();
   if (av){
-    if (avatarUrl){ av.src = avatarUrl; av.style.display = "inline-block"; }
+    if (avatarUrl){  }
     else { av.style.display = "none"; av.removeAttribute("src"); }
   }
   goBtn.style.display = "none";
@@ -692,4 +691,5 @@ function escapeHtml(s){
 
 </body>
 </html>
+
 
