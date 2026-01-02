@@ -6,7 +6,6 @@
   <title>ゆるるチャット - Lobby</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- ================= UI: lobby(11) ================= -->
   <style>
     :root{
       --bg1:#0b1220;
@@ -66,6 +65,10 @@
       background:rgba(255,255,255,.10);
       border:1px solid var(--line);
       white-space: nowrap;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      cursor:pointer;
     }
     .userText{
       color:var(--muted);
@@ -75,27 +78,23 @@
       text-overflow:ellipsis;
     }
 
-.avatarSm{
-
-  width:26px;height:26px;border-radius:50%;
-  object-fit:cover;
-  border:1px solid rgba(255,255,255,.18);
-  background:rgba(255,255,255,.10);
-  flex:0 0 auto;
-}
-.avatarSmFb{
-  width:26px;height:26px;border-radius:50%;
-  display:inline-flex;align-items:center;justify-content:center;
-  font-weight:900;font-size:12px;
-  color:rgba(234,242,255,.92);
-  border:1px solid rgba(255,255,255,.18);
-  background:linear-gradient(135deg, rgba(110,231,255,.20), rgba(167,139,250,.18));
-  flex:0 0 auto;
-  user-select:none;
-}
-.userBtn{
-  cursor:pointer;
-}
+    .avatarSm{
+      width:26px;height:26px;border-radius:50%;
+      object-fit:cover;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10);
+      flex:0 0 auto;
+    }
+    .avatarSmFb{
+      width:26px;height:26px;border-radius:50%;
+      display:inline-flex;align-items:center;justify-content:center;
+      font-weight:900;font-size:12px;
+      color:rgba(234,242,255,.92);
+      border:1px solid rgba(255,255,255,.18);
+      background:linear-gradient(135deg, rgba(110,231,255,.20), rgba(167,139,250,.18));
+      flex:0 0 auto;
+      user-select:none;
+    }
 
     button{
       cursor:pointer;
@@ -229,22 +228,20 @@
       white-space:pre-wrap;
     }
 
-    /* 小さめ画面でもボタンが詰まらないように */
     .row > button{ white-space:nowrap; }
   </style>
 </head>
 
 <body>
 
-<!-- ================= UI: lobby(11) ================= -->
 <div class="topbar">
   <h2>🎧 ゆるるチャット – ロビー</h2>
   <div class="userBox">
-    <img id="userAvatar" class="avatarSm" alt="avatar" style="display:none;" />
-    <button class="userPill userBtn" id="userNamePill" type="button" onclick="goProfile()">未ログイン</button>
+    <!-- アイコンは userPill の中に1個だけ出す（ここにimgは置かない） -->
+    <button class="userPill" id="userNamePill" type="button" onclick="goProfile()">未ログイン</button>
     <span class="userText" id="userMailText"></span>
     <button class="btnPrimary" onclick="goLogin()" id="goLoginBtn" style="display:none;">ログイン</button>
-    <button class="btnDanger" onclick="signOut()" id="signOutBtn">ログアウト</button>
+    <button class="btnDanger" onclick="signOut()" id="signOutBtn" style="display:none;">ログアウト</button>
   </div>
 </div>
 
@@ -280,8 +277,10 @@
 </div>
 
 <script>
-/* =================== Supabase 設定（SYSTEM = lobby(10)） =================== */
+/* =================== Supabase 設定 =================== */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+
+/* ★ここは anon public key を入れてね（日本語/全角/改行が混ざると fetch が死ぬ） */
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
 /* ★重要：login.html と同じ auth 設定で createClient（ロビーで「切れる」を防ぐ） */
@@ -330,12 +329,22 @@ function goProfile(){
 }
 
 /* =================== 右上ユーザー表示 =================== */
+function setTopRightButtons(isLoggedIn){
+  const goBtn = document.getElementById("goLoginBtn");
+  const soBtn = document.getElementById("signOutBtn");
+  if (goBtn) goBtn.style.display = isLoggedIn ? "none" : "";
+  if (soBtn) soBtn.style.display = isLoggedIn ? "" : "none";
+}
+
 function updateTopRightUser(){
   const pill = document.getElementById("userNamePill");
+  const mail = document.getElementById("userMailText");
   if (!pill) return;
 
   if (!authUser){
     pill.textContent = "未ログイン";
+    if (mail) mail.textContent = "";
+    setTopRightButtons(false);
     return;
   }
 
@@ -343,17 +352,17 @@ function updateTopRightUser(){
   const em = (authUser.email || "").trim();
   const shown = dn || em || "ログイン中";
 
-  // ★ アイコンは「名前の横に1個だけ」
   pill.innerHTML = `
     ${avatarHtml(authUser.user_metadata?.avatar_url || "", shown, authUser.user_metadata?.avatar_ver || "")}
     <span>${escapeHtml(shown)}</span>
   `;
+
+  if (mail) mail.textContent = em ? `(${em})` : "";
+  setTopRightButtons(true);
 }
 
-
-/* =================== セッション復元（SYSTEM = lobby(10)） =================== */
+/* =================== セッション復元 =================== */
 async function refreshAuth(){
-  // まずセッション確認（ログインしてるか）
   const { data: ses, error: sesErr } = await sb.auth.getSession();
   if (sesErr) log("getSession error", sesErr);
 
@@ -364,17 +373,15 @@ async function refreshAuth(){
     return false;
   }
 
-  // ★重要：他端末の更新を拾うため、まずトークンを更新してから user を取得
-  try{ await sb.auth.refreshSession(); }catch(e){ log('refreshSession warn', e); }
+  // ★他端末更新を拾う：refresh → getUser
+  try { await sb.auth.refreshSession(); } catch (e) { log("refreshSession warn", e); }
 
-  // ★ここが重要：サーバーから最新userを取り直す
   const { data: u, error: uErr } = await sb.auth.getUser();
   if (uErr) log("getUser error", uErr);
 
-  authUser = u?.user || sessionUser;  // 取れたら最新、ダメならsessionのuser
+  authUser = u?.user || sessionUser;
   updateTopRightUser();
 
-  // 表示名入力欄へ反映（空のときだけ）
   const dn = (authUser.user_metadata?.display_name || "").trim();
   const dnEl = document.getElementById("displayName");
   if (dnEl && !dnEl.value) dnEl.value = dn;
@@ -382,8 +389,6 @@ async function refreshAuth(){
   return true;
 }
 
-
-/* ロビーでは「未ログインならloginへ」 */
 async function requireLoginOrRedirect(){
   const ok = await refreshAuth();
   if (!ok){
@@ -394,8 +399,19 @@ async function requireLoginOrRedirect(){
 }
 
 /* =================== ログアウト =================== */
+function clearSupabaseLocalStorage(){
+  try{
+    for (const k of Object.keys(localStorage)){
+      if (k.startsWith("sb-") || k.includes("supabase")) localStorage.removeItem(k);
+    }
+  }catch(e){
+    log("clear storage warn", e);
+  }
+}
+
 async function signOut(){
   try { await sb.auth.signOut({ scope:"local" }); } catch (e) { log("signOut", e); }
+  clearSupabaseLocalStorage();     // ★壊れたセッション対策
   authUser = null;
   updateTopRightUser();
   goLogin();
@@ -413,7 +429,6 @@ async function startRealtime(){
     .subscribe();
 }
 
-/* call_participants が動いたら部屋一覧も更新（通話中表示が変わる） */
 async function startCallParticipantsRealtime(){
   if (callParticipantsChannel) return;
 
@@ -440,8 +455,7 @@ async function isRoomInCall(roomName){
 
   if (error){
     log("isRoomInCall error", error);
-    // 判定できない時は安全側（削除させない）
-    return true;
+    return true; // 判定できない時は安全側（削除させない）
   }
   return (data || []).length > 0;
 }
@@ -472,7 +486,7 @@ async function fetchActiveCallUsersByRoom(){
     });
   }
 
-  // 重複除去（同一 user_id が複数あった時）
+  // 重複除去
   for (const [rid, arr] of map.entries()){
     const seen = new Set();
     const out = [];
@@ -527,7 +541,6 @@ async function loadRooms(){
     btn.onclick = () => document.getElementById("room").value = rn;
     btn.ondblclick = () => goRoom(rn);
 
-    // 通話中メンバー表示（あれば）
     const users = activeMap.get(rn) || [];
     if (users.length > 0){
       const names = users.map(x=>x.name).filter(Boolean);
@@ -546,7 +559,6 @@ async function loadRooms(){
     del.textContent = "🗑";
     del.title = "通話中は削除できません";
 
-    // 一覧表示時点の判定（削除ボタン制御）
     const inCall = await isRoomInCall(rn);
     if (inCall){
       del.disabled = true;
@@ -555,7 +567,6 @@ async function loadRooms(){
     }
 
     del.onclick = async () => {
-      // クリック直前にも再判定（レース対策）
       const nowInCall = await isRoomInCall(rn);
       if (nowInCall){
         alert("この部屋は通話中なので削除できません。");
@@ -629,16 +640,26 @@ async function saveDisplayName() {
     return;
   }
 
-  // ローカル反映
   if (data?.user) authUser = data.user;
   updateTopRightUser();
-
   setStatus("表示名を保存しました！", true);
 }
 
-/* =================== HTMLエスケープ =================== */
+/* =================== HTMLエスケープ / Avatar =================== */
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
 function escapeAttr(s){ return escapeHtml(s).replaceAll('`','&#096;'); }
-function getInitial(s){ const t=String(s||'').trim(); if(!t) return '?'; return Array.from(t)[0] || '?'; }
+function getInitial(s){
+  const t = String(s||'').trim();
+  if(!t) return '?';
+  return Array.from(t)[0] || '?';
+}
 function normalizeAvatarUrl(url, ver){
   const u = String(url||'').trim();
   if (!u) return '';
@@ -652,18 +673,9 @@ function avatarHtml(url, label, ver){
   return `<span class="avatarSmFb">${escapeHtml(getInitial(label))}</span>`;
 }
 
-function escapeHtml(s){
-  return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-/* =================== 起動（SYSTEM = lobby(10)） =================== */
+/* =================== 起動 =================== */
 (async () => {
-  // ★セッションがURLに含まれるケースも拾う（安全のため）
+  // URL/Hash にセッションが含まれるケースを拾う（安全のため）
   try {
     const url = new URL(location.href);
     const hasAuthParams =
@@ -693,7 +705,6 @@ function escapeHtml(s){
   await startCallParticipantsRealtime();
 
   sb.auth.onAuthStateChange(async () => {
-    // 状態変化時は、必ずセッション復元してから画面を更新
     const ok = await refreshAuth();
     if (!ok) { goLogin(); return; }
     await loadRooms();
@@ -705,6 +716,3 @@ function escapeHtml(s){
 
 </body>
 </html>
-
-
-
