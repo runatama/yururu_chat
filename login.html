@@ -749,6 +749,7 @@ async function signUp() {
 
   if (error) { showAuthError("新規登録失敗", error); return; }
 
+      // OK
   log("signUp data", data);
   alert("新規登録OK！メール確認が必要なら、メールを確認してからログインしてね！");
   await reloadSession();
