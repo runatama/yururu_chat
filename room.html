@@ -817,6 +817,18 @@ function updateTop(){
   pill.innerHTML = `${avatarHtml(av, shown)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
 }
 
+async function reloadName(){
+  // authUser は requireLoginOrRedirect() で最新を取り直している想定
+  const dn = (authUser?.user_metadata?.display_name || "").trim();
+  const em = (authUser?.email || "").trim();
+  name = dn || em || "名無しさん";
+
+  // ★他端末でも反映させるため：必ず user_metadata.avatar_url を使う
+  myAvatarUrl = (authUser?.user_metadata?.avatar_url || "").trim();
+
+  // 入力欄などがある場合はここで反映してOK（今はトップ表示で使うだけ）
+}
+
 /* =================== ログイン必須 =================== */
 async function requireLoginOrRedirect(){
   const { data: ses, error: sesErr } = await sb.auth.getSession();
