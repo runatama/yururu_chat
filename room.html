@@ -321,6 +321,30 @@
       margin-bottom:6px;
     }
     .msgMeta{ color: rgba(234,242,255,.40); font-size:11px; }
+
+    .msgActions{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex:0 0 auto;
+    }
+    .trashBtn{
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      color: rgba(234,242,255,.85);
+      padding:6px 10px;
+      border-radius:12px;
+      cursor:pointer;
+      font-size:12px;
+      line-height:1;
+      transition: background .15s ease, border-color .15s ease, transform .05s ease;
+    }
+    .trashBtn:hover{
+      background: rgba(255,255,255,.08);
+      border-color: rgba(255,255,255,.18);
+    }
+    .trashBtn:active{ transform: translateY(1px); }
+
     .msgBody{
       font-size:14px;
       line-height:1.5;
@@ -787,12 +811,31 @@ async function loadMessages(){
     const left = document.createElement("div");
     left.textContent = (m.name || "");
 
+    // 右側（時刻 + 削除ボタン）
+    const actions = document.createElement("div");
+    actions.className = "msgActions";
+
     const meta = document.createElement("div");
     meta.className = "msgMeta";
     meta.textContent = fmtTime(m.created_at);
 
+    actions.appendChild(meta);
+
+    // ✅ 自分が送ったメッセージだけゴミ箱を表示（本人だけ消せる）
+    if (m.user_id && m.user_id === myUid()){
+      const del = document.createElement("button");
+      del.className = "trashBtn";
+      del.type = "button";
+      del.title = "自分のメッセージを削除";
+      del.textContent = "🗑️";
+      del.onclick = async ()=>{
+        await deleteMessage(m);
+      };
+      actions.appendChild(del);
+    }
+
     head.appendChild(left);
-    head.appendChild(meta);
+    head.appendChild(actions);
     wrap.appendChild(head);
 
     const bodyText = (m.message || "").trim();
@@ -845,6 +888,65 @@ async function sendMsg(){
 
   if (error){ alert("送信失敗: " + error.message); }
 }
+
+
+/* =========================================================
+   🗑️ 自分の投稿だけ削除（本文 + 画像）
+   - UI: 自分の投稿にだけゴミ箱が出る
+   - DB: messages を自分だけ delete（RLS推奨）
+   - Storage: 画像がある場合は bucket から削除も試みる
+   ========================================================= */
+function extractStoragePathFromPublicUrl(url){
+  // 例: https://xxx.supabase.co/storage/v1/object/public/chat-images/ROOM/UID/xxx.png
+  if (!url) return "";
+  const marker = `/storage/v1/object/public/${IMAGE_BUCKET}/`;
+  const i = url.indexOf(marker);
+  if (i < 0) return "";
+  return url.substring(i + marker.length);
+}
+
+async function deleteMessage(m){
+  if (!m?.id) return;
+
+  // 念のためクライアント側でも所有者チェック
+  if (m.user_id !== myUid()){
+    alert("これは自分の投稿じゃないので削除できません");
+    return;
+  }
+
+  const hasImg = !!m.image_url;
+  const ok = confirm(hasImg ? "このメッセージ（画像も）を削除しますか？" : "このメッセージを削除しますか？");
+  if (!ok) return;
+
+  try{
+    // 1) 画像があれば Storage から削除（権限がある場合のみ成功）
+    if (hasImg){
+      const path = extractStoragePathFromPublicUrl(m.image_url);
+      if (path){
+        const rm = await sb.storage.from(IMAGE_BUCKET).remove([path]);
+        if (rm.error){
+          // Storage削除に失敗しても、DB削除は続行したい場合はここで止めない
+          log("storage remove error", rm.error);
+        }
+      }
+    }
+
+    // 2) DBから削除（本人だけ消せるように user_id 条件を付ける）
+    const del = await sb
+      .from("messages")
+      .delete()
+      .eq("id", m.id)
+      .eq("user_id", myUid());
+
+    if (del.error) throw del.error;
+
+    await loadMessages();
+  }catch(e){
+    log("deleteMessage error", e);
+    alert("削除失敗: " + (e?.message || e));
+  }
+}
+
 
 /* =========================================================
    ★ 画像送信（修正版・完全）※ sendImage はこれ1個だけ！
