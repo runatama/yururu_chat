@@ -45,7 +45,6 @@
       overflow-x:hidden;
     }
 
-    /* 背景ノイズ */
     .grain{
       position:fixed; inset:0;
       pointer-events:none;
@@ -56,7 +55,6 @@
 
     .wrap{ max-width: 1100px; margin: 0 auto; }
 
-    /* ===== Topbar ===== */
     .topbar{
       display:flex;
       justify-content:space-between;
@@ -149,7 +147,6 @@
       white-space:nowrap;
     }
 
-    /* ===== Buttons / Inputs ===== */
     button{
       padding: 10px 12px;
       margin: 0;
@@ -193,7 +190,6 @@
       box-shadow: 0 0 0 4px rgba(110,231,255,.12);
     }
 
-    /* ===== Cards ===== */
     .card{
       border: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
@@ -237,7 +233,6 @@
 
     .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 
-    /* ===== Status line ===== */
     #status{
       font-size:12px;
       margin-top: 10px;
@@ -250,8 +245,6 @@
       align-items:center;
       gap:8px;
     }
-    .ok{ color: var(--good); }
-    .ng{ color: var(--bad); }
     .dot{
       width:10px; height:10px; border-radius:999px;
       background: rgba(255,255,255,.35);
@@ -263,7 +256,6 @@
     #status.ngLine{ border-color: rgba(255,107,107,.25); background: rgba(255,107,107,.10); color: rgba(234,242,255,.88); }
     #status.ngLine .dot{ background: var(--bad); box-shadow: 0 0 0 4px rgba(255,107,107,.13); }
 
-    /* ===== Layout ===== */
     .layout{
       display:grid;
       grid-template-columns: 390px 1fr;
@@ -277,7 +269,6 @@
       .userText{ max-width: 60vw; }
     }
 
-    /* ===== Chat ===== */
     #chat{
       border: 1px solid var(--line);
       height: 420px;
@@ -288,15 +279,45 @@
       box-shadow: var(--shadow2);
     }
     #chat > div{
-      padding: 8px 10px;
+      padding: 10px 10px;
       border-radius: 14px;
       border: 1px solid rgba(255,255,255,.08);
       background: rgba(255,255,255,.05);
-      margin: 8px 0;
+      margin: 10px 0;
       color: rgba(234,242,255,.90);
       font-size: 13px;
       line-height: 1.5;
       word-break: break-word;
+    }
+    .msgHead{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:center;
+      margin-bottom:6px;
+      color: rgba(234,242,255,.86);
+      font-weight: 900;
+      font-size: 12px;
+    }
+    .msgMeta{
+      color: var(--muted2);
+      font-weight: 700;
+      font-size: 11px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 45%;
+    }
+    .msgBody{ font-size: 13px; }
+    .msgImg{
+      margin-top:8px;
+      width:100%;
+      max-height: 520px;
+      object-fit: contain;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      display:block;
     }
 
     .chatSend{
@@ -304,11 +325,34 @@
       gap:10px;
       align-items:center;
       margin-top:10px;
+      flex-wrap: wrap;
     }
-    .chatSend input{ flex: 1 1 auto; }
-    .chatSend button{ flex: 0 0 auto; }
+    .chatSend input#msg{ flex: 1 1 260px; }
+    .chatSend .fileWrap{ flex: 0 0 auto; display:flex; align-items:center; gap:10px; }
+    .fileBtn{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      color: rgba(234,242,255,.90);
+      font-weight: 900;
+      cursor:pointer;
+      user-select:none;
+    }
+    .fileBtn:hover{ filter: brightness(1.08); }
+    .fileName{
+      font-size: 12px;
+      color: var(--muted);
+      max-width: 180px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    #imgFile{ display:none; }
 
-    /* ===== Lists ===== */
     .pill{
       font-size: 12px;
       padding: 2px 8px;
@@ -342,7 +386,6 @@
       color: rgba(234,242,255,.86);
     }
 
-    /* ===== Audio blocks ===== */
     .audioWrap{
       border: 1px solid rgba(255,255,255,.10);
       border-radius: 16px;
@@ -378,12 +421,8 @@
       border: 1px solid rgba(255,255,255,.10);
     }
 
-    /* ===== Range ===== */
-    input[type="range"]{
-      accent-color: var(--accent);
-    }
+    input[type="range"]{ accent-color: var(--accent); }
 
-    /* ===== Log ===== */
     details{ margin-top: 12px; }
     summary{
       cursor:pointer;
@@ -406,10 +445,7 @@
       margin-top: 10px;
     }
 
-    /* 小さめボタン行 */
     .btnRow{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; }
-
-    /* 現在の部屋 input */
     #roomNameView{ max-width: 420px; }
   </style>
 </head>
@@ -435,7 +471,6 @@
       </div>
     </div>
 
-    <!-- 現在の部屋 -->
     <div class="card">
       <div class="cardTitle">
         <b>🏠 現在の部屋</b>
@@ -451,7 +486,6 @@
     </div>
 
     <div class="layout">
-      <!-- 左カラム -->
       <div>
         <div class="card">
           <div class="cardTitle">
@@ -497,23 +531,30 @@
         </details>
       </div>
 
-      <!-- 右カラム -->
       <div>
         <div class="card">
           <div class="cardTitle">
-            <b>💬 チャット</b>
+            <b>💬 チャット（画像OK）</b>
             <span class="pill">Messages</span>
           </div>
 
           <div id="chat"></div>
 
           <div class="chatSend">
-            <input id="msg" placeholder="メッセージ" />
+            <input id="msg" placeholder="メッセージ（画像のキャプションにもなる）" />
+
+            <div class="fileWrap">
+              <label class="fileBtn" for="imgFile">🖼 画像を選ぶ</label>
+              <span class="fileName" id="imgName">未選択</span>
+              <input id="imgFile" type="file" accept="image/*" />
+            </div>
+
+            <button class="btnGhost" id="sendImgBtn" onclick="sendImage()">画像送信</button>
             <button class="btnPrimary" onclick="sendMsg()">送信</button>
           </div>
 
-          <div class="hint small" style="font-size:11px; color:var(--muted2); margin-top:10px;">
-            ※ 改行したい時は短文で分けるのがおすすめ（今はEnter送信ではないよ）
+          <div class="hint" id="uploadHint" style="font-size:11px; color:var(--muted2); margin-top:10px;">
+            ※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）
           </div>
         </div>
       </div>
@@ -522,13 +563,27 @@
   </div>
 
 <script>
+/* =================== Supabase 設定 =================== */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
+/* ★ログイン切れ対策：pkce/persistSession あり */
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
-  (SUPABASE_KEY || "").replace(/\s+/g, "")
+  (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
+  {
+    auth: {
+      flowType: "pkce",
+      detectSessionInUrl: true,
+      autoRefreshToken: true,
+      persistSession: true
+    }
+  }
 );
+
+/* 画像用（Public bucket名） */
+const IMAGE_BUCKET = "chat-images";
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 
 /* ===== 状態 ===== */
 let authUser = null;
@@ -580,12 +635,17 @@ function setStatus(text, ok=true){
   const el = document.getElementById("status");
   el.classList.remove("okLine","ngLine");
   el.classList.add(ok ? "okLine" : "ngLine");
-  el.innerHTML = `<span class="dot"></span><span>${text}</span>`;
+  el.innerHTML = `<span class="dot"></span><span>${escapeHtml(text)}</span>`;
 }
 function setCallState(t){
   document.getElementById("callState").textContent = t;
   const pill = document.getElementById("callStatePill");
   if (pill) pill.textContent = t.includes("未接続") ? "Call" : "On";
+}
+
+function setUploadHint(t){
+  const el = document.getElementById("uploadHint");
+  if (el) el.textContent = t;
 }
 
 function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
@@ -679,10 +739,21 @@ async function startMessagesRealtime(){
     .subscribe();
 }
 
+function fmtTime(iso){
+  try{
+    const d = new Date(iso);
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mm = String(d.getMinutes()).padStart(2,"0");
+    return `${hh}:${mm}`;
+  }catch{
+    return "";
+  }
+}
+
 async function loadMessages(){
   const { data, error } = await sb
     .from("messages")
-    .select("id, room_id, name, message, created_at, user_id")
+    .select("id, room_id, name, message, image_url, created_at, user_id")
     .eq("room_id", room)
     .order("created_at", { ascending:true })
     .limit(200);
@@ -691,11 +762,44 @@ async function loadMessages(){
 
   const box = document.getElementById("chat");
   box.innerHTML = "";
+
   (data || []).forEach(m=>{
-    const line = document.createElement("div");
-    line.textContent = `${m.name || ""}: ${m.message || ""}`;
-    box.appendChild(line);
+    const wrap = document.createElement("div");
+
+    const head = document.createElement("div");
+    head.className = "msgHead";
+
+    const left = document.createElement("div");
+    left.textContent = (m.name || "");
+
+    const meta = document.createElement("div");
+    meta.className = "msgMeta";
+    meta.textContent = fmtTime(m.created_at);
+
+    head.appendChild(left);
+    head.appendChild(meta);
+    wrap.appendChild(head);
+
+    const bodyText = (m.message || "").trim();
+    if (bodyText){
+      const body = document.createElement("div");
+      body.className = "msgBody";
+      body.textContent = bodyText;
+      wrap.appendChild(body);
+    }
+
+    if (m.image_url){
+      const img = document.createElement("img");
+      img.className = "msgImg";
+      img.src = m.image_url;
+      img.loading = "lazy";
+      img.alt = "image";
+      wrap.appendChild(img);
+    }
+
+    box.appendChild(wrap);
   });
+
   box.scrollTop = box.scrollHeight;
 }
 
@@ -708,10 +812,72 @@ async function sendMsg(){
     room_id: room,
     name,
     message: v,
+    image_url: null,
     user_id: myUid()
   });
 
   if (error){ alert("送信失敗: " + error.message); }
+}
+
+/* ===== 画像送信（Public Storage） ===== */
+async function sendImage(){
+  const fileEl = document.getElementById("imgFile");
+  const file = fileEl.files?.[0];
+  const caption = (document.getElementById("msg")?.value || "").trim();
+
+  if(!file) return alert("画像を選んでね！");
+  if(file.size > MAX_IMAGE_BYTES) return alert("画像が大きすぎ！5MB以下にしてね");
+
+  const type = (file.type || "").toLowerCase();
+  if(!type.startsWith("image/")) return alert("画像ファイルだけだよ！");
+
+  const btn = document.getElementById("sendImgBtn");
+  btn.disabled = true;
+  setUploadHint("アップロード中…（ちょい待って）");
+
+  try{
+    const uid = myUid();
+    const extFromName = (file.name.split(".").pop() || "").toLowerCase();
+    const extFromType = type.replace("image/","").replace("jpeg","jpg");
+    const ext = (extFromName || extFromType || "png").replace(/[^a-z0-9]/g,"").slice(0,6) || "png";
+
+    const rand = Math.random().toString(16).slice(2);
+    const path = `${room}/${uid}/${Date.now()}_${rand}.${ext}`;
+
+    const up = await sb.storage.from(IMAGE_BUCKET).upload(path, file, {
+      cacheControl: "3600",
+      upsert: false
+    });
+    if(up.error) throw up.error;
+
+    // Public URL（bucketがPublic前提）
+    const pub = sb.storage.from(IMAGE_BUCKET).getPublicUrl(path);
+    const imageUrl = pub?.data?.publicUrl;
+    if(!imageUrl) throw new Error("publicUrl取得失敗（bucketがPublicじゃない可能性）");
+
+    const ins = await sb.from("messages").insert({
+      room_id: room,
+      name,
+      message: caption,      // キャプション（空でもOK）
+      image_url: imageUrl,
+      user_id: uid
+    });
+    if(ins.error) throw ins.error;
+
+    // UIリセット
+    fileEl.value = "";
+    document.getElementById("msg").value = "";
+    document.getElementById("imgName").textContent = "未選択";
+    setUploadHint("画像送信OK！");
+    await loadMessages();
+
+  }catch(e){
+    log("sendImage error", e);
+    alert("画像送信失敗: " + (e?.message || e));
+    setUploadHint("画像送信失敗…（bucket/Public/列追加を確認して）");
+  }finally{
+    btn.disabled = false;
+  }
 }
 
 /* =========================================================
@@ -746,7 +912,6 @@ async function loadActiveCallUsers(){
     return;
   }
 
-  // 重複除去
   const seen = new Set();
   const uniq = [];
   for (const p of list){
@@ -795,7 +960,6 @@ function setMyMicVolume(v){
   }
 }
 
-/* ★追加：presenceStateから表示名を引く */
 function getDisplayNameByPeerId(peerId){
   try {
     if (!callChannel) return peerId;
@@ -809,7 +973,6 @@ function getDisplayNameByPeerId(peerId){
   }
 }
 
-/* ★追加：既にある音量カードのタイトルをまとめて更新 */
 function refreshAudioTitles(){
   try {
     for (const pid of pcs.keys()){
@@ -849,7 +1012,6 @@ function renderPeopleFromState(){
     box.appendChild(row);
   });
 
-  // ★ここで音量カード側も表示名に合わせる（後から同期されても直る）
   refreshAudioTitles();
 }
 
@@ -1000,8 +1162,6 @@ function ensureAudioEl(peerId){
   wrap.appendChild(ctl);
 
   document.getElementById("audios").appendChild(wrap);
-
-  // ★作った直後にも一回更新（presenceが後から来ても即反映しやすい）
   refreshAudioTitles();
 
   return el;
@@ -1082,10 +1242,8 @@ function stopHeartbeat(){
   if (heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
 }
 
-/* ===== マイクを Gain 経由の送信用Streamにする ===== */
 function buildProcessedMicStreamIfNeeded(){
   if (!localStream) return;
-
   if (processedStream && micGainNode && audioCtx) return;
 
   audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -1100,7 +1258,6 @@ function buildProcessedMicStreamIfNeeded(){
   processedStream = dest.stream;
 }
 
-/* ===== 通話開始 ===== */
 async function startVoice(){
   if (!authUser) return alert("先にログインしてね！");
   if (!room || !name) return alert("部屋が変です（URL確認）");
@@ -1110,7 +1267,6 @@ async function startVoice(){
 
     if (!localStream){
       localStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
-
       buildProcessedMicStreamIfNeeded();
 
       micMuted = false;
@@ -1154,7 +1310,6 @@ async function startVoice(){
   }
 }
 
-/* ===== ミュート ===== */
 async function toggleMute(){
   if (!localStream && !processedStream) return alert("先に『通話に参加（開始）』を押してね！");
 
@@ -1177,7 +1332,6 @@ async function toggleMute(){
   await loadActiveCallUsers();
 }
 
-/* ===== 通話退出 ===== */
 async function hangupAll(){
   stopHeartbeat();
 
@@ -1231,17 +1385,13 @@ async function startRoomWatchRealtime(){
 
   roomsWatchChannel = sb
     .channel("rooms-watch")
-    .on(
-      "postgres_changes",
-      { event: "DELETE", schema: "public", table: "rooms" },
-      (payload) => {
-        const deletedRoom = payload.old?.room_name;
-        if (deletedRoom === room){
-          alert("部屋が削除されました。ロビーに戻ります。");
-          leaveRoom();
-        }
+    .on("postgres_changes", { event: "DELETE", schema: "public", table: "rooms" }, (payload) => {
+      const deletedRoom = payload.old?.room_name;
+      if (deletedRoom === room){
+        alert("部屋が削除されました。ロビーに戻ります。");
+        leaveRoom();
       }
-    )
+    })
     .subscribe();
 }
 
@@ -1256,8 +1406,18 @@ function escapeHtml(s){
 }
 
 /* ===== 起動 ===== */
+(function initFileUi(){
+  const fileEl = document.getElementById("imgFile");
+  const nameEl = document.getElementById("imgName");
+  if (fileEl && nameEl){
+    fileEl.addEventListener("change", ()=>{
+      const f = fileEl.files?.[0];
+      nameEl.textContent = f ? f.name : "未選択";
+    });
+  }
+})();
+
 (async ()=>{
-  // UI 初期化（マイク音量）
   setMyMicVolume(document.getElementById("myVol").value);
 
   if (!(await requireLoginOrRedirect())) return;
