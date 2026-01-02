@@ -1689,15 +1689,24 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
   setReady(true, "待機中");
 
   sb.auth.onAuthStateChange(async (event, session)=> {
-    authUser = session?.user || null;
-    if (!authUser){
-      updateTop();
-      location.href = "./login.html";
-      return;
-    }
-    await reloadName();
+  const sessionUser = session?.user || null;
+  if (!sessionUser){
+    authUser = null;
     updateTop();
-  });
+    location.href = "./login.html";
+    return;
+  }
+
+  // ★最新 user を取り直す
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) log("getUser error", uErr);
+
+  authUser = u?.user || sessionUser;
+
+  await reloadName();  // reloadName が authUser.user_metadata を使う想定
+  updateTop();
+});
+
 
   log("ready room=", room);
 })();
@@ -1713,6 +1722,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
