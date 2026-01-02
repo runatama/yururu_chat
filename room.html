@@ -4,562 +4,582 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ゆるるチャット - Room</title>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     :root{
       --bg1:#0b1220;
-      --bg2:#0a1a2a;
-
+      --bg2:#0d1a33;
+      --card:rgba(255,255,255,.06);
+      --card2:rgba(255,255,255,.08);
+      --stroke:rgba(255,255,255,.10);
+      --stroke2:rgba(255,255,255,.14);
       --text:#eaf2ff;
-      --muted:rgba(234,242,255,.70);
-      --muted2:rgba(234,242,255,.55);
-
-      --line:rgba(255,255,255,.10);
-      --line2:rgba(255,255,255,.16);
-
-      --accent:#6ee7ff;
-      --accent2:#a78bfa;
-
-      --good:#3be0a8;
+      --muted:rgba(234,242,255,.65);
+      --muted2:rgba(234,242,255,.45);
+      --good:#35d0a7;
+      --warn:#ffb84d;
       --bad:#ff6b6b;
-      --warn:#ffd166;
-
+      --accent:#78a7ff;
+      --accent2:#a68bff;
+      --glow:rgba(120,167,255,.45);
+      --shadow: 0 16px 40px rgba(0,0,0,.35);
       --radius:18px;
-      --shadow: 0 18px 50px rgba(0,0,0,.45);
-      --shadow2: 0 10px 28px rgba(0,0,0,.35);
+      --radius2:22px;
     }
-
     *{ box-sizing:border-box; }
-    html,body{ height:100%; }
     body{
       margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", sans-serif;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
       color:var(--text);
       background:
-        radial-gradient(900px 600px at 15% 18%, rgba(110,231,255,.25), transparent 55%),
-        radial-gradient(900px 600px at 85% 22%, rgba(167,139,250,.22), transparent 55%),
-        radial-gradient(900px 600px at 50% 100%, rgba(59,224,168,.12), transparent 60%),
+        radial-gradient(1200px 600px at 20% 10%, rgba(120,167,255,.20), transparent 55%),
+        radial-gradient(900px 500px at 80% 40%, rgba(166,139,255,.18), transparent 55%),
+        radial-gradient(800px 700px at 30% 90%, rgba(53,208,167,.14), transparent 60%),
         linear-gradient(180deg, var(--bg1), var(--bg2));
-      padding: 18px 16px 28px;
+      min-height:100vh;
       overflow-x:hidden;
     }
-
-    .grain{
-      position:fixed; inset:0;
-      pointer-events:none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.25'/%3E%3C/svg%3E");
-      opacity:.08;
-      mix-blend-mode: overlay;
-    }
-
-    .wrap{ max-width: 1100px; margin: 0 auto; }
-
     .topbar{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:12px;
-      margin-bottom: 14px;
+      position:sticky;
+      top:0;
+      z-index:50;
+      backdrop-filter: blur(14px);
+      background: linear-gradient(180deg, rgba(6,10,20,.78), rgba(6,10,20,.50));
+      border-bottom: 1px solid rgba(255,255,255,.08);
     }
-
+    .topbarInner{
+      max-width:1100px;
+      margin:0 auto;
+      padding:12px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
     .brand{
       display:flex;
       align-items:center;
-      gap:12px;
-      min-width:0;
+      gap:10px;
+      min-width: 240px;
     }
     .logo{
-      width:42px; height:42px;
-      border-radius: 14px;
-      background:
-        radial-gradient(16px 16px at 30% 30%, rgba(255,255,255,.9), transparent 55%),
-        linear-gradient(135deg, rgba(110,231,255,.95), rgba(167,139,250,.88));
-      box-shadow: 0 14px 30px rgba(110,231,255,.14), 0 14px 30px rgba(167,139,250,.10);
-      position:relative;
-      overflow:hidden;
-      flex: 0 0 auto;
+      width:38px;height:38px;border-radius:14px;
+      background: radial-gradient(circle at 30% 30%, rgba(120,167,255,.95), rgba(166,139,255,.65) 55%, rgba(53,208,167,.35));
+      box-shadow: 0 0 0 1px rgba(255,255,255,.10), 0 10px 26px rgba(120,167,255,.18);
     }
-    .logo::after{
-      content:"";
-      position:absolute; inset:-30%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
-      transform: rotate(20deg);
-      animation: sheen 3.2s infinite;
-    }
-    @keyframes sheen{
-      0%{ transform: translateX(-40%) rotate(20deg); opacity:.0; }
-      20%{ opacity:.6; }
-      50%{ opacity:.25; }
-      100%{ transform: translateX(40%) rotate(20deg); opacity:0; }
-    }
+    .brandText b{ display:block; font-size:14px; letter-spacing:.3px; }
+    .brandText span{ display:block; font-size:12px; color:var(--muted); margin-top:2px; }
 
-    .titles{ min-width:0; }
-    h2{
-      margin:0;
-      font-size: 18px;
-      font-weight: 900;
-      letter-spacing: .02em;
-      line-height: 1.1;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      max-width: 52vw;
-    }
-    .sub{
-      margin:6px 0 0;
-      font-size: 12px;
-      color: var(--muted);
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      max-width: 58vw;
-    }
-
-    .userBox{
+    .topActions{
       display:flex;
-      align-items:center;
       gap:10px;
       flex-wrap:wrap;
+      align-items:center;
       justify-content:flex-end;
-      padding: 8px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,.06);
-      box-shadow: var(--shadow2);
     }
-    .userPill{
-      font-size:12px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,.08);
-      color: rgba(234,242,255,.92);
-      font-weight: 800;
-      white-space:nowrap;
-    }
-    .userText{
-      font-size:12px;
-      color: var(--muted);
-      max-width: 34vw;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      white-space:nowrap;
-    }
-
-    button{
-      padding: 10px 12px;
-      margin: 0;
+    .btn{
+      appearance:none;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      color:var(--text);
+      padding:10px 14px;
+      border-radius:14px;
       cursor:pointer;
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,.08);
-      color: var(--text);
-      font-weight: 800;
-      transition: transform .08s ease, filter .12s ease, background .12s ease;
-    }
-    button:hover{ filter: brightness(1.08); }
-    button:active{ transform: translateY(1px) scale(.99); }
-    button:disabled{ opacity: .55; cursor: not-allowed; }
-
-    .btnPrimary{
-      background: linear-gradient(135deg, rgba(110,231,255,.92), rgba(167,139,250,.88));
-      border-color: rgba(255,255,255,.18);
-      color: #07101c;
-      box-shadow: 0 18px 35px rgba(110,231,255,.12), 0 18px 35px rgba(167,139,250,.10);
-    }
-    .btnGhost{ background: rgba(255,255,255,.06); }
-    .btnDanger{
-      background: rgba(255,107,107,.14);
-      border-color: rgba(255,107,107,.26);
-    }
-
-    input{
-      width: 100%;
-      padding: 12px 12px;
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,.22);
-      color: var(--text);
-      outline:none;
-      transition: border-color .12s ease, box-shadow .12s ease;
-    }
-    input::placeholder{ color: rgba(234,242,255,.38); }
-    input:focus{
-      border-color: rgba(110,231,255,.55);
-      box-shadow: 0 0 0 4px rgba(110,231,255,.12);
-    }
-
-    .card{
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
-      padding: 16px;
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      margin: 12px 0;
-      position:relative;
-      overflow:hidden;
-    }
-    .card::before{
-      content:"";
-      position:absolute;
-      inset:-2px;
-      border-radius: var(--radius);
-      background:
-        radial-gradient(600px 220px at 20% 0%, rgba(110,231,255,.14), transparent 60%),
-        radial-gradient(600px 220px at 80% 0%, rgba(167,139,250,.12), transparent 60%);
-      pointer-events:none;
-    }
-    .card > *{ position:relative; z-index:1; }
-
-    .cardTitle{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      margin-bottom: 10px;
-    }
-    .cardTitle b{
-      font-size: 13px;
-      color: rgba(234,242,255,.92);
-      letter-spacing:.02em;
-    }
-    .hint{
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.6;
-      margin-top: 6px;
-    }
-
-    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-
-    #status{
-      font-size:12px;
-      margin-top: 10px;
-      padding: 10px 12px;
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,.05);
-      color: var(--muted);
-      display:flex;
-      align-items:center;
-      gap:8px;
-    }
-    .dot{
-      width:10px; height:10px; border-radius:999px;
-      background: rgba(255,255,255,.35);
-      box-shadow: 0 0 0 4px rgba(255,255,255,.06);
-      flex:0 0 auto;
-    }
-    #status.okLine{ border-color: rgba(59,224,168,.25); background: rgba(59,224,168,.08); color: rgba(234,242,255,.85); }
-    #status.okLine .dot{ background: var(--good); box-shadow: 0 0 0 4px rgba(59,224,168,.13); }
-    #status.ngLine{ border-color: rgba(255,107,107,.25); background: rgba(255,107,107,.10); color: rgba(234,242,255,.88); }
-    #status.ngLine .dot{ background: var(--bad); box-shadow: 0 0 0 4px rgba(255,107,107,.13); }
-
-    .layout{
-      display:grid;
-      grid-template-columns: 390px 1fr;
-      gap: 14px;
-      align-items:start;
-    }
-    @media (max-width: 980px){
-      .layout{ grid-template-columns: 1fr; }
-      h2{ max-width: 70vw; }
-      .sub{ max-width: 80vw; }
-      .userText{ max-width: 60vw; }
-    }
-
-    #chat{
-      border: 1px solid var(--line);
-      height: 420px;
-      overflow:auto;
-      padding: 10px;
-      border-radius: var(--radius);
-      background: rgba(0,0,0,.22);
-      box-shadow: var(--shadow2);
-    }
-    #chat > div{
-      padding: 10px 10px;
-      border-radius: 14px;
-      border: 1px solid rgba(255,255,255,.08);
-      background: rgba(255,255,255,.05);
-      margin: 10px 0;
-      color: rgba(234,242,255,.90);
-      font-size: 13px;
-      line-height: 1.5;
-      word-break: break-word;
-    }
-    .msgHead{
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
-      align-items:center;
-      margin-bottom:6px;
-      color: rgba(234,242,255,.86);
-      font-weight: 900;
-      font-size: 12px;
-    }
-    .msgMeta{
-      color: var(--muted2);
-      font-weight: 700;
-      font-size: 11px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      max-width: 45%;
-    }
-    .msgBody{ font-size: 13px; }
-    .msgImg{
-      margin-top:8px;
-      width:100%;
-      max-height: 520px;
-      object-fit: contain;
-      border-radius: 14px;
-      border: 1px solid rgba(255,255,255,.10);
-      background: rgba(0,0,0,.18);
-      display:block;
-    }
-
-    .chatSend{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      margin-top:10px;
-      flex-wrap: wrap;
-    }
-    .chatSend input#msg{ flex: 1 1 260px; }
-    .chatSend .fileWrap{ flex: 0 0 auto; display:flex; align-items:center; gap:10px; }
-    .fileBtn{
+      transition: transform .05s ease, background .15s ease, border-color .15s ease;
       display:inline-flex;
       align-items:center;
       gap:8px;
-      padding: 10px 12px;
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,.06);
-      color: rgba(234,242,255,.90);
-      font-weight: 900;
-      cursor:pointer;
-      user-select:none;
+      font-weight:700;
+      box-shadow: 0 10px 20px rgba(0,0,0,.14);
     }
-    .fileBtn:hover{ filter: brightness(1.08); }
-    .fileName{
-      font-size: 12px;
-      color: var(--muted);
-      max-width: 180px;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      white-space:nowrap;
+    .btn:hover{ background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.16); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{
+      background: linear-gradient(135deg, rgba(120,167,255,.35), rgba(166,139,255,.25));
+      border-color: rgba(120,167,255,.35);
+      box-shadow: 0 12px 26px rgba(120,167,255,.14);
     }
-    #imgFile{ display:none; }
-
+    .btn.danger{
+      background: linear-gradient(135deg, rgba(255,107,107,.25), rgba(166,139,255,.10));
+      border-color: rgba(255,107,107,.35);
+    }
     .pill{
-      font-size: 12px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,.06);
-      color: rgba(234,242,255,.86);
+      border:1px solid rgba(255,255,255,.10);
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      color:var(--muted);
+      background: rgba(255,255,255,.04);
       white-space:nowrap;
     }
-    .pillOn{ border-color: rgba(59,224,168,.28); background: rgba(59,224,168,.10); }
-    .pillMute{ border-color: rgba(255,107,107,.28); background: rgba(255,107,107,.12); }
 
-    #peopleList .pRow,
-    #callUsersList .uRow{
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
-      padding: 10px 10px;
-      border: 1px solid rgba(255,255,255,.10);
-      border-radius: 16px;
-      background: rgba(255,255,255,.05);
-      margin: 8px 0;
-      align-items:center;
+    .wrap{
+      max-width:1100px;
+      margin:0 auto;
+      padding:16px 14px 26px;
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:14px;
+      align-items:start;
     }
-    .mutedPill{
-      font-size: 12px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(110,231,255,.18);
-      background: rgba(110,231,255,.10);
-      color: rgba(234,242,255,.86);
+    @media (max-width: 980px){
+      .wrap{ grid-template-columns: 1fr; }
+      .brand{ min-width:auto; }
     }
 
-    .audioWrap{
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
       border: 1px solid rgba(255,255,255,.10);
-      border-radius: 16px;
-      padding: 10px;
-      margin-top: 10px;
-      background: rgba(255,255,255,.05);
+      border-radius: var(--radius2);
+      box-shadow: var(--shadow);
+      overflow:hidden;
     }
-    .audioTitleRow{
+    .cardHeader{
+      padding:12px 14px;
       display:flex;
+      align-items:center;
       justify-content:space-between;
       gap:10px;
-      align-items:center;
-      font-size: 12px;
-      margin-bottom: 8px;
-      color: rgba(234,242,255,.90);
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.03);
     }
-    .audioCtlRow{
+    .cardHeader b{
       display:flex;
-      gap:10px;
       align-items:center;
-      margin-top: 10px;
-      font-size: 12px;
-      color: var(--muted);
+      gap:8px;
+      font-size:13px;
+      letter-spacing:.2px;
     }
-    .audioCtlRow input[type="range"]{
-      flex: 1;
-      min-width: 160px;
+    .chip{
+      font-size:12px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      color:var(--muted);
+      background: rgba(255,255,255,.04);
     }
-    audio{
+    .cardBody{ padding:14px; }
+
+    .field{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      margin-bottom:12px;
+    }
+    .field label{ font-size:12px; color:var(--muted); }
+    input[type="text"], input[type="file"], textarea{
       width:100%;
-      border-radius: 14px;
-      background: rgba(0,0,0,.20);
-      border: 1px solid rgba(255,255,255,.10);
+      padding:12px 12px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(7,12,24,.45);
+      color:var(--text);
+      outline:none;
     }
+    input::placeholder, textarea::placeholder{ color: rgba(234,242,255,.45); }
+    .hint{ font-size:12px; color:var(--muted2); line-height:1.5; }
 
-    input[type="range"]{ accent-color: var(--accent); }
-
-    details{ margin-top: 12px; }
-    summary{
-      cursor:pointer;
-      color: rgba(234,242,255,.85);
-      font-weight: 900;
-      font-size: 12px;
-      user-select:none;
-    }
-    #log{
-      white-space: pre-wrap;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 12px;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,.25);
-      padding: 10px;
+    .statusRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background: rgba(7,12,24,.35);
+      border:1px solid rgba(255,255,255,.08);
+      padding:10px 12px;
       border-radius: 16px;
-      max-height: 220px;
-      overflow: auto;
-      color: rgba(234,242,255,.88);
-      margin-top: 10px;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:50%;
+      background: rgba(234,242,255,.25);
+      box-shadow: 0 0 0 3px rgba(234,242,255,.06);
+      flex:0 0 auto;
+    }
+    .dot.ok{ background: var(--good); box-shadow: 0 0 0 3px rgba(53,208,167,.18); }
+    .dot.ng{ background: var(--bad); box-shadow: 0 0 0 3px rgba(255,107,107,.18); }
+    .statusText{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex:1;
+      min-width:0;
+    }
+    .statusText b{ font-size:12px; }
+    .statusText span{ font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    .divider{ height:1px; background: rgba(255,255,255,.08); margin:14px 0; }
+
+    /* ===== call area ===== */
+    .callTop{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+      justify-content:space-between;
+    }
+    .btnSmall{
+      padding:10px 12px;
+      border-radius:14px;
+      font-size:13px;
+    }
+    .btnAccent{
+      background: linear-gradient(135deg, rgba(53,208,167,.20), rgba(120,167,255,.15));
+      border-color: rgba(53,208,167,.30);
+    }
+    .btnAccent2{
+      background: linear-gradient(135deg, rgba(120,167,255,.22), rgba(166,139,255,.18));
+      border-color: rgba(120,167,255,.30);
+    }
+    .btnMuted{
+      background: rgba(255,255,255,.05);
+    }
+    .rangeRow{
+      margin-top:10px;
+      background: rgba(7,12,24,.30);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:16px;
+      padding:10px 12px;
+    }
+    .rangeRow .label{
+      font-size:12px; color:var(--muted);
+      display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:10px;
+    }
+    input[type="range"]{
+      width:100%;
+      accent-color: var(--accent);
     }
 
-    .btnRow{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; }
-    #roomNameView{ max-width: 420px; }
+    /* ===== lists ===== */
+    .list{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .listItem{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 12px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.08);
+      background: rgba(7,12,24,.25);
+    }
+    .listItem .name{
+      font-size:13px;
+      color:var(--text);
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-width:0;
+    }
+    .listItem .sub{
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+    .badge{
+      padding:3px 8px;
+      border-radius:999px;
+      font-size:11px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      color:var(--muted);
+    }
+    .badge.good{ border-color: rgba(53,208,167,.30); color: rgba(165,255,230,.95); background: rgba(53,208,167,.10); }
+    .badge.warn{ border-color: rgba(255,184,77,.35); color: rgba(255,220,170,.95); background: rgba(255,184,77,.10); }
+    .badge.bad{ border-color: rgba(255,107,107,.35); color: rgba(255,190,190,.95); background: rgba(255,107,107,.10); }
+
+    /* ===== right side ===== */
+    .rightCol{
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      min-width:0;
+    }
+    .chatBox{
+      height: 520px;
+      overflow:auto;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      background: rgba(7,12,24,.25);
+      border-radius: var(--radius2);
+      border:1px solid rgba(255,255,255,.08);
+    }
+    @media (max-width: 980px){
+      .chatBox{ height: 50vh; }
+    }
+    .msgHead{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:6px;
+    }
+    .msgMeta{ color: rgba(234,242,255,.40); font-size:11px; }
+    .msgBody{
+      font-size:14px;
+      line-height:1.5;
+      color:var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msgImg{
+      margin-top:8px;
+      width:100%;
+      max-width:520px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: 0 12px 22px rgba(0,0,0,.22);
+    }
+    .composer{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      align-items:start;
+    }
+    .composer .left{
+      display:flex; flex-direction:column; gap:10px;
+      min-width:0;
+    }
+    .composer textarea{
+      min-height: 52px;
+      resize: vertical;
+    }
+    .composer .actions{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      align-items:stretch;
+    }
+    .fileRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background: rgba(7,12,24,.35);
+      border:1px solid rgba(255,255,255,.08);
+      padding:10px 12px;
+      border-radius: 16px;
+    }
+    .fileName{
+      font-size:12px; color:var(--muted);
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .tiny{ font-size:11px; color: rgba(234,242,255,.45); }
+    details{
+      border-top:1px solid rgba(255,255,255,.08);
+      margin-top:14px;
+      padding-top:10px;
+    }
+    summary{ cursor:pointer; color: var(--muted); font-size:12px; }
+    #log{
+      margin-top:10px;
+      white-space:pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:12px;
+      padding:10px 12px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(7,12,24,.35);
+      max-height: 200px;
+      overflow:auto;
+      color: rgba(234,242,255,.78);
+    }
+
+    /* ===== audio cards ===== */
+    #audios{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .audioWrap{
+      background: rgba(7,12,24,.35);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding:12px;
+      overflow:hidden;
+    }
+    .audioTitle{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .audioCtl{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-top:10px;
+      background: rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.08);
+      padding:10px 12px;
+      border-radius: 16px;
+    }
+    .audioCtl .lbl{ font-size:12px; color:var(--muted); }
+    .audioCtl .val{ font-size:12px; color:var(--text); min-width: 34px; text-align:right; }
   </style>
 </head>
 
 <body>
-  <div class="grain"></div>
-  <div class="wrap">
-
-    <div class="topbar">
+  <div class="topbar">
+    <div class="topbarInner">
       <div class="brand">
-        <div class="logo" aria-hidden="true"></div>
-        <div class="titles">
-          <h2>ゆるるチャット - ルーム</h2>
-          <div class="sub">通話 / チャット / 参加者がここで全部まとまる</div>
+        <div class="logo"></div>
+        <div class="brandText">
+          <b>ゆるるチャット</b>
+          <span id="subTitle">Room</span>
         </div>
       </div>
 
-      <div class="userBox">
-        <span class="userPill" id="userNamePill">未ログイン</span>
-        <span class="userText" id="userMailText"></span>
-        <button class="btnGhost" onclick="goLobby()">ロビーへ</button>
-        <button class="btnDanger" onclick="signOut()" id="signOutBtn">ログアウト</button>
+      <div class="topActions">
+        <span class="pill" id="userPill">未ログイン</span>
+        <button class="btn primary" onclick="goLobby()">🏠 ロビーへ</button>
+        <button class="btn danger" onclick="doLogout()">🚪 ログアウト</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- ===== left column ===== -->
+    <div class="leftCol">
+      <div class="card">
+        <div class="cardHeader">
+          <b>🏠 現在の部屋</b>
+          <span class="chip" id="roomChip">-</span>
+        </div>
+        <div class="cardBody">
+          <div class="field">
+            <label>部屋名</label>
+            <input id="roomName" type="text" readonly />
+          </div>
+          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btnSmall" onclick="leaveRoom()">🚪 退室</button>
+          </div>
+
+          <div style="margin-top:12px;" class="statusRow">
+            <div class="statusText">
+              <div class="dot" id="readyDot"></div>
+              <div style="min-width:0;">
+                <b id="readyTitle">準備OK</b>
+                <span id="readySub">待機中</span>
+              </div>
+            </div>
+            <span class="badge good" id="readyBadge">Ready</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cardHeader">
+          <b>🎙️ 音声通話（複数人）</b>
+          <span class="chip">Call</span>
+        </div>
+        <div class="cardBody">
+          <div class="callTop">
+            <button class="btn btnSmall primary btnAccent2" onclick="joinCall()" id="joinBtn">通話に参加（開始）</button>
+            <button class="btn btnSmall btnMuted" onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
+            <button class="btn btnSmall danger" onclick="leaveCall()" id="leaveBtn">通話退出</button>
+          </div>
+
+          <div class="rangeRow">
+            <div class="label">
+              <span>自分のマイク音量: <b id="micGainLabel">100</b></span>
+              <span class="tiny">※ 送信音量（あなたの声の大きさ）</span>
+            </div>
+            <input id="micGain" type="range" min="1" max="100" value="100" />
+            <div class="hint" style="margin-top:8px;" id="callState">未接続（必要なら通話に参加を押してね）</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="card" style="background:transparent;border:none;box-shadow:none;">
+            <div class="cardHeader" style="border:1px solid rgba(255,255,255,.08); border-radius:18px; margin-bottom:10px;">
+              <b>👥 参加者（通話：チャンネル接続中のみ表示）</b>
+              <span class="chip">Presence</span>
+            </div>
+            <div class="list" id="callUsersList">
+              <div class="hint">未接続</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="card" style="background:transparent;border:none;box-shadow:none;">
+            <div class="cardHeader" style="border:1px solid rgba(255,255,255,.08); border-radius:18px; margin-bottom:10px;">
+              <b>📞 今の部屋で通話してる人（通話に参加しなくても見える）</b>
+              <span class="chip">call_participants</span>
+            </div>
+            <div class="list" id="activeCallUsersList">
+              <div class="hint">今は誰も通話してないよ</div>
+            </div>
+          </div>
+
+          <details>
+            <summary>🔧 デバッグログ</summary>
+            <div id="log"></div>
+          </details>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="cardTitle">
-        <b>🏠 現在の部屋</b>
-        <span class="pill" id="roomPill">Room</span>
+    <!-- ===== right column ===== -->
+    <div class="rightCol">
+      <div class="card">
+        <div class="cardHeader">
+          <b>🔊 相手の音声（ここで相手の音量を調整）</b>
+          <span class="chip">Audio</span>
+        </div>
+        <div class="cardBody">
+          <div id="audios"></div>
+          <div class="hint" style="margin-top:10px;">
+            ※ 通話に参加して、相手と繋がるとここに音声が出るよ
+          </div>
+        </div>
       </div>
 
-      <div class="row" style="margin-top:6px;">
-        <input id="roomNameView" disabled />
-        <button class="btnGhost" onclick="leaveRoom()">退室</button>
-      </div>
-
-      <div id="status"><span class="dot"></span><span>未接続</span></div>
-    </div>
-
-    <div class="layout">
-      <div>
-        <div class="card">
-          <div class="cardTitle">
-            <b>🎤 音声通話（複数人）</b>
-            <span class="pill" id="callStatePill">Call</span>
-          </div>
-
-          <div class="btnRow">
-            <button class="btnPrimary" onclick="startVoice()" id="startVoiceBtn">通話に参加（開始）</button>
-            <button class="btnGhost" onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
-            <button class="btnDanger" onclick="hangupAll()" id="hangupBtn">通話退出</button>
-          </div>
-
-          <div style="margin-top:12px; font-size:12px; color:var(--muted);">
-            自分のマイク音量: <b><span id="myVolLabel">100</span></b>
-            <input id="myVol" type="range" min="1" max="100" value="100" oninput="setMyMicVolume(this.value)" />
-            <div class="hint">※ 送信音量（あなたの声の大きさ）</div>
-          </div>
-
-          <div id="callState" style="font-size:12px; margin-top:10px; color:var(--muted);">未接続</div>
-          <div id="audios" style="margin-top:10px;"></div>
+      <div class="card">
+        <div class="cardHeader">
+          <b>💬 チャット（画像OK）</b>
+          <span class="chip">Messages</span>
         </div>
+        <div class="cardBody">
+          <div id="chat" class="chatBox"></div>
 
-        <div class="card">
-          <div class="cardTitle">
-            <b>👥 参加者（通話：チャンネル接続中のみ表示）</b>
-            <span class="pill">Presence</span>
-          </div>
-          <div id="peopleList"></div>
-        </div>
+          <div class="divider"></div>
 
-        <div class="card">
-          <div class="cardTitle">
-            <b>📞 今この部屋で通話してる人（通話に参加してなくても見える）</b>
-            <span class="pill">call_participants</span>
-          </div>
-          <div id="callUsersList"></div>
-        </div>
+          <div class="composer">
+            <div class="left">
+              <textarea id="msg" placeholder="メッセージ（画像だけ送るなら空でもOK）"></textarea>
 
-        <details>
-          <summary>🔧 デバッグログ</summary>
-          <div id="log"></div>
-        </details>
-      </div>
+              <div class="fileRow">
+                <div class="fileName" id="imgName">未選択</div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                  <input id="imgFile" type="file" accept="image/*" style="max-width:190px;" />
+                </div>
+              </div>
 
-      <div>
-        <div class="card">
-          <div class="cardTitle">
-            <b>💬 チャット（画像OK）</b>
-            <span class="pill">Messages</span>
-          </div>
-
-          <div id="chat"></div>
-
-          <div class="chatSend">
-            <input id="msg" placeholder="メッセージ（画像のキャプションにもなる）" />
-
-            <div class="fileWrap">
-              <label class="fileBtn" for="imgFile">🖼 画像を選ぶ</label>
-              <span class="fileName" id="imgName">未選択</span>
-              <input id="imgFile" type="file" accept="image/*" />
+              <div class="hint" id="uploadHint" style="margin-top:-2px;">
+                ※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）
+              </div>
             </div>
 
-            <button class="btnGhost" id="sendImgBtn" onclick="sendImage()">画像送信</button>
-            <button class="btnPrimary" onclick="sendMsg()">送信</button>
-          </div>
-
-          <div class="hint" id="uploadHint" style="font-size:11px; color:var(--muted2); margin-top:10px;">
-            ※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）
+            <div class="actions">
+              <button class="btn primary" onclick="sendMsg()">📨 送信</button>
+              <button class="btn btnAccent2" onclick="sendImage()" id="sendImgBtn">🖼️ 画像送信</button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
+    </div>
   </div>
 
 <script>
@@ -567,9 +587,10 @@
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
+/* ★ログイン切れ対策：pkce/persistSession あり */
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
-  SUPABASE_KEY.trim(),
+  (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
   {
     auth: {
       flowType: "pkce",
@@ -580,90 +601,9 @@ const sb = supabase.createClient(
   }
 );
 
-/* ===== 画像用 ===== */
+/* 画像用（Public bucket名） */
 const IMAGE_BUCKET = "chat-images";
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
-/* ===== util ===== */
-function log(...args){
-  console.log("[room]", ...args);
-  const el = document.getElementById("log");
-  if(el){
-    el.textContent += args.map(a=>typeof a==="string"?a:JSON.stringify(a)).join(" ") + "\n";
-    el.scrollTop = el.scrollHeight;
-  }
-}
-
-/* =========================================================
-   ★ 画像送信（修正版・完全）
-   ========================================================= */
-async function sendImage(){
-  const fileEl = document.getElementById("imgFile");
-  const file = fileEl.files?.[0];
-  const caption = document.getElementById("msg").value.trim();
-
-  if(!file) return alert("画像を選んでね！");
-  if(file.size > MAX_IMAGE_BYTES) return alert("画像は5MBまで！");
-  if(!file.type.startsWith("image/")) return alert("画像ファイルだけだよ！");
-
-  const btn = document.getElementById("sendImgBtn");
-  btn.disabled = true;
-  setUploadHint("画像アップロード中…");
-
-  try{
-    const uid = authUser?.id;
-    if(!uid) throw new Error("ログイン情報がありません");
-
-    /* ★ 安全なパスに変換（ここ重要） */
-    const safeRoom = (room || "room").replace(/[^a-zA-Z0-9_-]/g, "_");
-    const safeUid  = uid.replace(/[^a-zA-Z0-9_-]/g, "_");
-
-    const ext = file.name.split(".").pop().toLowerCase().replace(/[^a-z0-9]/g,"") || "png";
-    const path = `${safeRoom}/${safeUid}/${Date.now()}_${Math.random().toString(16).slice(2)}.${ext}`;
-
-    const up = await sb.storage.from(IMAGE_BUCKET).upload(path, file, {
-      cacheControl: "3600",
-      upsert: false
-    });
-    if(up.error) throw up.error;
-
-    const { data } = sb.storage.from(IMAGE_BUCKET).getPublicUrl(path);
-    if(!data?.publicUrl) throw new Error("Public URL の取得に失敗しました");
-
-    const ins = await sb.from("messages").insert({
-      room_id: room,
-      name,
-      message: caption,
-      image_url: data.publicUrl,
-      user_id: uid
-    });
-    if(ins.error) throw ins.error;
-
-    fileEl.value = "";
-    document.getElementById("msg").value = "";
-    document.getElementById("imgName").textContent = "未選択";
-    setUploadHint("画像送信OK！");
-    await loadMessages();
-
-  }catch(e){
-    log("sendImage error", e);
-
-    if(String(e.message).includes("Bucket not found")){
-      alert(
-        "画像送信失敗：\n" +
-        "Storage に『chat-images』バケットが存在しません。\n\n" +
-        "Supabase → Storage → New bucket\n" +
-        "名前: chat-images / Public: ON"
-      );
-    }else{
-      alert("画像送信失敗: " + e.message);
-    }
-
-    setUploadHint("画像送信失敗…");
-  }finally{
-    btn.disabled = false;
-  }
-}
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 
 /* ===== 状態 ===== */
 let authUser = null;
@@ -708,92 +648,78 @@ function log(...args){
   el.textContent += s + "\n";
   el.scrollTop = el.scrollHeight;
 }
-window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
-window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
-
-function setStatus(text, ok=true){
-  const el = document.getElementById("status");
-  el.classList.remove("okLine","ngLine");
-  el.classList.add(ok ? "okLine" : "ngLine");
-  el.innerHTML = `<span class="dot"></span><span>${escapeHtml(text)}</span>`;
-}
-function setCallState(t){
-  document.getElementById("callState").textContent = t;
-  const pill = document.getElementById("callStatePill");
-  if (pill) pill.textContent = t.includes("未接続") ? "Call" : "On";
-}
 
 function setUploadHint(t){
   const el = document.getElementById("uploadHint");
   if (el) el.textContent = t;
 }
 
-function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
-function goLobby(){ location.replace("./lobby.html?_r=" + Date.now()); }
-
-async function stopRoomWatchRealtime(){
-  if (roomsWatchChannel){
-    try { await roomsWatchChannel.unsubscribe(); } catch {}
-    roomsWatchChannel = null;
-  }
+function getRoomFromUrl(){
+  const p = new URLSearchParams(location.search);
+  return (p.get("room") || "").trim();
 }
 
-async function stopCallUsersRealtime(){
-  if (callUsersChannel){
-    try { await callUsersChannel.unsubscribe(); } catch {}
-    callUsersChannel = null;
-  }
+function myUid(){
+  return authUser?.id || "";
 }
 
-async function leaveRoom(){
-  try { await hangupAll(); } catch {}
-  try { await stopRoomWatchRealtime(); } catch {}
-  try { await stopCallUsersRealtime(); } catch {}
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+/* =================== ナビ =================== */
+function goLobby(){
+  location.href = "./lobby.html";
+}
+async function doLogout(){
+  await sb.auth.signOut();
+  location.href = "./login.html";
+}
+function leaveRoom(){
   goLobby();
 }
 
-function updateTopRightUser(){
-  const pill = document.getElementById("userNamePill");
-  const mail = document.getElementById("userMailText");
-  if (!authUser){
-    pill.textContent = "未ログイン";
-    mail.textContent = "";
-    return;
+/* =================== 表示更新 =================== */
+function setReady(ok, sub){
+  const dot = document.getElementById("readyDot");
+  const title = document.getElementById("readyTitle");
+  const subEl = document.getElementById("readySub");
+  const badge = document.getElementById("readyBadge");
+
+  if(ok){
+    dot.classList.add("ok"); dot.classList.remove("ng");
+    badge.className = "badge good";
+    badge.textContent = "Ready";
+  }else{
+    dot.classList.add("ng"); dot.classList.remove("ok");
+    badge.className = "badge bad";
+    badge.textContent = "NG";
   }
-  const dn = (authUser.user_metadata?.display_name || "").trim();
-  const shown = dn || (authUser.email || "user").split("@")[0];
-  pill.textContent = shown;
-  mail.textContent = authUser.email || "";
+  title.textContent = "準備OK";
+  subEl.textContent = sub || "";
 }
 
-function myUid(){ return authUser?.id || null; }
+function updateTop(){
+  const pill = document.getElementById("userPill");
+  const dn = (authUser?.user_metadata?.display_name || "").trim();
+  const em = (authUser?.email || "").trim();
+  pill.textContent = dn ? `👤 ${dn}` : (em ? `👤 ${em}` : "未ログイン");
+}
 
-/* ===== 起動・ログイン必須 ===== */
+/* =================== ログイン必須 =================== */
 async function requireLoginOrRedirect(){
   const { data } = await sb.auth.getSession();
   authUser = data?.session?.user || null;
-  updateTopRightUser();
-  if (!authUser){ goLogin(); return false; }
-  return true;
-}
 
-async function signOut(){
-  try { await hangupAll(); } catch {}
-  try { await stopRoomWatchRealtime(); } catch {}
-  try { await stopCallUsersRealtime(); } catch {}
-  try { await sb.auth.signOut({ scope:"local" }); } catch (e) { log("signOut", e); }
-  authUser = null;
-  updateTopRightUser();
-  goLogin();
-}
-
-function readRoomFromUrl(){
-  const u = new URL(location.href);
-  room = (u.searchParams.get("room") || "").trim();
-  if (!room) return false;
-  document.getElementById("roomNameView").value = room;
-  const rp = document.getElementById("roomPill");
-  if (rp) rp.textContent = room || "Room";
+  if(!authUser){
+    location.href = "./login.html";
+    return false;
+  }
   return true;
 }
 
@@ -899,30 +825,32 @@ async function sendMsg(){
   if (error){ alert("送信失敗: " + error.message); }
 }
 
-/* ===== 画像送信（Public Storage） ===== */
+/* =========================================================
+   ★ 画像送信（修正版・完全）※ sendImage はこれ1個だけ！
+   ========================================================= */
 async function sendImage(){
   const fileEl = document.getElementById("imgFile");
   const file = fileEl.files?.[0];
-  const caption = (document.getElementById("msg")?.value || "").trim();
+  const caption = document.getElementById("msg").value.trim();
 
   if(!file) return alert("画像を選んでね！");
-  if(file.size > MAX_IMAGE_BYTES) return alert("画像が大きすぎ！5MB以下にしてね");
-
-  const type = (file.type || "").toLowerCase();
-  if(!type.startsWith("image/")) return alert("画像ファイルだけだよ！");
+  if(file.size > MAX_IMAGE_BYTES) return alert("画像は5MBまで！");
+  if(!file.type.startsWith("image/")) return alert("画像ファイルだけだよ！");
 
   const btn = document.getElementById("sendImgBtn");
   btn.disabled = true;
-  setUploadHint("アップロード中…（ちょい待って）");
+  setUploadHint("画像アップロード中…");
 
   try{
-    const uid = myUid();
-    const extFromName = (file.name.split(".").pop() || "").toLowerCase();
-    const extFromType = type.replace("image/","").replace("jpeg","jpg");
-    const ext = (extFromName || extFromType || "png").replace(/[^a-z0-9]/g,"").slice(0,6) || "png";
+    const uid = authUser?.id;
+    if(!uid) throw new Error("ログイン情報がありません");
 
-    const rand = Math.random().toString(16).slice(2);
-    const path = `${room}/${uid}/${Date.now()}_${rand}.${ext}`;
+    /* ★ 安全なパスに変換（ここ重要） */
+    const safeRoom = (room || "room").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeUid  = uid.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    const ext = (file.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g,"") || "png";
+    const path = `${safeRoom}/${safeUid}/${Date.now()}_${Math.random().toString(16).slice(2)}.${ext}`;
 
     const up = await sb.storage.from(IMAGE_BUCKET).upload(path, file, {
       cacheControl: "3600",
@@ -930,21 +858,18 @@ async function sendImage(){
     });
     if(up.error) throw up.error;
 
-    // Public URL（bucketがPublic前提）
-    const pub = sb.storage.from(IMAGE_BUCKET).getPublicUrl(path);
-    const imageUrl = pub?.data?.publicUrl;
-    if(!imageUrl) throw new Error("publicUrl取得失敗（bucketがPublicじゃない可能性）");
+    const { data } = sb.storage.from(IMAGE_BUCKET).getPublicUrl(path);
+    if(!data?.publicUrl) throw new Error("Public URL の取得に失敗しました");
 
     const ins = await sb.from("messages").insert({
       room_id: room,
       name,
-      message: caption,      // キャプション（空でもOK）
-      image_url: imageUrl,
+      message: caption,
+      image_url: data.publicUrl,
       user_id: uid
     });
     if(ins.error) throw ins.error;
 
-    // UIリセット
     fileEl.value = "";
     document.getElementById("msg").value = "";
     document.getElementById("imgName").textContent = "未選択";
@@ -953,8 +878,19 @@ async function sendImage(){
 
   }catch(e){
     log("sendImage error", e);
-    alert("画像送信失敗: " + (e?.message || e));
-    setUploadHint("画像送信失敗…（bucket/Public/列追加を確認して）");
+
+    if(String(e.message).includes("Bucket not found")){
+      alert(
+        "画像送信失敗：\n" +
+        "Storage に『chat-images』バケットが存在しません。\n\n" +
+        "Supabase → Storage → New bucket\n" +
+        "名前: chat-images / Public: ON"
+      );
+    }else{
+      alert("画像送信失敗: " + (e?.message || e));
+    }
+
+    setUploadHint("画像送信失敗…");
   }finally{
     btn.disabled = false;
   }
@@ -973,12 +909,12 @@ async function loadActiveCallUsers(){
     .gte("updated_at", cutoff)
     .order("updated_at", { ascending:false });
 
-  const box = document.getElementById("callUsersList");
+  const box = document.getElementById("activeCallUsersList");
   box.innerHTML = "";
 
   if (error){
     log("loadActiveCallUsers error", error);
-    box.innerHTML = "<div style='color:#ff6b6b;font-size:12px;'>通話中メンバー取得失敗</div>";
+    box.innerHTML = "<div class='hint' style='color:#ff6b6b;'>通話中メンバー取得失敗</div>";
     return;
   }
 
@@ -988,7 +924,7 @@ async function loadActiveCallUsers(){
   }));
 
   if (list.length === 0){
-    box.innerHTML = "<div style='color:rgba(234,242,255,.65);font-size:12px;'>今は誰も通話してないよ</div>";
+    box.innerHTML = "<div class='hint'>今は誰も通話してないよ</div>";
     return;
   }
 
@@ -1003,17 +939,21 @@ async function loadActiveCallUsers(){
 
   for (const p of uniq){
     const row = document.createElement("div");
-    row.className = "uRow";
-    row.innerHTML = `<div>${escapeHtml(p.name)}</div><div class="mutedPill">📞 in call</div>`;
+    row.className = "listItem";
+    row.innerHTML = `
+      <div class="name">🎧 ${escapeHtml(p.name)}</div>
+      <div class="sub"><span class="badge good">通話中</span></div>
+    `;
     box.appendChild(row);
   }
 }
 
-async function startCallUsersRealtime(){
+/* ===== call_participants realtime（部屋の通話中一覧） ===== */
+async function startCallParticipantsRealtime(){
   if (callUsersChannel) return;
 
   callUsersChannel = sb
-    .channel("call-users-watch")
+    .channel("call-users-ch")
     .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async (payload)=>{
       const nr = payload.new || {};
       const or = payload.old || {};
@@ -1024,213 +964,97 @@ async function startCallUsersRealtime(){
 }
 
 /* =========================================================
-   通話（presence + broadcast）
+   通話（Supabase Realtime Broadcast）
    ========================================================= */
-function updateMuteBtn(){
-  document.getElementById("muteBtn").textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
-}
-
-function setMyMicVolume(v){
-  const n = Math.max(1, Math.min(100, Number(v)));
-  document.getElementById("myVolLabel").textContent = String(n);
-  myMicGain = n / 100;
-
-  if (micGainNode){
-    micGainNode.gain.value = myMicGain;
-  }
-}
-
-function getDisplayNameByPeerId(peerId){
-  try {
-    if (!callChannel) return peerId;
-    const state = callChannel.presenceState();
-    const metas = state?.[peerId];
-    if (!metas || !metas.length) return peerId;
-    const meta = metas[0] || {};
-    return (meta?.name || peerId);
-  } catch {
-    return peerId;
-  }
-}
-
-function refreshAudioTitles(){
-  try {
-    for (const pid of pcs.keys()){
-      const wrap = document.getElementById("audioWrap-" + pid);
-      if (!wrap) continue;
-      const titleDiv = wrap.querySelector(".audioTitleRow .peerTitle");
-      if (!titleDiv) continue;
-      titleDiv.textContent = "相手: " + getDisplayNameByPeerId(pid);
-    }
-  } catch {}
-}
-
-function renderPeopleFromState(){
-  if (!callChannel) {
-    document.getElementById("peopleList").innerHTML = "<div style='color:rgba(234,242,255,.65);font-size:12px;'>未接続</div>";
-    return;
-  }
-  const state = callChannel.presenceState();
-  const list = [];
-
-  for (const pid of Object.keys(state)){
-    const metas = state[pid] || [];
-    const meta = metas[0] || {};
-    const nm = meta?.name || pid;
-    const muted = mutedMap.get(pid) || false;
-    list.push({ pid, name: nm, muted });
-  }
-
-  list.sort((a,b)=> (a.name||"").localeCompare(b.name||""));
-
-  const box = document.getElementById("peopleList");
-  box.innerHTML = "";
-  list.forEach(p=>{
-    const row = document.createElement("div");
-    row.className = "pRow";
-    row.innerHTML = `<div>${escapeHtml(p.name)}</div><div class="pill ${p.muted ? "pillMute" : "pillOn"}">${p.muted ? "🔇 mute" : "🎤 on"}</div>`;
-    box.appendChild(row);
-  });
-
-  refreshAudioTitles();
-}
-
-async function initCallChannel(){
+async function startCallChannel(){
   if (callChannel) return;
 
-  callChannel = sb.channel("call-" + room, {
-    config: { presence: { key: myUid() } }
+  callChannel = sb.channel(`call-${room}`, {
+    config: {
+      broadcast: { self: false },
+      presence: { key: myUid() }
+    }
   });
 
   callChannel
-    .on("presence", { event:"sync" }, ()=>{ renderPeopleFromState(); })
-    .on("presence", { event:"join" }, ({ key })=>{ log("presence join", key); renderPeopleFromState(); })
-    .on("presence", { event:"leave" }, ({ key })=>{
-      log("presence leave", key);
-      closePC(key);
-      mutedMap.delete(key);
-      renderPeopleFromState();
-    })
     .on("broadcast", { event:"signal" }, async ({ payload })=>{
-      const { from, to, data } = payload || {};
-      if (!from) return;
-      if (to && to !== myUid()) return;
-
-      try {
-        if (data?.kind === "hello") {
-          await ensurePC(from);
-          await maybeMakeOffer(from);
-          return;
-        }
-        if (data?.kind === "mute") {
-          mutedMap.set(from, !!data.muted);
-          renderPeopleFromState();
-          return;
-        }
-        if (data?.kind === "sdp") {
-          await ensurePC(from);
-          const pc = pcs.get(from);
-          await pc.setRemoteDescription(data.sdp);
-          if (data.sdp.type === "offer") {
-            const ans = await pc.createAnswer();
-            await pc.setLocalDescription(ans);
-            await sendSignal(from, { kind:"sdp", sdp: pc.localDescription });
-          }
-          return;
-        }
-        if (data?.kind === "ice") {
-          const pc = pcs.get(from);
-          if (!pc) return;
-          await pc.addIceCandidate(data.candidate);
-          return;
-        }
-      } catch (e) {
-        log("signal error", from, e);
-      }
+      await onSignal(payload);
+    })
+    .on("presence", { event:"sync" }, ()=>{
+      onPresenceSync();
+    })
+    .on("presence", { event:"join" }, ({ key, newPresences })=>{
+      onPresenceJoin(key, newPresences);
+    })
+    .on("presence", { event:"leave" }, ({ key, leftPresences })=>{
+      onPresenceLeave(key, leftPresences);
     });
 
-  await new Promise((resolve, reject)=>{
-    callChannel.subscribe(async (status)=>{
-      log("callChannel status", status);
-      if (status === "SUBSCRIBED") {
-        try {
-          await callChannel.track({ name });
-          setCallState("通話チャンネル接続OK（参加ボタンで通話開始）");
-          resolve();
-        } catch (e) { reject(e); }
-      }
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-        reject(new Error("Realtime subscribe failed: " + status));
-      }
-    });
+  const { error } = await callChannel.subscribe(async (status)=>{
+    log("call channel status:", status);
+    if (status === "SUBSCRIBED"){
+      await callChannel.track({
+        user_id: myUid(),
+        name,
+        muted: micMuted,
+        at: new Date().toISOString()
+      });
+      await refreshPresenceList();
+    }
   });
+
+  if (error) log("callChannel subscribe error", error);
 }
 
-async function sendSignal(peerId, data){
-  if (!callChannel) return;
-  await callChannel.send({ type:"broadcast", event:"signal", payload:{ from: myUid(), to: peerId, data } });
-}
-async function broadcastHello(){
-  if (!callChannel) return;
-  await callChannel.send({ type:"broadcast", event:"signal", payload:{ from: myUid(), to: null, data:{ kind:"hello" } } });
-}
-async function broadcastMute(){
-  if (!callChannel) return;
-  await callChannel.send({ type:"broadcast", event:"signal", payload:{ from: myUid(), to: null, data:{ kind:"mute", muted: micMuted } } });
+function getSendStream(){
+  return processedStream || localStream;
 }
 
 function ensureAudioEl(peerId){
-  const wrapId = "audioWrap-" + peerId;
-  let wrap = document.getElementById(wrapId);
-  if (wrap) return wrap.querySelector("audio");
+  const id = "audio-" + peerId;
+  let el = document.getElementById(id);
+  if (el) return el;
 
-  wrap = document.createElement("div");
-  wrap.id = wrapId;
+  const wrap = document.createElement("div");
   wrap.className = "audioWrap";
+  wrap.id = "audioWrap-" + peerId;
 
   const titleRow = document.createElement("div");
-  titleRow.className = "audioTitleRow";
+  titleRow.className = "audioTitle";
+  titleRow.innerHTML = `<span id="audioTitle-${peerId}">🔊 相手: ${peerId}</span> <span class="badge" id="muteBadge-${peerId}">mute?</span>`;
 
-  const title = document.createElement("div");
-  title.className = "peerTitle";
-  title.textContent = "相手: " + getDisplayNameByPeerId(peerId);
-
-  const pill = document.createElement("div");
-  pill.className = "pill";
-  pill.textContent = "🔊 recv";
-
-  titleRow.appendChild(title);
-  titleRow.appendChild(pill);
-
-  const el = document.createElement("audio");
-  el.id = "audio-" + peerId;
+  el = document.createElement("audio");
+  el.id = id;
   el.autoplay = true;
+  el.playsInline = true;
   el.controls = true;
 
-  const initVol = peerVolume.get(peerId) ?? 1.0;
-  el.volume = initVol;
+  // 初期音量
+  const v = peerVolume.get(peerId) ?? 1.0;
+  el.volume = v;
 
   const ctl = document.createElement("div");
-  ctl.className = "audioCtlRow";
+  ctl.className = "audioCtl";
 
-  const labelText = document.createElement("span");
-  labelText.textContent = "相手音量:";
+  const labelText = document.createElement("div");
+  labelText.className = "lbl";
+  labelText.textContent = "相手の音量";
 
-  const label = document.createElement("b");
-  label.id = "peerVolLabel-" + peerId;
-  label.textContent = String(Math.round(initVol * 100));
+  const label = document.createElement("div");
+  label.className = "val";
+  label.textContent = String(Math.round(v * 100));
 
   const range = document.createElement("input");
   range.type = "range";
   range.min = "1";
   range.max = "100";
-  range.value = String(Math.round(initVol * 100));
-  range.oninput = () => {
+  range.value = String(Math.round(v * 100));
+  range.oninput = ()=>{
     const n = Math.max(1, Math.min(100, Number(range.value)));
-    const v = n / 100;
-    peerVolume.set(peerId, v);
+    const vv = n / 100;
+    peerVolume.set(peerId, vv);
     label.textContent = String(n);
-    el.volume = v;
+    el.volume = vv;
   };
 
   ctl.appendChild(labelText);
@@ -1247,8 +1071,22 @@ function ensureAudioEl(peerId){
   return el;
 }
 
-function getSendStream(){
-  return processedStream || localStream;
+function refreshAudioTitles(){
+  // presence の名前でタイトル更新
+  const st = callChannel?.presenceState?.() || {};
+  for (const [peerId] of pcs){
+    const pres = st[peerId]?.[0];
+    const nm = pres?.name || peerId;
+    const t = document.getElementById("audioTitle-" + peerId);
+    if (t) t.textContent = `🔊 相手: ${nm}`;
+
+    const badge = document.getElementById("muteBadge-" + peerId);
+    const muted = mutedMap.get(peerId);
+    if (badge){
+      badge.textContent = muted ? "MUTE" : "ON";
+      badge.className = "badge " + (muted ? "bad" : "good");
+    }
+  }
 }
 
 async function ensurePC(peerId){
@@ -1300,6 +1138,57 @@ function closePC(peerId){
   if (wrap) wrap.remove();
 }
 
+async function sendSignal(to, data){
+  if (!callChannel) return;
+  await callChannel.send({
+    type: "broadcast",
+    event: "signal",
+    payload: {
+      from: myUid(),
+      to,
+      data
+    }
+  });
+}
+
+async function onSignal(payload){
+  const from = payload?.from;
+  const to = payload?.to;
+  const data = payload?.data;
+  if (!from || !data) return;
+  if (to && to !== myUid()) return;
+
+  await ensurePC(from);
+  const pc = pcs.get(from);
+
+  if (data.kind === "sdp"){
+    const desc = data.sdp;
+    if (!desc) return;
+
+    if (desc.type === "offer"){
+      await pc.setRemoteDescription(desc);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await sendSignal(from, { kind:"sdp", sdp: pc.localDescription });
+    }else if (desc.type === "answer"){
+      await pc.setRemoteDescription(desc);
+    }
+  }
+
+  if (data.kind === "ice"){
+    try{
+      await pc.addIceCandidate(data.candidate);
+    }catch(e){
+      log("addIceCandidate error", e);
+    }
+  }
+
+  if (data.kind === "mute"){
+    mutedMap.set(from, !!data.muted);
+    refreshAudioTitles();
+  }
+}
+
 /* ===== call_participants（alive） ===== */
 async function upsertCallParticipant(){
   const { error } = await sb.from("call_participants").upsert({
@@ -1338,191 +1227,210 @@ function buildProcessedMicStreamIfNeeded(){
   processedStream = dest.stream;
 }
 
-async function startVoice(){
-  if (!authUser) return alert("先にログインしてね！");
-  if (!room || !name) return alert("部屋が変です（URL確認）");
-
-  try {
-    await initCallChannel();
-
-    if (!localStream){
-      localStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
-      buildProcessedMicStreamIfNeeded();
-
-      micMuted = false;
-
-      const sendStream = getSendStream();
-      const sendTrack = sendStream?.getAudioTracks?.()[0] || null;
-      if (sendTrack) sendTrack.enabled = true;
-
-      updateMuteBtn();
-    } else {
-      buildProcessedMicStreamIfNeeded();
-    }
-
-    const sendStream = getSendStream();
-    for (const [pid, pc] of pcs){
-      if (!pc) continue;
-      const senders = pc.getSenders().filter(s=>s.track && s.track.kind==="audio");
-      if (senders.length === 0 && sendStream){
-        for (const t of sendStream.getTracks()) pc.addTrack(t, sendStream);
-      }
-    }
-
-    await upsertCallParticipant();
-    startHeartbeat();
-
-    const state = callChannel.presenceState();
-    const peers = Object.keys(state).filter(k => k !== myUid());
-    for (const pid of peers) await ensurePC(pid);
-
-    await broadcastHello();
-    await broadcastMute();
-
-    setCallState("通話参加中（接続開始…）");
-    renderPeopleFromState();
-
-    await loadActiveCallUsers();
-
-  } catch (e) {
-    log("startVoice error", e);
-    alert("通話開始失敗: " + (e?.message || e));
-  }
+function applyMicGain(){
+  const v = Math.max(0.01, Math.min(1.0, myMicGain));
+  if (micGainNode) micGainNode.gain.value = v;
 }
 
-async function toggleMute(){
-  if (!localStream && !processedStream) return alert("先に『通話に参加（開始）』を押してね！");
+async function joinCall(){
+  document.getElementById("callState").textContent = "準備中…";
 
-  micMuted = !micMuted;
+  await startCallChannel();
 
+  if (!localStream){
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  }
+
+  buildProcessedMicStreamIfNeeded();
+  applyMicGain();
+
+  // 既存PCにトラック反映（入り直し用）
   const sendStream = getSendStream();
-  const sendTrack = sendStream?.getAudioTracks?.()[0] || null;
-  if (sendTrack) sendTrack.enabled = !micMuted;
-
-  if (localStream){
-    for (const t of localStream.getAudioTracks()) t.enabled = !micMuted;
+  for (const [peerId, pc] of pcs){
+    // addTrack 重複回避は簡易で close->recreate に任せる
+    try{
+      for (const t of sendStream.getTracks()){
+        pc.addTrack(t, sendStream);
+      }
+    }catch{}
   }
 
-  updateMuteBtn();
+  // presence track
+  if (callChannel){
+    await callChannel.track({
+      user_id: myUid(),
+      name,
+      muted: micMuted,
+      at: new Date().toISOString()
+    });
+  }
 
+  startHeartbeat();
   await upsertCallParticipant();
-  await broadcastMute();
-  renderPeopleFromState();
 
-  await loadActiveCallUsers();
+  document.getElementById("callState").textContent = "通話に参加中";
+  setReady(true, "通話準備OK");
 }
 
-async function hangupAll(){
+async function leaveCall(){
   stopHeartbeat();
 
-  if (authUser && room){
-    try {
-      await sb.from("call_participants")
-        .delete()
-        .eq("room_id", room)
-        .eq("user_id", myUid());
-    } catch {}
+  for (const [peerId] of pcs){
+    closePC(peerId);
   }
-
-  for (const pid of Array.from(pcs.keys())) closePC(pid);
+  pcs.clear();
 
   if (localStream){
-    try { localStream.getTracks().forEach(t=>t.stop()); } catch {}
+    for (const t of localStream.getTracks()){
+      try{ t.stop(); }catch{}
+    }
     localStream = null;
   }
-
-  if (processedStream){
-    try { processedStream.getTracks().forEach(t=>t.stop()); } catch {}
-    processedStream = null;
-  }
-
-  if (audioCtx){
-    try { await audioCtx.close(); } catch {}
-    audioCtx = null;
-    micSource = null;
-    micGainNode = null;
-  }
-
-  mutedMap.clear();
-  micMuted = false;
-  updateMuteBtn();
+  processedStream = null;
+  micSource = null;
+  micGainNode = null;
+  // audioCtx は残してもOK（再作成を避ける）
+  // if (audioCtx) { try{ audioCtx.close(); }catch{} audioCtx=null; }
 
   if (callChannel){
-    try { await callChannel.untrack(); } catch {}
-    try { await callChannel.unsubscribe(); } catch {}
+    try{ await callChannel.untrack(); }catch{}
+    try{ await callChannel.unsubscribe(); }catch{}
     callChannel = null;
   }
 
-  setCallState("未接続");
-  renderPeopleFromState();
-
-  await loadActiveCallUsers();
+  document.getElementById("callState").textContent = "未接続（必要なら通話に参加を押してね）";
+  setReady(true, "待機中");
+  document.getElementById("audios").innerHTML = "";
+  document.getElementById("callUsersList").innerHTML = "<div class='hint'>未接続</div>";
 }
 
-/* ===== 部屋削除の監視 ===== */
-async function startRoomWatchRealtime(){
-  await stopRoomWatchRealtime();
+async function toggleMute(){
+  micMuted = !micMuted;
 
-  roomsWatchChannel = sb
-    .channel("rooms-watch")
-    .on("postgres_changes", { event: "DELETE", schema: "public", table: "rooms" }, (payload) => {
-      const deletedRoom = payload.old?.room_name;
-      if (deletedRoom === room){
-        alert("部屋が削除されました。ロビーに戻ります。");
-        leaveRoom();
-      }
-    })
-    .subscribe();
-}
+  const btn = document.getElementById("muteBtn");
+  btn.textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
 
-/* HTMLエスケープ */
-function escapeHtml(s){
-  return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
+  if (localStream){
+    for (const t of localStream.getAudioTracks()){
+      t.enabled = !micMuted;
+    }
+  }
 
-/* ===== 起動 ===== */
-(function initFileUi(){
-  const fileEl = document.getElementById("imgFile");
-  const nameEl = document.getElementById("imgName");
-  if (fileEl && nameEl){
-    fileEl.addEventListener("change", ()=>{
-      const f = fileEl.files?.[0];
-      nameEl.textContent = f ? f.name : "未選択";
+  // presence更新
+  if (callChannel){
+    await callChannel.track({
+      user_id: myUid(),
+      name,
+      muted: micMuted,
+      at: new Date().toISOString()
     });
   }
-})();
 
+  // 相手へ通知（通話参加者だけ分かれば良い）
+  for (const [peerId] of pcs){
+    await sendSignal(peerId, { kind:"mute", muted: micMuted });
+  }
+}
+
+function onPresenceSync(){
+  refreshPresenceList();
+  refreshAudioTitles();
+}
+function onPresenceJoin(key, presences){
+  refreshPresenceList();
+  // join した相手にoffer
+  maybeMakeOffer(key);
+}
+function onPresenceLeave(key, presences){
+  closePC(key);
+  refreshPresenceList();
+}
+
+async function refreshPresenceList(){
+  const box = document.getElementById("callUsersList");
+  if (!callChannel){
+    box.innerHTML = "<div class='hint'>未接続</div>";
+    return;
+  }
+  const st = callChannel.presenceState();
+  const ids = Object.keys(st || {});
+  box.innerHTML = "";
+
+  if (ids.length === 0){
+    box.innerHTML = "<div class='hint'>未接続</div>";
+    return;
+  }
+
+  for (const id of ids){
+    const p = st[id]?.[0] || {};
+    const nm = p.name || id;
+    const muted = !!p.muted;
+
+    const row = document.createElement("div");
+    row.className = "listItem";
+    row.innerHTML = `
+      <div class="name">${muted ? "🔇" : "🎤"} ${escapeHtml(nm)}</div>
+      <div class="sub"><span class="badge ${muted ? "bad" : "good"}">${muted ? "ミュート" : "発話OK"}</span></div>
+    `;
+    box.appendChild(row);
+
+    mutedMap.set(id, muted);
+  }
+  refreshAudioTitles();
+}
+
+/* ===== UI events ===== */
+document.getElementById("imgFile").addEventListener("change", ()=>{
+  const f = document.getElementById("imgFile").files?.[0];
+  document.getElementById("imgName").textContent = f ? f.name : "未選択";
+});
+
+document.getElementById("micGain").addEventListener("input", (ev)=>{
+  const n = Math.max(1, Math.min(100, Number(ev.target.value)));
+  document.getElementById("micGainLabel").textContent = String(n);
+  myMicGain = n / 100;
+  applyMicGain();
+});
+
+/* =================== 起動 =================== */
 (async ()=>{
-  setMyMicVolume(document.getElementById("myVol").value);
-
+  // 1) login check
   if (!(await requireLoginOrRedirect())) return;
-  if (!readRoomFromUrl()) { alert("部屋が指定されてないよ。ロビーから入り直してね"); goLobby(); return; }
+  updateTop();
+
+  // 2) room check
+  room = getRoomFromUrl();
+  if (!room){
+    alert("部屋が指定されてないよ！");
+    goLobby();
+    return;
+  }
+
+  document.getElementById("roomName").value = room;
+  document.getElementById("roomChip").textContent = room;
+  document.getElementById("subTitle").textContent = "Room: " + room;
+
   await reloadName();
 
-  await startRoomWatchRealtime();
-  await startMessagesRealtime();
+  // 3) load + realtime
   await loadMessages();
+  await startMessagesRealtime();
 
+  // 4) call participants
   await loadActiveCallUsers();
-  await startCallUsersRealtime();
+  await startCallParticipantsRealtime();
 
-  setCallState("未接続（必要なら『通話に参加』を押してね）");
-  renderPeopleFromState();
-  setStatus("準備OK", true);
-
-  log("ready room=", room);
+  // 5) UI
+  setReady(true, "待機中");
 
   sb.auth.onAuthStateChange(async ()=>{
-    if (!(await requireLoginOrRedirect())) return;
-    await reloadName();
+    const { data } = await sb.auth.getSession();
+    authUser = data?.session?.user || null;
+    updateTop();
   });
+
+  log("ready room=", room);
 })();
 </script>
 </body>
 </html>
-
