@@ -66,6 +66,9 @@
       background:rgba(255,255,255,.10);
       border:1px solid var(--line);
       white-space: nowrap;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
     }
     .userText{
       color:var(--muted);
@@ -75,27 +78,26 @@
       text-overflow:ellipsis;
     }
 
-.avatarSm{
-
-  width:26px;height:26px;border-radius:50%;
-  object-fit:cover;
-  border:1px solid rgba(255,255,255,.18);
-  background:rgba(255,255,255,.10);
-  flex:0 0 auto;
-}
-.avatarSmFb{
-  width:26px;height:26px;border-radius:50%;
-  display:inline-flex;align-items:center;justify-content:center;
-  font-weight:900;font-size:12px;
-  color:rgba(234,242,255,.92);
-  border:1px solid rgba(255,255,255,.18);
-  background:linear-gradient(135deg, rgba(110,231,255,.20), rgba(167,139,250,.18));
-  flex:0 0 auto;
-  user-select:none;
-}
-.userBtn{
-  cursor:pointer;
-}
+    .avatarSm{
+      width:26px;height:26px;border-radius:50%;
+      object-fit:cover;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10);
+      flex:0 0 auto;
+    }
+    .avatarSmFb{
+      width:26px;height:26px;border-radius:50%;
+      display:inline-flex;align-items:center;justify-content:center;
+      font-weight:900;font-size:12px;
+      color:rgba(234,242,255,.92);
+      border:1px solid rgba(255,255,255,.18);
+      background:linear-gradient(135deg, rgba(110,231,255,.20), rgba(167,139,250,.18));
+      flex:0 0 auto;
+      user-select:none;
+    }
+    .userBtn{
+      cursor:pointer;
+    }
 
     button{
       cursor:pointer;
@@ -116,7 +118,7 @@
     }
     .btnDanger{
       background:rgba(255,107,107,.18);
-      border-color:rgba(255,107,107,.4);
+      border-color:rgba(255,107,107,.40);
     }
 
     /* ===== Cards ===== */
@@ -141,146 +143,96 @@
       padding:12px;
       border-radius:14px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.25);
+      background:rgba(0,0,0,.20);
       color:var(--text);
-      width:100%;
+      outline:none;
+      width: min(520px, 92vw);
     }
 
     .row{
       display:flex;
       gap:10px;
-      flex-wrap:wrap;
+      flex-wrap: wrap;
       align-items:center;
     }
 
-    /* ===== Room list ===== */
     #roomsBox{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      margin-top:10px;
+      border:1px solid var(--line);
+      border-radius: 14px;
+      padding:10px;
+      max-width: 720px;
+      background: rgba(0,0,0,.20);
     }
-
     .roomRow{
       display:flex;
-      gap:10px;
+      justify-content:space-between;
       align-items:center;
-    }
-
-    .roomBtn{
-      flex:1;
-      text-align:left;
-      padding:14px;
-      border-radius:16px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.06);
-      color:var(--text);
-    }
-
-    .roomBtn:hover{
-      background:linear-gradient(180deg, rgba(110,231,255,.15), rgba(255,255,255,.05));
-    }
-
-    .callLine{
-      margin-top:6px;
-      font-size:12px;
-      color:var(--muted);
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .badge{
-      margin-left:6px;
-      padding:2px 8px;
-      border-radius:999px;
-      font-size:11px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.08);
-    }
-
-    .delBtn{
-      width:44px;
+      gap:10px;
       padding:10px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.06);
+      border-bottom:1px solid rgba(255,255,255,.08);
     }
-    .delBtn:hover{ background:rgba(255,107,107,.25); }
+    .roomRow:last-child{ border-bottom:none; }
+
+    .muted{ color:var(--muted); font-size:12px; }
 
     #status{
       margin-top:10px;
       font-size:12px;
-      color:var(--muted);
     }
     .ok{ color:var(--good); }
     .ng{ color:var(--bad); }
 
-    details{ margin-top:12px; }
     #log{
-      margin-top:8px;
-      font-size:12px;
-      background:rgba(0,0,0,.35);
-      border:1px solid var(--line);
-      border-radius:14px;
-      padding:10px;
-      max-height:200px;
-      overflow:auto;
+      margin-top:12px;
       white-space:pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:12px;
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.22);
+      max-height: 200px;
+      overflow:auto;
+      color: rgba(234,242,255,.78);
     }
-
-    /* 小さめ画面でもボタンが詰まらないように */
-    .row > button{ white-space:nowrap; }
   </style>
 </head>
 
 <body>
-
-<!-- ================= UI: lobby(11) ================= -->
-<div class="topbar">
-  <h2>🎧 ゆるるチャット – ロビー</h2>
-  <div class="userBox">
-    <img id="userAvatar" class="avatarSm" alt="avatar" style="display:none;" />
-    <button class="userPill userBtn" id="userNamePill" type="button" onclick="goProfile()">未ログイン</button>
-    <span class="userText" id="userMailText"></span>
-    <button class="btnPrimary" onclick="goLogin()" id="goLoginBtn" style="display:none;">ログイン</button>
-    <button class="btnDanger" onclick="signOut()" id="signOutBtn">ログアウト</button>
-  </div>
-</div>
-
-<div class="card">
-  <div class="sectionTitle">📝 表示名</div>
-  <div class="row">
-    <input id="displayName" placeholder="表示名（例: ゆるたま）" />
-    <button class="btnPrimary" type="button" onclick="saveDisplayName()">保存</button>
-  </div>
-  <div style="font-size:12px;color:var(--muted);margin-top:6px;">
-    ※ 右上の名前表示・通話表示にも反映されます
-  </div>
-</div>
-
-<div class="card">
-  <div class="sectionTitle">🏠 ルーム</div>
-  <div class="row">
-    <input id="room" placeholder="部屋名（例: test）" />
-    <button class="btnPrimary" type="button" onclick="createRoom()">作成</button>
-    <button type="button" onclick="enterRoom()">入室</button>
-    <button type="button" onclick="loadRooms()">更新</button>
+  <div class="topbar">
+    <h2>🏠 ロビー</h2>
+    <div class="userBox">
+      <div class="userPill userBtn" id="userNamePill" onclick="goProfile()">未ログイン</div>
+      <button class="btnDanger" onclick="signOut()">🚪 ログアウト</button>
+    </div>
   </div>
 
-  <div class="sectionTitle" style="margin-top:14px;">📋 部屋一覧</div>
-  <div id="roomsBox"></div>
+  <div class="card">
+    <div class="sectionTitle">👤 表示名</div>
+    <div class="row">
+      <input id="displayName" placeholder="表示名（例: ゆるたま）" />
+      <button class="btnPrimary" onclick="saveDisplayName()">保存</button>
+    </div>
+    <div id="status"></div>
+  </div>
 
-  <details>
-    <summary>🔧 デバッグログ</summary>
+  <div class="card">
+    <div class="sectionTitle">🧩 部屋一覧</div>
+    <div class="row" style="margin-bottom:10px;">
+      <input id="newRoomName" placeholder="部屋名（例: test）" />
+      <button class="btnPrimary" onclick="createRoom()">➕ 作成</button>
+      <button onclick="loadRooms()">🔄 更新</button>
+    </div>
+    <div id="roomsBox">読み込み中…</div>
+  </div>
+
+  <details class="card">
+    <summary class="muted">🔧 デバッグログ</summary>
     <div id="log"></div>
   </details>
 
-  <div id="status"></div>
-</div>
-
 <script>
-/* =================== Supabase 設定（SYSTEM = lobby(10)） =================== */
+/* =================== Supabase 設定 =================== */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
@@ -320,6 +272,17 @@ function setStatus(text, ok=true){
   el.innerHTML = `<span class="${ok?'ok':'ng'}">${escapeHtml(text)}</span>`;
 }
 
+/* =================== 共通：最新userを取り直す（別端末反映のコア） =================== */
+async function refetchLatestUser(fallbackUser){
+  try{
+    await sb.auth.refreshSession();
+  }catch{}
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) log("getUser error", uErr);
+  if (u?.user) return u.user;
+  return fallbackUser || null;
+}
+
 /* =================== 移動 =================== */
 function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
 function goRoom(roomName){
@@ -330,6 +293,22 @@ function goProfile(){
 }
 
 /* =================== 右上ユーザー表示 =================== */
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+function escapeAttr(s){ return escapeHtml(s).replaceAll('`','&#096;'); }
+function getInitial(s){ const t=String(s||'').trim(); if(!t) return '?'; return Array.from(t)[0] || '?'; }
+function avatarHtml(url, label){
+  const u = String(url||'').trim();
+  if (u) return `<img class="avatarSm" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
+  return `<span class="avatarSmFb">${escapeHtml(getInitial(label))}</span>`;
+}
+
 function updateTopRightUser(){
   const pill = document.getElementById("userNamePill");
   if (!pill) return;
@@ -350,7 +329,6 @@ function updateTopRightUser(){
   `;
 }
 
-
 /* =================== セッション復元（SYSTEM = lobby(10)） =================== */
 async function refreshAuth(){
   // まずセッション確認（ログインしてるか）
@@ -365,6 +343,9 @@ async function refreshAuth(){
   }
 
   // ★ここが重要：サーバーから最新userを取り直す
+  // ★セッションを更新してから最新userを取る（別端末変更を拾う）
+  try{ await sb.auth.refreshSession(); }catch{}
+
   const { data: u, error: uErr } = await sb.auth.getUser();
   if (uErr) log("getUser error", uErr);
 
@@ -379,7 +360,6 @@ async function refreshAuth(){
   return true;
 }
 
-
 /* ロビーでは「未ログインならloginへ」 */
 async function requireLoginOrRedirect(){
   const ok = await refreshAuth();
@@ -392,219 +372,8 @@ async function requireLoginOrRedirect(){
 
 /* =================== ログアウト =================== */
 async function signOut(){
-  try { await sb.auth.signOut({ scope:"local" }); } catch (e) { log("signOut", e); }
-  authUser = null;
-  updateTopRightUser();
+  try { await sb.auth.signOut({ scope:"local" }); } catch {}
   goLogin();
-}
-
-/* =================== Realtime =================== */
-async function startRealtime(){
-  if (roomsChannel) return;
-
-  roomsChannel = sb
-    .channel("rooms-ch")
-    .on("postgres_changes", { event:"*", schema:"public", table:"rooms" }, async () => {
-      await loadRooms();
-    })
-    .subscribe();
-}
-
-/* call_participants が動いたら部屋一覧も更新（通話中表示が変わる） */
-async function startCallParticipantsRealtime(){
-  if (callParticipantsChannel) return;
-
-  callParticipantsChannel = sb
-    .channel("call-participants-ch")
-    .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async () => {
-      await loadRooms();
-    })
-    .subscribe();
-}
-
-/* =================== 通話中かどうか判定 =================== */
-const CALL_ALIVE_SEC = 30;
-
-async function isRoomInCall(roomName){
-  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
-
-  const { data, error } = await sb
-    .from("call_participants")
-    .select("user_id")
-    .eq("room_id", roomName)
-    .gte("updated_at", cutoff)
-    .limit(1);
-
-  if (error){
-    log("isRoomInCall error", error);
-    // 判定できない時は安全側（削除させない）
-    return true;
-  }
-  return (data || []).length > 0;
-}
-
-/* =================== ロビーで「各部屋の通話中メンバー」をまとめて取得 =================== */
-async function fetchActiveCallUsersByRoom(){
-  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
-
-  const { data, error } = await sb
-    .from("call_participants")
-    .select("room_id, name, user_id, updated_at")
-    .gte("updated_at", cutoff)
-    .order("updated_at", { ascending:false });
-
-  if (error){
-    log("fetchActiveCallUsersByRoom error", error);
-    return new Map();
-  }
-
-  const map = new Map(); // room_id -> [{name,user_id}]
-  for (const row of (data || [])){
-    const rid = row.room_id;
-    if (!rid) continue;
-    if (!map.has(rid)) map.set(rid, []);
-    map.get(rid).push({
-      name: (row.name || row.user_id || "").toString(),
-      user_id: row.user_id
-    });
-  }
-
-  // 重複除去（同一 user_id が複数あった時）
-  for (const [rid, arr] of map.entries()){
-    const seen = new Set();
-    const out = [];
-    for (const a of arr){
-      const k = a.user_id || a.name;
-      if (seen.has(k)) continue;
-      seen.add(k);
-      out.push(a);
-    }
-    map.set(rid, out);
-  }
-
-  return map;
-}
-
-/* =================== 部屋一覧読み込み =================== */
-async function loadRooms(){
-  if (!authUser) return;
-
-  const { data, error } = await sb
-    .from("rooms")
-    .select("room_name, created_at, owner_id")
-    .order("created_at", { ascending:true });
-
-  if (error){
-    log("loadRooms error", error);
-    setStatus("部屋一覧取得失敗: " + error.message, false);
-    return;
-  }
-
-  const activeMap = await fetchActiveCallUsersByRoom();
-
-  const box = document.getElementById("roomsBox");
-  box.innerHTML = "";
-
-  if (!data || data.length === 0){
-    box.innerHTML = "<div style='color:var(--muted);font-size:12px;'>まだ部屋がないよ（部屋作成してね）</div>";
-    setStatus("部屋なし", true);
-    return;
-  }
-
-  for (const r of data){
-    const rn = r.room_name;
-
-    const row = document.createElement("div");
-    row.className = "roomRow";
-
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "roomBtn";
-    btn.textContent = rn;
-    btn.onclick = () => document.getElementById("room").value = rn;
-    btn.ondblclick = () => goRoom(rn);
-
-    // 通話中メンバー表示（あれば）
-    const users = activeMap.get(rn) || [];
-    if (users.length > 0){
-      const names = users.map(x=>x.name).filter(Boolean);
-      const line = document.createElement("div");
-      line.className = "callLine";
-      const shown = names.slice(0, 4).join("、");
-      const more = names.length > 4 ? ` …(+${names.length-4})` : "";
-      line.innerHTML = `📞 通話中: ${escapeHtml(shown + more)} <span class="badge">${names.length}</span>`;
-      btn.appendChild(line);
-      btn.title = "通話中: " + names.join("、");
-    }
-
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "delBtn";
-    del.textContent = "🗑";
-    del.title = "通話中は削除できません";
-
-    // 一覧表示時点の判定（削除ボタン制御）
-    const inCall = await isRoomInCall(rn);
-    if (inCall){
-      del.disabled = true;
-      del.style.opacity = "0.4";
-      del.style.cursor = "not-allowed";
-    }
-
-    del.onclick = async () => {
-      // クリック直前にも再判定（レース対策）
-      const nowInCall = await isRoomInCall(rn);
-      if (nowInCall){
-        alert("この部屋は通話中なので削除できません。");
-        await loadRooms();
-        return;
-      }
-
-      if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
-
-      const r2 = await sb.from("rooms").delete().eq("room_name", rn);
-      if (r2.error){ alert("削除失敗: " + r2.error.message); return; }
-      await loadRooms();
-    };
-
-    row.appendChild(btn);
-    row.appendChild(del);
-    box.appendChild(row);
-  }
-
-  setStatus(`部屋一覧OK（${data.length}件）`, true);
-}
-
-/* =================== 部屋作成 / 入室 =================== */
-async function createRoom(){
-  const rn = document.getElementById("room").value.trim();
-  if (!rn) return alert("部屋名を入れてね！");
-
-  const { data: exists, error: e1 } = await sb
-    .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
-  if (e1) return alert("確認失敗: " + e1.message);
-  if (exists) return alert("その部屋はもうあるよ！");
-
-  const { error } = await sb
-    .from("rooms")
-    .insert({ room_name: rn, owner_id: authUser.id });
-
-  if (error) return alert("作成失敗: " + error.message);
-
-  await loadRooms();
-}
-
-async function enterRoom(){
-  const rn = document.getElementById("room").value.trim();
-  if (!rn) return alert("部屋名を入れてね！");
-
-  const { data: exists, error } = await sb
-    .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
-
-  if (error) return alert("確認失敗: " + error.message);
-  if (!exists) return alert("その部屋はまだないよ。先に部屋作成してね！");
-
-  goRoom(rn);
 }
 
 /* =================== 表示名保存 =================== */
@@ -626,29 +395,88 @@ async function saveDisplayName() {
     return;
   }
 
-  // ローカル反映
-  if (data?.user) authUser = data.user;
+  // ★別端末反映のため：最新userを取り直す
+  authUser = await refetchLatestUser(data?.user || authUser);
   updateTopRightUser();
 
   setStatus("表示名を保存しました！", true);
 }
 
-/* =================== HTMLエスケープ =================== */
-function escapeAttr(s){ return escapeHtml(s).replaceAll('`','&#096;'); }
-function getInitial(s){ const t=String(s||'').trim(); if(!t) return '?'; return Array.from(t)[0] || '?'; }
-function avatarHtml(url, label){
-  const u = String(url||'').trim();
-  if (u) return `<img class="avatarSm" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
-  return `<span class="avatarSmFb">${escapeHtml(getInitial(label))}</span>`;
+/* =================== rooms =================== */
+async function loadRooms(){
+  const box = document.getElementById("roomsBox");
+  box.textContent = "読み込み中…";
+
+  const { data, error } = await sb
+    .from("rooms")
+    .select("room_name, created_at")
+    .order("created_at", { ascending:false })
+    .limit(50);
+
+  if (error){
+    box.textContent = "取得失敗: " + error.message;
+    return;
+  }
+
+  const rows = data || [];
+  if (rows.length === 0){
+    box.innerHTML = "<div class='muted'>部屋がないよ。作ってみて！</div>";
+    return;
+  }
+
+  box.innerHTML = "";
+  rows.forEach(r=>{
+    const div = document.createElement("div");
+    div.className = "roomRow";
+    div.innerHTML = `
+      <div>
+        <div style="font-weight:900;">${escapeHtml(r.room_name || "")}</div>
+        <div class="muted">${escapeHtml(String(r.created_at || ""))}</div>
+      </div>
+      <div class="row">
+        <button onclick="goRoom('${escapeAttr(r.room_name || "")}')">入室</button>
+      </div>
+    `;
+    box.appendChild(div);
+  });
 }
 
-function escapeHtml(s){
-  return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+async function createRoom(){
+  const input = document.getElementById("newRoomName");
+  const rn = (input.value || "").trim();
+  if (!rn) return alert("部屋名を入れてね！");
+
+  const { error } = await sb.from("rooms").insert({ room_name: rn });
+  if (error){
+    alert("作成失敗: " + error.message);
+    return;
+  }
+
+  input.value = "";
+  await loadRooms();
+  goRoom(rn);
+}
+
+/* =================== Realtime =================== */
+async function startRealtime(){
+  if (roomsChannel) return;
+  roomsChannel = sb
+    .channel("rooms-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"rooms" }, async ()=>{
+      await loadRooms();
+    })
+    .subscribe();
+}
+
+/* call_participants がある前提（ロビーで監視だけしてる） */
+async function startCallParticipantsRealtime(){
+  if (callParticipantsChannel) return;
+  callParticipantsChannel = sb
+    .channel("call_participants-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async ()=>{
+      // 必要ならロビー側で表示更新を追加
+    })
+    .subscribe();
 }
 
 /* =================== 起動（SYSTEM = lobby(10)） =================== */
@@ -695,6 +523,3 @@ function escapeHtml(s){
 
 </body>
 </html>
-
-
-
