@@ -321,31 +321,24 @@ function goProfile(){
 /* =================== 右上ユーザー表示 =================== */
 function updateTopRightUser(){
   const pill = document.getElementById("userNamePill");
-  const mail = document.getElementById("userMailText");
-  const goBtn = document.getElementById("goLoginBtn");
-  const soBtn = document.getElementById("signOutBtn");
+  if (!pill) return;
 
   if (!authUser){
-    pill.textContent = '未ログイン';
-    mail.textContent = "";
-    if (av){ av.style.display = "none"; av.removeAttribute("src"); }
-    goBtn.style.display = "inline-block";
-    soBtn.style.display = "none";
+    pill.textContent = "未ログイン";
     return;
   }
-  const dn = (authUser.user_metadata?.display_name || "").trim();
-  const shown = dn || (authUser.email || "user").split("@")[0];
-  pill.innerHTML = `${avatarHtml(authUser.user_metadata?.avatar_url || '', shown)} <span>${escapeHtml(shown)}</span>`;
-  mail.textContent = authUser.email || "";
 
-  const avatarUrl = (authUser.user_metadata?.avatar_url || "").trim();
-  if (av){
-    if (avatarUrl){  }
-    else { av.style.display = "none"; av.removeAttribute("src"); }
-  }
-  goBtn.style.display = "none";
-  soBtn.style.display = "inline-block";
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  const em = (authUser.email || "").trim();
+  const shown = dn || em || "ログイン中";
+
+  // ★ アイコンは「名前の横に1個だけ」
+  pill.innerHTML = `
+    ${avatarHtml(authUser.user_metadata?.avatar_url || "", shown)}
+    <span>${escapeHtml(shown)}</span>
+  `;
 }
+
 
 /* =================== セッション復元（SYSTEM = lobby(10)） =================== */
 async function refreshAuth(){
@@ -691,5 +684,6 @@ function escapeHtml(s){
 
 </body>
 </html>
+
 
 
