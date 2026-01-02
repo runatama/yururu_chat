@@ -322,46 +322,12 @@
     }
     .msgMeta{ color: rgba(234,242,255,.40); font-size:11px; }
 
-    .msgActions{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      flex:0 0 auto;
-    }
-    .trashBtn{
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.04);
-      color: rgba(234,242,255,.85);
-      padding:6px 10px;
-      border-radius:12px;
-      cursor:pointer;
-      font-size:12px;
-      line-height:1;
-      transition: background .15s ease, border-color .15s ease, transform .05s ease;
-    }
-    .trashBtn:hover{
-      background: rgba(255,255,255,.08);
-      border-color: rgba(255,255,255,.18);
-    }
-    .trashBtn:active{ transform: translateY(1px); }
-
     .msgBody{
       font-size:14px;
       line-height:1.5;
       color:var(--text);
       white-space: pre-wrap;
       word-break: break-word;
-    }
-    /* ★期限切れ表示用 */
-    .msgExpired{
-      font-size:13px;
-      line-height:1.5;
-      color: rgba(234,242,255,.55);
-      border: 1px dashed rgba(255,255,255,.16);
-      background: rgba(255,255,255,.04);
-      padding: 10px 12px;
-      border-radius: 14px;
-      margin-top: 6px;
     }
     .msgImg{
       margin-top:8px;
@@ -371,6 +337,7 @@
       border:1px solid rgba(255,255,255,.10);
       box-shadow: 0 12px 22px rgba(0,0,0,.22);
     }
+
     .composer{
       display:grid;
       grid-template-columns: 1fr auto;
@@ -460,6 +427,39 @@
     }
     .audioCtl .lbl{ font-size:12px; color:var(--muted); }
     .audioCtl .val{ font-size:12px; color:var(--text); min-width: 34px; text-align:right; }
+
+    /* ===== msg delete ui ===== */
+    .msgRow{
+      position:relative;
+      padding:10px 10px 12px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.08);
+      background: rgba(7,12,24,.18);
+    }
+    .msgActions{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:flex-end;
+    }
+    .iconBtn{
+      appearance:none;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: rgba(234,242,255,.90);
+      border-radius: 12px;
+      padding:6px 9px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:800;
+      transition: transform .05s ease, background .15s ease, border-color .15s ease;
+    }
+    .iconBtn:hover{ background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.18); }
+    .iconBtn:active{ transform: translateY(1px); }
+    .iconBtn.danger{
+      border-color: rgba(255,107,107,.35);
+      background: rgba(255,107,107,.12);
+    }
   </style>
 </head>
 
@@ -668,6 +668,18 @@ let micMuted = false;
 
 const pcs = new Map();        // peerId -> RTCPeerConnection
 const mutedMap = new Map();   // peerId -> muted(boolean)
+
+const makingOffer = new Map(); // peerId -> boolean
+function shouldCreateOffer(peerId){
+  // どちらがOfferを作るか決める（衝突防止）
+  // 文字列比較で固定（必ず片方だけがOffer担当）
+  return String(myUid()) < String(peerId);
+}
+function isPolitePeer(peerId){
+  // offer衝突時に受け入れる側（Perfect Negotiationの考え方）
+  return String(myUid()) > String(peerId);
+}
+
 let heartbeatTimer = null;
 const CALL_ALIVE_SEC = 30;
 
@@ -789,11 +801,38 @@ function fmtTime(iso){
   }
 }
 
+async function deleteMessage(m){
+  try{
+    if (!m?.id) return;
+    if ((m.user_id || "") !== myUid()) return;
+
+    if (!confirm("このメッセージをチャット上から削除しますか？\n（※サーバー側にはログとして残ります。Storageも削除しません）")) return;
+
+    const { error } = await sb
+      .from("messages")
+      .update({
+        deleted: true,
+        deleted_at: new Date().toISOString(),
+        deleted_by: myUid()
+      })
+      .eq("id", m.id)
+      .eq("user_id", myUid());
+
+    if (error) throw error;
+
+    await loadMessages();
+  }catch(e){
+    log("deleteMessage error", e);
+    alert("削除に失敗: " + (e?.message || e));
+  }
+}
+
 async function loadMessages(){
   const { data, error } = await sb
     .from("messages")
-    .select("id, room_id, name, message, image_url, created_at, user_id")
+    .select("id, room_id, name, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by")
     .eq("room_id", room)
+    .eq("deleted", false)
     .order("created_at", { ascending:true })
     .limit(200);
 
@@ -804,6 +843,7 @@ async function loadMessages(){
 
   (data || []).forEach(m=>{
     const wrap = document.createElement("div");
+    wrap.className = "msgRow";
 
     const head = document.createElement("div");
     head.className = "msgHead";
@@ -811,32 +851,26 @@ async function loadMessages(){
     const left = document.createElement("div");
     left.textContent = (m.name || "");
 
-    // 右側（時刻 + 削除ボタン）
-    const actions = document.createElement("div");
-    actions.className = "msgActions";
-
     const meta = document.createElement("div");
     meta.className = "msgMeta";
     meta.textContent = fmtTime(m.created_at);
 
-    actions.appendChild(meta);
-
-    // ✅ 自分が送ったメッセージだけゴミ箱を表示（本人だけ消せる）
-    if (m.user_id && m.user_id === myUid()){
-      const del = document.createElement("button");
-      del.className = "trashBtn";
-      del.type = "button";
-      del.title = "自分のメッセージを削除";
-      del.textContent = "🗑️";
-      del.onclick = async ()=>{
-        await deleteMessage(m);
-      };
-      actions.appendChild(del);
-    }
-
     head.appendChild(left);
-    head.appendChild(actions);
+    head.appendChild(meta);
     wrap.appendChild(head);
+
+    // actions (自分の投稿だけ削除ボタン)
+    if ((m.user_id || "") === myUid()){
+      const actions = document.createElement("div");
+      actions.className = "msgActions";
+      const btn = document.createElement("button");
+      btn.className = "iconBtn danger";
+      btn.textContent = "🗑️";
+      btn.title = "このメッセージを削除（チャット上から非表示）";
+      btn.onclick = ()=> deleteMessage(m);
+      actions.appendChild(btn);
+      wrap.appendChild(actions);
+    }
 
     const bodyText = (m.message || "").trim();
     const isImagePlaceholder = (bodyText === IMAGE_PLACEHOLDER);
@@ -857,14 +891,6 @@ async function loadMessages(){
       img.loading = "lazy";
       img.alt = "image";
       wrap.appendChild(img);
-    }
-
-    // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
-    if (isImagePlaceholder && !m.image_url){
-      const ex = document.createElement("div");
-      ex.className = "msgExpired";
-      ex.textContent = "🗑️ 画像は期限切れで削除されました";
-      wrap.appendChild(ex);
     }
 
     box.appendChild(wrap);
@@ -888,51 +914,6 @@ async function sendMsg(){
 
   if (error){ alert("送信失敗: " + error.message); }
 }
-
-
-/* =========================================================
-   🗑️ 自分の投稿だけ削除（本文 + 画像）
-   - UI: 自分の投稿にだけゴミ箱が出る
-   - DB: messages を自分だけ delete（RLS推奨）
-   - Storage: 画像がある場合は bucket から削除も試みる
-   ========================================================= */
-function extractStoragePathFromPublicUrl(url){
-  // 例: https://xxx.supabase.co/storage/v1/object/public/chat-images/ROOM/UID/xxx.png
-  if (!url) return "";
-  const marker = `/storage/v1/object/public/${IMAGE_BUCKET}/`;
-  const i = url.indexOf(marker);
-  if (i < 0) return "";
-  return url.substring(i + marker.length);
-}
-
-    async function deleteMessage(m) {
-        if (!m?.id) return;
-
-        // 念のため本人チェック
-        if (m.user_id !== myUid()) {
-            alert("これは自分の投稿じゃないので削除できません");
-            return;
-        }
-
-        const ok = confirm("このメッセージをチャットから削除しますか？\n（画像ファイル自体はサーバーに残ります）");
-        if (!ok) return;
-
-        try {
-            const del = await sb
-                .from("messages")
-                .delete()
-                .eq("id", m.id)
-                .eq("user_id", myUid()); // ← 本人だけ削除
-
-            if (del.error) throw del.error;
-
-            await loadMessages(); // 画面更新
-        } catch (e) {
-            log("deleteMessage error", e);
-            alert("削除失敗: " + (e?.message || e));
-        }
-    }
-
 
 /* =========================================================
    ★ 画像送信（修正版・完全）※ sendImage はこれ1個だけ！
@@ -1119,6 +1100,36 @@ function getSendStream(){
   return processedStream || localStream;
 }
 
+function attachTracksToPC(peerId){
+  const pc = pcs.get(peerId);
+  const sendStream = getSendStream();
+  if (!pc || !sendStream) return;
+
+  const senders = pc.getSenders ? pc.getSenders() : [];
+  const hasAudioSender = senders.some(s => s.track && s.track.kind === "audio");
+
+  // まだ送信トラックが無いなら追加
+  if (!hasAudioSender){
+    for (const t of sendStream.getTracks()){
+      pc.addTrack(t, sendStream);
+    }
+  }else{
+    // 既にあるなら差し替え（音量処理したStreamに切り替え）
+    for (const t of sendStream.getTracks()){
+      const sender = senders.find(s => s.track && s.track.kind === t.kind);
+      if (sender && sender.track !== t){
+        try{ sender.replaceTrack(t); }catch{}
+      }
+    }
+  }
+}
+
+function attachTracksToAllPCs(){
+  for (const [peerId] of pcs){
+    attachTracksToPC(peerId);
+  }
+}
+
 function ensureAudioEl(peerId){
   const id = "audio-" + peerId;
   let el = document.getElementById(id);
@@ -1219,22 +1230,33 @@ async function ensurePC(peerId){
     el.srcObject = ev.streams[0];
   };
 
-  const sendStream = getSendStream();
-  if (sendStream){
-    for (const t of sendStream.getTracks()){
-      pc.addTrack(t, sendStream);
-    }
-  }
+  // 送信トラックがあるなら付与
+  attachTracksToPC(peerId);
 }
 
 async function maybeMakeOffer(peerId){
   const pc = pcs.get(peerId);
   if (!pc) return;
+
+  // こちらがOffer担当じゃないなら何もしない（衝突防止）
+  if (!shouldCreateOffer(peerId)) return;
+
+  // すでに作成中ならスキップ
+  if (makingOffer.get(peerId)) return;
+
+  // stable以外はOffer作れない
   if (pc.signalingState !== "stable") return;
 
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  await sendSignal(peerId, { kind:"sdp", sdp: pc.localDescription });
+  try{
+    makingOffer.set(peerId, true);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await sendSignal(peerId, { kind:"sdp", sdp: pc.localDescription });
+  }catch(e){
+    log("maybeMakeOffer error", peerId, e);
+  }finally{
+    makingOffer.set(peerId, false);
+  }
 }
 
 function closePC(peerId){
@@ -1267,9 +1289,10 @@ async function onSignal(payload){
   if (!from || !data) return;
   if (to && to !== myUid()) return;
 
-  // ★★ これを追加 ★★
+  // hello: 既存/新規の相手にPCを用意してもらう合図
   if (data.kind === "hello") {
     await ensurePC(from);
+    // Offer担当（UIDが小さい側）だけがOfferを作る
     await maybeMakeOffer(from);
     return;
   }
@@ -1281,12 +1304,26 @@ async function onSignal(payload){
     const desc = data.sdp;
     if (!desc) return;
 
+    const polite = isPolitePeer(from);
+    const offerCollision = (desc.type === "offer") && (pc.signalingState !== "stable");
+
+    // offer衝突：politeじゃない側は無視して落ち着くまで待つ
+    if (offerCollision && !polite){
+      log("ignore offer collision from", from, "state=", pc.signalingState);
+      return;
+    }
+
     if (desc.type === "offer"){
       await pc.setRemoteDescription(desc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       await sendSignal(from, { kind:"sdp", sdp: pc.localDescription });
     }else if (desc.type === "answer"){
+      // Answerは「自分がOffer出した直後」だけ受け入れる
+      if (pc.signalingState !== "have-local-offer"){
+        log("ignore unexpected answer from", from, "state=", pc.signalingState);
+        return;
+      }
       await pc.setRemoteDescription(desc);
     }
   }
@@ -1357,15 +1394,15 @@ async function joinCall(){
     localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
   }
 
-  // ===== ここから追加 =====
-
   // マイク音量調整用（既存ならOK）
   buildProcessedMicStreamIfNeeded();
   applyMicGain();
   if (audioCtx && audioCtx.state === "suspended") {
-  await audioCtx.resume();
-}
+    await audioCtx.resume();
+  }
 
+  // 既に作ってあるPCがあれば、ここで送信トラックを付け直す
+  attachTracksToAllPCs();
 
   // presence に参加情報を載せる
   if (callChannel){
@@ -1377,30 +1414,36 @@ async function joinCall(){
     });
   }
 
-  // ★★★ 超重要：すでに部屋にいる人全員に hello を送る ★★★
+  // ★★★ すでに部屋にいる人全員に hello（PC用意） + 片方だけOffer作成 ★★★
   const state = callChannel.presenceState() || {};
   for (const peerId of Object.keys(state)){
-    if (peerId !== myUid()){
-      await sendSignal(peerId, { kind: "hello" });
-    }
+    if (peerId === myUid()) continue;
+
+    // 相手にPCを作ってもらう
+    await sendSignal(peerId, { kind: "hello" });
+
+    // 自分もPC準備
+    await ensurePC(peerId);
+
+    // Offer担当（UID小さい側）だけOfferを出す
+    await maybeMakeOffer(peerId);
   }
 
   document.getElementById("callState").textContent = "通話に参加中";
   setReady(true, "通話準備OK");
   startHeartbeat();
-  // ===== ここまで追加 =====
 }
 
 async function leaveCall(){
   try{
-  await sb
-    .from("call_participants")
-    .delete()
-    .eq("room_id", room)
-    .eq("user_id", myUid());
-}catch(e){
-  log("call_participants delete error", e);
-}
+    await sb
+      .from("call_participants")
+      .delete()
+      .eq("room_id", room)
+      .eq("user_id", myUid());
+  }catch(e){
+    log("call_participants delete error", e);
+  }
 
   stopHeartbeat();
 
@@ -1461,9 +1504,16 @@ function onPresenceSync(){
   refreshPresenceList();
   refreshAudioTitles();
 }
-function onPresenceJoin(key, presences){
+async function onPresenceJoin(key, presences){
   refreshPresenceList();
-  maybeMakeOffer(key);
+  if (!key || key === myUid()) return;
+
+  // 新しく入ってきた人に hello（PC用意してね）
+  await sendSignal(key, { kind: "hello" });
+
+  // こちらもPC用意＆必要ならOffer
+  await ensurePC(key);
+  await maybeMakeOffer(key);
 }
 function onPresenceLeave(key, presences){
   closePC(key);
@@ -1553,4 +1603,3 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 </script>
 </body>
 </html>
-
