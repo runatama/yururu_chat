@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ゆるるチャット - Profile</title>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
@@ -30,9 +31,11 @@
         radial-gradient(900px 600px at 15% 20%, rgba(110,231,255,.25), transparent 55%),
         radial-gradient(900px 600px at 85% 25%, rgba(167,139,250,.22), transparent 55%),
         linear-gradient(180deg, var(--bg1), var(--bg2));
-      padding: 20px;
+      padding:20px;
       min-height:100vh;
     }
+
+    h2{ margin:0; }
 
     .topbar{
       display:flex;
@@ -42,7 +45,6 @@
       margin-bottom:16px;
       flex-wrap:wrap;
     }
-    h2{ margin:0; }
 
     .btn{
       cursor:pointer;
@@ -57,7 +59,6 @@
       gap:8px;
     }
     .btn:hover{ filter:brightness(1.1); }
-    .btn:disabled{ opacity:.5; cursor:not-allowed; }
     .btnPrimary{
       background:linear-gradient(135deg, var(--accent), var(--accent2));
       color:#08131f;
@@ -75,7 +76,7 @@
       box-shadow:var(--shadow);
       padding:16px;
       margin-bottom:16px;
-      max-width: 760px;
+      max-width:760px;
     }
 
     .row{
@@ -113,301 +114,213 @@
       user-select:none;
     }
 
-    #status{
-      margin-top:10px;
-      font-size:12px;
-      color:var(--muted);
-    }
+    #status{ margin-top:10px; font-size:12px; }
     .ok{ color:var(--good); }
     .ng{ color:var(--bad); }
   </style>
 </head>
 
 <body>
-  <div class="topbar">
-    <h2>👤 プロフィール</h2>
-    <div class="row">
-      <button class="btn" type="button" onclick="goBack()">⬅ 戻る</button>
-      <button class="btn btnDanger" type="button" onclick="signOut()">🚪 ログアウト</button>
-    </div>
+
+<div class="topbar">
+  <h2>👤 プロフィール</h2>
+  <div class="row">
+    <button class="btn" onclick="goBack()">⬅ 戻る</button>
+    <button class="btn btnDanger" onclick="signOut()">🚪 ログアウト</button>
   </div>
+</div>
 
-  <div class="card">
-    <div class="row" style="align-items:flex-start;">
-      <div id="avatarBox"></div>
-      <div style="flex:1; min-width:260px;">
-        <div style="font-weight:900;margin-bottom:8px;">📝 表示名</div>
-        <div class="row">
-          <input id="displayName" placeholder="表示名（例: ゆるたま）" />
-          <button class="btn btnPrimary" type="button" onclick="saveDisplayName()">保存</button>
-        </div>
-
-        <div style="height:12px;"></div>
-
-        <div style="font-weight:900;margin-bottom:8px;">🖼️ プロフィールアイコン（画像アップ方式）</div>
-        <div class="row">
-          <input id="avatarFile" type="file" accept="image/*" style="max-width:320px;" />
-          <button class="btn btnPrimary" type="button" onclick="uploadAvatar()">アップロード</button>
-          <button class="btn btnDanger" type="button" onclick="removeAvatar()">削除</button>
-        </div>
-        <div class="hint" style="margin-top:8px;">
-          ・おすすめ: 正方形（1:1） / 2MB以下<br>
-          ・アップした画像は Storage の <b>avatar-images</b> に保存して、URLをユーザー情報（user_metadata）に保存するよ
-        </div>
-
-        <div id="status"></div>
+<div class="card">
+  <div class="row" style="align-items:flex-start;">
+    <div id="avatarBox"></div>
+    <div style="flex:1; min-width:260px;">
+      <div style="font-weight:900;margin-bottom:8px;">📝 表示名</div>
+      <div class="row">
+        <input id="displayName" placeholder="表示名（例: ゆるたま）" />
+        <button class="btn btnPrimary" onclick="saveDisplayName()">保存</button>
       </div>
-    </div>
-  </div>
 
-  <div class="card">
-    <div style="font-weight:900;margin-bottom:8px;">✅ 反映される場所</div>
-    <div class="hint">
-      ・右上アカウント（ロビー/ルーム）<br>
-      ・ルームのメッセージ一覧（名前の左）<br>
-      ・通話参加一覧（Presence）<br>
-      ・「今の部屋で通話してる人」（call_participants）
+      <div style="height:14px;"></div>
+
+      <div style="font-weight:900;margin-bottom:8px;">🖼️ プロフィール画像</div>
+      <div class="row">
+        <input id="avatarFile" type="file" accept="image/*" />
+        <button class="btn btnPrimary" onclick="uploadAvatar()">アップロード</button>
+        <button class="btn btnDanger" onclick="removeAvatar()">削除</button>
+      </div>
+
+      <div class="hint" style="margin-top:8px;">
+        ・正方形（1:1）推奨 / 2MB以下<br>
+        ・他端末でも即反映されます
+      </div>
+
+      <div id="status"></div>
     </div>
   </div>
+</div>
 
 <script>
-/* =================== Supabase 設定 =================== */
+/* ================= Supabase ================= */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+const SUPABASE_KEY = "あなたのanon key";
 
 const sb = supabase.createClient(
-  SUPABASE_URL.trim(),
-  (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
+  SUPABASE_URL,
+  SUPABASE_KEY,
   {
-    auth: {
-      flowType: "pkce",
-      detectSessionInUrl: true,
-      autoRefreshToken: true,
-      persistSession: true
+    auth:{
+      flowType:"pkce",
+      persistSession:true,
+      autoRefreshToken:true,
+      detectSessionInUrl:true
     }
   }
 );
 
-/* 画像用（Public bucket名） */
 const AVATAR_BUCKET = "avatar-images";
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2MB
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 let authUser = null;
 
-/* =================== util =================== */
+/* ================= util ================= */
 function escapeHtml(s){
-  return String(s)
+  return String(s||"")
     .replaceAll("&","&amp;")
     .replaceAll("<","&lt;")
     .replaceAll(">","&gt;")
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
-function escapeAttr(s){
-  // 属性値向け（srcなど）
-  return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;");
-}
 function getInitial(s){
-  const t = String(s || "").trim();
-  if (!t) return "?";
-  return Array.from(t)[0] || "?";
+  const t = String(s||"").trim();
+  return t ? Array.from(t)[0] : "?";
 }
-function setStatus(text, ok=true){
-  const el = document.getElementById("status");
-  el.innerHTML = `<span class="${ok?'ok':'ng'}">${escapeHtml(text)}</span>`;
-}
-function safeFileName(name){
-  return String(name || "avatar.png").replace(/[^\w.\-]+/g, "_");
+function setStatus(msg, ok=true){
+  document.getElementById("status").innerHTML =
+    `<span class="${ok?"ok":"ng"}">${escapeHtml(msg)}</span>`;
 }
 function getBackUrl(){
   const p = new URLSearchParams(location.search);
-  const back = (p.get("back") || "").trim();
-  const room = (p.get("room") || "").trim();
-  if (back === "room" && room){
-    return "./room.html?room=" + encodeURIComponent(room);
+  if (p.get("back")==="room" && p.get("room")){
+    return "./room.html?room="+encodeURIComponent(p.get("room"));
   }
   return "./lobby.html";
 }
-function goBack(){
-  location.replace(getBackUrl());
-}
 
-/* =================== auth =================== */
-async function requireLoginOrRedirect(){
-  const { data: ses, error: sesErr } = await sb.auth.getSession();
-  if (sesErr) setStatus("getSession error: " + sesErr.message, false);
-
-  const sessionUser = ses?.session?.user || null;
-  if (!sessionUser){
+/* ================= auth ================= */
+async function requireLogin(){
+  const { data: ses } = await sb.auth.getSession();
+  if (!ses?.session){
     location.replace("./login.html");
     return false;
   }
 
-  // ★重要：サーバーから最新userを取得
-  const { data: u, error: uErr } = await sb.auth.getUser();
-  if (uErr) setStatus("getUser error: " + uErr.message, false);
-
-  authUser = u?.user || sessionUser;
+  // ★必ず最新を取得
+  await sb.auth.refreshSession();
+  const { data: u } = await sb.auth.getUser();
+  authUser = u.user;
   return true;
 }
 
 async function signOut(){
-  try { await sb.auth.signOut({ scope:"local" }); } catch {}
+  await sb.auth.signOut({ scope:"local" });
   location.replace("./login.html");
 }
 
-/* =================== UI =================== */
+/* ================= UI ================= */
+function buildAvatarUrl(){
+  const base = (authUser?.user_metadata?.avatar_url || "").trim();
+  const ver  = authUser?.user_metadata?.avatar_ver || "";
+  if (!base) return "";
+  return base + (base.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(ver);
+}
+
 function renderAvatar(){
   const box = document.getElementById("avatarBox");
-  const dn = (authUser?.user_metadata?.display_name || "").trim();
-  const em = (authUser?.email || "").trim();
-  const label = dn || (em ? em.split("@")[0] : "user");
-  const url = (authUser?.user_metadata?.avatar_url || "").trim();
+  const dn = authUser?.user_metadata?.display_name || "";
+  const url = buildAvatarUrl();
 
   if (url){
-    box.innerHTML = `<img class="avatarBig" src="${escapeAttr(url)}" alt="avatar" loading="lazy" referrerpolicy="no-referrer" />`;
+    box.innerHTML = `<img class="avatarBig" src="${url}" />`;
   }else{
-    box.innerHTML = `<div class="avatarFallback">${escapeHtml(getInitial(label))}</div>`;
+    box.innerHTML = `<div class="avatarFallback">${escapeHtml(getInitial(dn))}</div>`;
   }
 }
 
-async function refreshUI(){
-  const dn = (authUser?.user_metadata?.display_name || "").trim();
-  document.getElementById("displayName").value = dn;
+function refreshUI(){
+  document.getElementById("displayName").value =
+    authUser?.user_metadata?.display_name || "";
   renderAvatar();
 }
 
-/* =================== 共通：最新userを取り直す（別端末反映のコア） =================== */
-async function refetchLatestUser(fallbackUser){
-  try{
-    await sb.auth.refreshSession();
-  }catch{}
-  const { data: u, error: uErr } = await sb.auth.getUser();
-  if (uErr) console.warn("getUser error:", uErr);
-  if (u?.user) return u.user;
-  return fallbackUser || null;
-}
-
-/* =================== 保存（表示名） =================== */
+/* ================= save ================= */
 async function saveDisplayName(){
   const dn = document.getElementById("displayName").value.trim();
-  if (!dn) return setStatus("表示名を入力してね！", false);
+  if (!dn) return setStatus("表示名を入力してね", false);
 
-  // ① Supabase に表示名を保存
   const { data, error } = await sb.auth.updateUser({
-    data: { display_name: dn }
+    data:{ display_name: dn }
   });
-  if (error) return setStatus("保存失敗: " + error.message, false);
+  if (error) return setStatus(error.message,false);
 
-  // ②〜④ 最新userを取り直す
-  authUser = await refetchLatestUser(data?.user || authUser);
-
-  // ⑤ 画面再描画
-  await refreshUI();
-  setStatus("表示名を保存しました！", true);
+  authUser = data.user;
+  refreshUI();
+  setStatus("保存しました！");
 }
 
-/* =================== アバターUP =================== */
 async function uploadAvatar(){
-  const file = document.getElementById("avatarFile").files?.[0];
-  if (!file) return setStatus("画像ファイルを選んでね！", false);
-  if (file.size > MAX_AVATAR_BYTES) return setStatus("画像が大きすぎるよ（最大2MB）", false);
+  const file = document.getElementById("avatarFile").files[0];
+  if (!file) return setStatus("画像を選んでね",false);
+  if (file.size > MAX_AVATAR_BYTES) return setStatus("2MB以下にしてね",false);
 
-  const safeName = safeFileName(file.name);
-  const path = `${authUser.id}/${Date.now()}_${safeName}`;
+  const path = `${authUser.id}/${Date.now()}_${file.name.replace(/[^\w.-]+/g,"_")}`;
+  setStatus("アップロード中…");
 
-  setStatus("アップロード中…", true);
-
-  const { error: upErr } = await sb
-    .storage
+  const { error:upErr } = await sb.storage
     .from(AVATAR_BUCKET)
-    .upload(path, file, {
-      cacheControl: "3600",
-      upsert: false,
-      contentType: file.type || "image/*"
-    });
+    .upload(path, file, { upsert:false });
 
-  if (upErr) return setStatus("アップロード失敗: " + upErr.message, false);
+  if (upErr) return setStatus(upErr.message,false);
 
-  const { data: pub } = sb.storage.from(AVATAR_BUCKET).getPublicUrl(path);
-  const url = pub?.publicUrl;
-  if (!url) return setStatus("publicUrl が取れなかった…", false);
+  const { data } = sb.storage.from(AVATAR_BUCKET).getPublicUrl(path);
+  const url = data.publicUrl;
 
-  const { data, error } = await sb.auth.updateUser({ data: { avatar_url: url } });
-  if (error) return setStatus("保存失敗: " + error.message, false);
+  const { data:ud, error } = await sb.auth.updateUser({
+    data:{
+      avatar_url: url,
+      avatar_ver: Date.now()   // ★ここが最重要
+    }
+  });
+  if (error) return setStatus(error.message,false);
 
-  // ★別端末反映のため：最新userを取り直す
-  authUser = await refetchLatestUser(data?.user || authUser);
-
-  // UIリセット
-  document.getElementById("avatarFile").value = "";
-  await refreshUI();
-  setStatus("アイコンを更新しました！", true);
+  authUser = ud.user;
+  document.getElementById("avatarFile").value="";
+  refreshUI();
+  setStatus("画像を更新しました！");
 }
 
 async function removeAvatar(){
-  const { data, error } = await sb.auth.updateUser({ data: { avatar_url: "" } });
-  if (error) return setStatus("削除失敗: " + error.message, false);
+  const { data, error } = await sb.auth.updateUser({
+    data:{
+      avatar_url:"",
+      avatar_ver: Date.now()
+    }
+  });
+  if (error) return setStatus(error.message,false);
 
-  // ★別端末反映のため：最新userを取り直す
-  authUser = await refetchLatestUser(data?.user || authUser);
-
-  await refreshUI();
-  setStatus("アイコンを削除しました！", true);
+  authUser = data.user;
+  refreshUI();
+  setStatus("削除しました");
 }
 
-/* =================== 起動 =================== */
-(async ()=>{
-  // URLにセッションが含まれてたら拾う（保険）
-  try{
-    const url = new URL(location.href);
-    const hasAuthParams =
-      url.searchParams.has("code") ||
-      url.searchParams.has("type") ||
-      url.searchParams.has("access_token") ||
-      url.searchParams.has("refresh_token") ||
-      (location.hash && (location.hash.includes("access_token=") || location.hash.includes("refresh_token=")));
+/* ================= init ================= */
+function goBack(){ location.replace(getBackUrl()); }
 
-    if (hasAuthParams) {
-      const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
-      if (!error && data?.session?.user) authUser = data.session.user;
-
-      // back/roomだけ残してURLをきれいにする
-      const sp = new URLSearchParams(location.search);
-      const back = sp.get("back") || "";
-      const room = sp.get("room") || "";
-      history.replaceState({}, document.title,
-        "./profile.html?back=" + encodeURIComponent(back) + "&room=" + encodeURIComponent(room)
-      );
-    }
-  }catch{}
-
-  if (!(await requireLoginOrRedirect())) return;
-
-  // ここでも最新userを取り直しておく（超安定）
-  authUser = await refetchLatestUser(authUser);
-
-  await refreshUI();
-
-  sb.auth.onAuthStateChange(async (event, session)=>{
-    const sessionUser = session?.user || null;
-    if (!sessionUser){
-      location.replace("./login.html");
-      return;
-    }
-
-    // ★状態変化後も最新userへ
-    const { data: u } = await sb.auth.getUser();
-    authUser = u?.user || sessionUser;
-
-    await refreshUI();
-  });
-
+(async()=>{
+  if (!await requireLogin()) return;
+  refreshUI();
 })();
 </script>
+
 </body>
 </html>
