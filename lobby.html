@@ -341,12 +341,21 @@ function updateTopRightUser(){
   const mail = document.getElementById("userMailText");
   if (!pill) return;
 
-  if (!authUser){
-    pill.textContent = "未ログイン";
-    if (mail) mail.textContent = "";
+if (!authUser){
+  pill.textContent = "未ログイン";
+  if (mail) mail.textContent = "";
+
+  // ★ここ重要：セッションが残ってるならログアウトは出す
+  sb.auth.getSession().then(({data})=>{
+    const hasSession = !!data?.session;
+    setTopRightButtons(hasSession); // セッションある→ログアウト出す / ない→ログイン出す
+  }).catch(()=>{
     setTopRightButtons(false);
-    return;
-  }
+  });
+
+  return;
+}
+
 
   const dn = (authUser.user_metadata?.display_name || "").trim();
   const em = (authUser.email || "").trim();
@@ -401,21 +410,39 @@ async function requireLoginOrRedirect(){
 /* =================== ログアウト =================== */
 function clearSupabaseLocalStorage(){
   try{
+    // Supabase v2 の保存キーを全部消す（これで“確実に”ローカルログアウト）
     for (const k of Object.keys(localStorage)){
       if (k.startsWith("sb-") || k.includes("supabase")) localStorage.removeItem(k);
     }
+    for (const k of Object.keys(sessionStorage)){
+      if (k.startsWith("sb-") || k.includes("supabase")) sessionStorage.removeItem(k);
+    }
   }catch(e){
-    log("clear storage warn", e);
+    console.warn("clear storage warn", e);
   }
 }
 
+// ★ rooms と同じ思想：ネットワークに失敗しても必ずログアウト扱いにする
 async function signOut(){
-  try { await sb.auth.signOut({ scope:"local" }); } catch (e) { log("signOut", e); }
-  clearSupabaseLocalStorage();     // ★壊れたセッション対策
-  authUser = null;
-  updateTopRightUser();
-  goLogin();
+  // ボタン連打対策
+  const btn = document.getElementById("signOutBtn");
+  if (btn) btn.disabled = true;
+
+  // 1) まずローカルを消す（最重要）
+  clearSupabaseLocalStorage();
+
+  // 2) 可能ならサーバにも signOut（失敗しても無視）
+  try{
+    // scope:"local" が不安定なら外してOK。rooms が成功してるならこれでもOK。
+    await sb.auth.signOut(); 
+  }catch(e){
+    console.warn("signOut warn", e);
+  }
+
+  // 3) どんな状態でもログインへ
+  location.replace("./login.html?_r=" + Date.now());
 }
+
 
 /* =================== Realtime =================== */
 async function startRealtime(){
@@ -716,3 +743,4 @@ function avatarHtml(url, label, ver){
 
 </body>
 </html>
+
