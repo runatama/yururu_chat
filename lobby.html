@@ -331,7 +331,6 @@ function updateTopRightUser(){
 
 /* =================== セッション復元（SYSTEM = lobby(10)） =================== */
 async function refreshAuth(){
-  // まずセッション確認（ログインしてるか）
   const { data: ses, error: sesErr } = await sb.auth.getSession();
   if (sesErr) log("getSession error", sesErr);
 
@@ -341,6 +340,23 @@ async function refreshAuth(){
     updateTopRightUser();
     return false;
   }
+
+  // ★追加：サーバー側の最新メタデータを拾いやすくする
+  try { await sb.auth.refreshSession(); } catch {}
+
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) log("getUser error", uErr);
+
+  authUser = u?.user || sessionUser;
+  updateTopRightUser();
+
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  const dnEl = document.getElementById("displayName");
+  if (dnEl && !dnEl.value) dnEl.value = dn;
+
+  return true;
+}
+
 
   // ★ここが重要：サーバーから最新userを取り直す
   // ★セッションを更新してから最新userを取る（別端末変更を拾う）
@@ -523,3 +539,4 @@ async function startCallParticipantsRealtime(){
 
 </body>
 </html>
+
