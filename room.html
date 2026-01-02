@@ -930,7 +930,9 @@ async function sendImage(){
 
     // 画像だけ送る場合もOK：msg本文は空でOK（画像行は別insert）
     const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-    const path = `${room}/${myUid()}/${Date.now()}_${safeName}`;
+    const roomKey = safeKey(room);
+　　const path = `${roomKey}/${myUid()}/${Date.now()}_${safeName}`;
+
 
     setUploadHint("アップロード中…");
 
@@ -1624,8 +1626,15 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 
   log("ready room=", room);
 })();
+
+  function safeKey(s){
+  // 日本語や記号を "_" に変換（Storage用）
+  return String(s || "").replace(/[^\w\-]+/g, "_") || "room";
+}
+
 </script>
 </body>
 </html>
+
 
 
