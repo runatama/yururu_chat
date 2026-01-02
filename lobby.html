@@ -75,6 +75,17 @@
       text-overflow:ellipsis;
     }
 
+.avatarSm{
+  width:26px;height:26px;border-radius:50%;
+  object-fit:cover;
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.10);
+  flex:0 0 auto;
+}
+.userBtn{
+  cursor:pointer;
+}
+
     button{
       cursor:pointer;
       border-radius:14px;
@@ -218,7 +229,8 @@
 <div class="topbar">
   <h2>🎧 ゆるるチャット – ロビー</h2>
   <div class="userBox">
-    <span class="userPill" id="userNamePill">未ログイン</span>
+    <img id="userAvatar" class="avatarSm" alt="avatar" style="display:none;" />
+    <button class="userPill userBtn" id="userNamePill" type="button" onclick="goProfile()">未ログイン</button>
     <span class="userText" id="userMailText"></span>
     <button class="btnPrimary" onclick="goLogin()" id="goLoginBtn" style="display:none;">ログイン</button>
     <button class="btnDanger" onclick="signOut()" id="signOutBtn">ログアウト</button>
@@ -302,6 +314,9 @@ function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
 function goRoom(roomName){
   location.replace("./room.html?room=" + encodeURIComponent(roomName) + "&_r=" + Date.now());
 }
+function goProfile(){
+  location.replace("./profile.html?back=lobby&_r=" + Date.now());
+}
 
 /* =================== 右上ユーザー表示 =================== */
 function updateTopRightUser(){
@@ -309,10 +324,12 @@ function updateTopRightUser(){
   const mail = document.getElementById("userMailText");
   const goBtn = document.getElementById("goLoginBtn");
   const soBtn = document.getElementById("signOutBtn");
+  const av = document.getElementById("userAvatar");
 
   if (!authUser){
     pill.textContent = "未ログイン";
     mail.textContent = "";
+    if (av){ av.style.display = "none"; av.removeAttribute("src"); }
     goBtn.style.display = "inline-block";
     soBtn.style.display = "none";
     return;
@@ -321,6 +338,12 @@ function updateTopRightUser(){
   const shown = dn || (authUser.email || "user").split("@")[0];
   pill.textContent = shown;
   mail.textContent = authUser.email || "";
+
+  const avatarUrl = (authUser.user_metadata?.avatar_url || "").trim();
+  if (av){
+    if (avatarUrl){ av.src = avatarUrl; av.style.display = "inline-block"; }
+    else { av.style.display = "none"; av.removeAttribute("src"); }
+  }
   goBtn.style.display = "none";
   soBtn.style.display = "inline-block";
 }
