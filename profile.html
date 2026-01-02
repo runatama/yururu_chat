@@ -230,14 +230,23 @@ function goBack(){
 
 /* =================== auth =================== */
 async function requireLoginOrRedirect(){
-  const { data } = await sb.auth.getSession();
-  authUser = data?.session?.user || null;
-  if(!authUser){
+  const { data: ses, error: sesErr } = await sb.auth.getSession();
+  if (sesErr) setStatus("getSession error: " + sesErr.message, false);
+
+  const sessionUser = ses?.session?.user || null;
+  if (!sessionUser){
     location.replace("./login.html");
     return false;
   }
+
+  // ★重要：サーバーから最新userを取得
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) setStatus("getUser error: " + uErr.message, false);
+
+  authUser = u?.user || sessionUser;
   return true;
 }
+
 
 async function signOut(){
   try { await sb.auth.signOut({ scope:"local" }); } catch {}
@@ -270,12 +279,35 @@ async function saveDisplayName(){
   const dn = document.getElementById("displayName").value.trim();
   if (!dn) return setStatus("表示名を入力してね！", false);
 
-  const { data, error } = await sb.auth.updateUser({ data: { display_name: dn } });
+  // ① Supabase に表示名を保存
+  const { data, error } = await sb.auth.updateUser({
+    data: { display_name: dn }
+  });
   if (error) return setStatus("保存失敗: " + error.message, false);
 
-  if (data?.user) authUser = data.user;
+  // ② セッションを更新（重要）
+  // → 他端末・他ページで古い user_metadata を掴まないため
+  await sb.auth.refreshSession();
+
+  // ③ サーバーから「最新の user」を取り直す（超重要）
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) {
+    console.warn("getUser error:", uErr);
+  }
+
+  // ④ authUser を最新で上書き
+  if (u?.user) {
+    authUser = u.user;
+  } else if (data?.user) {
+    // 念のためのフォールバック
+    authUser = data.user;
+  }
+
+  // ⑤ 画面再描画
   await refreshUI();
   setStatus("表示名を保存しました！", true);
+}
+
 }
 
 /* =================== アバターUP =================== */
@@ -347,13 +379,19 @@ async function removeAvatar(){
   await refreshUI();
 
   sb.auth.onAuthStateChange(async (event, session)=>{
-    authUser = session?.user || null;
-    if (!authUser){
-      location.replace("./login.html");
-      return;
-    }
-    await refreshUI();
-  });
+  const sessionUser = session?.user || null;
+  if (!sessionUser){
+    location.replace("./login.html");
+    return;
+  }
+
+  // ★重要：状態変化後も最新userへ
+  const { data: u } = await sb.auth.getUser();
+  authUser = u?.user || sessionUser;
+
+  await refreshUI();
+});
+
 })();
 </script>
 </body>
