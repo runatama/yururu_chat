@@ -322,27 +322,20 @@
     }
     .msgMeta{ color: rgba(234,242,255,.40); font-size:11px; }
 
-    .msgActions{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      flex:0 0 auto;
-    }
     .trashBtn{
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
       color: rgba(234,242,255,.85);
-      padding:6px 10px;
-      border-radius:12px;
+      width:28px;height:28px;
+      border-radius:10px;
       cursor:pointer;
-      font-size:12px;
-      line-height:1;
-      transition: background .15s ease, border-color .15s ease, transform .05s ease;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      transition: transform .05s ease, background .15s ease, border-color .15s ease;
+      flex: 0 0 auto;
     }
-    .trashBtn:hover{
-      background: rgba(255,255,255,.08);
-      border-color: rgba(255,255,255,.18);
-    }
+    .trashBtn:hover{ background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.22); }
     .trashBtn:active{ transform: translateY(1px); }
 
     .msgBody{
@@ -668,17 +661,6 @@ let micMuted = false;
 
 const pcs = new Map();        // peerId -> RTCPeerConnection
 const mutedMap = new Map();   // peerId -> muted(boolean)
-
-const makingOffer = new Map(); // peerId -> boolean
-function shouldCreateOffer(peerId){
-  // どちらがOfferを作るか決める（衝突防止）
-  // 文字列比較で固定（必ず片方だけがOffer担当）
-  return String(myUid()) < String(peerId);
-}
-function isPolitePeer(peerId){
-  // offer衝突時に受け入れる側（Perfect Negotiationの考え方）
-  return String(myUid()) > String(peerId);
-}
 let heartbeatTimer = null;
 const CALL_ALIVE_SEC = 30;
 
@@ -805,7 +787,7 @@ async function loadMessages(){
     .from("messages")
     .select("id, room_id, name, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by")
     .eq("room_id", room)
-        .order("created_at", { ascending:true })
+    .order("created_at", { ascending:true })
     .limit(200);
 
   if (error){ log("loadMessages error", error); return; }
@@ -822,82 +804,75 @@ async function loadMessages(){
     const left = document.createElement("div");
     left.textContent = (m.name || "");
 
-    // 右側（時刻 + 削除ボタン）
-    const actions = document.createElement("div");
-    actions.className = "msgActions";
-
     const meta = document.createElement("div");
     meta.className = "msgMeta";
     meta.textContent = fmtTime(m.created_at);
 
-    actions.appendChild(meta);
+    // 🗑️ 自分の投稿だけ削除ボタン（削除済み・systemは除外）
+    const canDelete =
+      !!myUid() &&
+      (m.user_id === myUid()) &&
+      !m.deleted &&
+      (String(m.name || "") !== "__system__");
 
-    // ✅ 自分が送ったメッセージだけゴミ箱を表示（本人だけ消せる）
-    if (m.user_id && m.user_id === myUid() && !m.deleted){
-      const del = document.createElement("button");
-      del.className = "trashBtn";
-      del.type = "button";
-      del.title = "自分のメッセージを削除";
-      del.textContent = "🗑️";
-      del.onclick = async ()=>{
-        await deleteMessage(m);
-      };
-      actions.appendChild(del);
+    if (canDelete){
+      const delBtn = document.createElement("button");
+      delBtn.className = "trashBtn";
+      delBtn.title = "このメッセージを削除（みんなに非表示 / サーバーには残る）";
+      delBtn.textContent = "🗑️";
+      delBtn.onclick = ()=> deleteMessage(m);
+      head.appendChild(left);
+      head.appendChild(meta);
+      head.appendChild(delBtn);
+    }else{
+      head.appendChild(left);
+      head.appendChild(meta);
     }
 
-    head.appendChild(left);
-    head.appendChild(actions);
     wrap.appendChild(head);
+
+    // ===== 削除済みならプレースホルダだけ表示（画像も表示しない） =====
+    if (m.deleted){
+      const ph = document.createElement("div");
+      ph.className = "msgExpired";
+      ph.textContent = m.image_url ? "🗑️ 画像は削除されました" : "🗑️ メッセージは削除されました";
+      wrap.appendChild(ph);
+      box.appendChild(wrap);
+      return;
+    }
 
     const bodyText = (m.message || "").trim();
     const isImagePlaceholder = (bodyText === IMAGE_PLACEHOLDER);
-    const hasImage = !!m.image_url;
 
-    if (m.deleted){
-      // ✅ 削除済み：本文や画像は表示しない（サーバーには残す）
-      if (!isImagePlaceholder){
-        const delMsg = document.createElement("div");
-        delMsg.className = "msgExpired";
-        delMsg.textContent = "🗑️ メッセージは削除されました";
-        wrap.appendChild(delMsg);
-      }
+    // ✅ 通常の文章は表示（[image]は表示しない）
+    if (bodyText && !isImagePlaceholder){
+      const body = document.createElement("div");
+      body.className = "msgBody";
+      body.textContent = bodyText;
+      wrap.appendChild(body);
+    }
 
-      if (hasImage || isImagePlaceholder){
-        const delImg = document.createElement("div");
-        delImg.className = "msgExpired";
-        delImg.textContent = "🗑️ 画像は削除されました";
-        wrap.appendChild(delImg);
-      }
-    }else{
-      // ✅ 通常表示
-      if (bodyText && !isImagePlaceholder){
-        const body = document.createElement("div");
-        body.className = "msgBody";
-        body.textContent = bodyText;
-        wrap.appendChild(body);
-      }
+    // ✅ 画像があるなら表示（削除済みではない時だけ）
+    if (m.image_url){
+      const img = document.createElement("img");
+      img.className = "msgImg";
+      img.src = m.image_url;
+      img.loading = "lazy";
+      img.alt = "image";
+      wrap.appendChild(img);
+    }
 
-      // ✅ 画像があるなら表示
-      if (hasImage){
-        const img = document.createElement("img");
-        img.className = "msgImg";
-        img.src = m.image_url;
-        img.loading = "lazy";
-        img.alt = "image";
-        wrap.appendChild(img);
-      }
-
-      // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
-      if (isImagePlaceholder && !hasImage){
-        const ex = document.createElement("div");
-        ex.className = "msgExpired";
-        ex.textContent = "🗑️ 画像は期限切れで削除されました";
-        wrap.appendChild(ex);
-      }
+    // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
+    if (isImagePlaceholder && !m.image_url){
+      const ex = document.createElement("div");
+      ex.className = "msgExpired";
+      ex.textContent = "🗑️ 画像は期限切れで削除されました";
+      wrap.appendChild(ex);
     }
 
     box.appendChild(wrap);
   });
+
 
   box.scrollTop = box.scrollHeight;
 }
@@ -916,33 +891,23 @@ async function sendMsg(){
   });
 
   if (error){ alert("送信失敗: " + error.message); }
-}
-
 
 /* =========================================================
-   🗑️ 自分の投稿だけ削除（本文 + 画像）
-   - UI: 自分の投稿にだけゴミ箱が出る
-   - DB: messages を自分だけ delete（RLS推奨）
-   - Storage: 画像がある場合は bucket から削除も試みる
+   🗑️ チャット削除（ソフト削除）
+   - 画面上は「削除されました」表示
+   - サーバー側は message / image_url を残す（確認用）
    ========================================================= */
-function extractStoragePathFromPublicUrl(url){
-  // 例: https://xxx.supabase.co/storage/v1/object/public/chat-images/ROOM/UID/xxx.png
-  if (!url) return "";
-  const marker = `/storage/v1/object/public/${IMAGE_BUCKET}/`;
-  const i = url.indexOf(marker);
-  if (i < 0) return "";
-  return url.substring(i + marker.length);
-}
-
-    async function deleteMessage(m){
+async function deleteMessage(m){
   try{
     if (!m?.id) return;
-    if ((m.user_id || "") !== myUid()) return;
+    if (!myUid()) return alert("ログイン情報がありません");
+    if (m.user_id !== myUid()) return alert("自分の投稿だけ削除できます");
+    if (m.deleted) return;
 
-    const ok = confirm("このメッセージをチャット上から削除しますか？\n（※サーバー側にはログとして残ります。Storageも削除しません）");
+    const ok = confirm("このメッセージを削除しますか？\n（全員の画面で非表示になります。サーバー側には記録が残ります）");
     if (!ok) return;
 
-    const { error } = await sb
+    const patch = await sb
       .from("messages")
       .update({
         deleted: true,
@@ -952,14 +917,92 @@ function extractStoragePathFromPublicUrl(url){
       .eq("id", m.id)
       .eq("user_id", myUid());
 
-    if (error) throw error;
+    if (patch.error){
+      log("deleteMessage error", patch.error);
+      alert("削除失敗: " + patch.error.message);
+      return;
+    }
 
     await loadMessages();
   }catch(e){
-    log("deleteMessage error", e);
-    alert("削除に失敗: " + (e?.message || e));
+    log("deleteMessage exception", e);
+    alert("削除失敗: " + (e?.message || e));
   }
 }
+
+}
+
+/* =========================================================
+   ★ 画像送信（修正版・完全）※ sendImage はこれ1個だけ！
+   ========================================================= */
+async function sendImage(){
+  const fileEl = document.getElementById("imgFile");
+  const file = fileEl.files?.[0];
+  const caption = document.getElementById("msg").value.trim();
+
+  if(!file) return alert("画像を選んでね！");
+  if(file.size > MAX_IMAGE_BYTES) return alert("画像は5MBまで！");
+  if(!file.type.startsWith("image/")) return alert("画像ファイルだけだよ！");
+
+  const btn = document.getElementById("sendImgBtn");
+  btn.disabled = true;
+  setUploadHint("画像アップロード中…");
+
+  try{
+    const uid = authUser?.id;
+    if(!uid) throw new Error("ログイン情報がありません");
+
+    // ★ 安全なパス
+    const safeRoom = (room || "room").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeUid  = uid.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    const ext = (file.name.split(".").pop() || "png")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g,"");
+
+    const path = `${safeRoom}/${safeUid}/${Date.now()}_${Math.random()
+      .toString(16).slice(2)}.${ext}`;
+
+    const up = await sb.storage
+      .from(IMAGE_BUCKET)
+      .upload(path, file, { cacheControl: "3600", upsert:false });
+
+    if(up.error) throw up.error;
+
+    const { data } = sb.storage
+      .from(IMAGE_BUCKET)
+      .getPublicUrl(path);
+
+    if(!data?.publicUrl) throw new Error("Public URL取得失敗");
+
+    // ★★★ DB制約回避：画像だけなら [image] を入れる ★★★
+    const msgForDb = caption ? caption : IMAGE_PLACEHOLDER;
+
+    const ins = await sb.from("messages").insert({
+      room_id: room,
+      name,
+      message: msgForDb,
+      image_url: data.publicUrl,
+      user_id: uid
+    });
+    if(ins.error) throw ins.error;
+
+    // UIリセット
+    fileEl.value = "";
+    document.getElementById("msg").value = "";
+    document.getElementById("imgName").textContent = "未選択";
+    setUploadHint("画像送信OK！");
+    await loadMessages();
+
+  }catch(e){
+    log("sendImage error", e);
+    alert("画像送信失敗: " + (e?.message || e));
+    setUploadHint("画像送信失敗…");
+  }finally{
+    btn.disabled = false;
+  }
+}
+
 /* =========================================================
    ルーム内「通話中の人」表示（call_participants から読む）
    ========================================================= */
@@ -1074,37 +1117,6 @@ function getSendStream(){
   return processedStream || localStream;
 }
 
-function attachTracksToPC(peerId){
-  const pc = pcs.get(peerId);
-  const sendStream = getSendStream();
-  if (!pc || !sendStream) return;
-
-  const senders = pc.getSenders ? pc.getSenders() : [];
-  const hasAudioSender = senders.some(s => s.track && s.track.kind === "audio");
-
-  // まだ送信トラックが無いなら追加
-  if (!hasAudioSender){
-    for (const t of sendStream.getTracks()){
-      pc.addTrack(t, sendStream);
-    }
-  }else{
-    // 既にあるなら差し替え（音量処理したStreamに切り替え）
-    for (const t of sendStream.getTracks()){
-      const sender = senders.find(s => s.track && s.track.kind === t.kind);
-      if (sender && sender.track !== t){
-        try{ sender.replaceTrack(t); }catch{}
-      }
-    }
-  }
-}
-
-function attachTracksToAllPCs(){
-  for (const [peerId] of pcs){
-    attachTracksToPC(peerId);
-  }
-}
-
-
 function ensureAudioEl(peerId){
   const id = "audio-" + peerId;
   let el = document.getElementById(id);
@@ -1216,26 +1228,11 @@ async function ensurePC(peerId){
 async function maybeMakeOffer(peerId){
   const pc = pcs.get(peerId);
   if (!pc) return;
-
-  // こちらがOffer担当じゃないなら何もしない（衝突防止）
-  if (!shouldCreateOffer(peerId)) return;
-
-  // すでに作成中ならスキップ
-  if (makingOffer.get(peerId)) return;
-
-  // stable以外はOffer作れない
   if (pc.signalingState !== "stable") return;
 
-  try{
-    makingOffer.set(peerId, true);
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    await sendSignal(peerId, { kind:"sdp", sdp: pc.localDescription });
-  }catch(e){
-    log("maybeMakeOffer error", peerId, e);
-  }finally{
-    makingOffer.set(peerId, false);
-  }
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await sendSignal(peerId, { kind:"sdp", sdp: pc.localDescription });
 }
 
 function closePC(peerId){
@@ -1268,51 +1265,40 @@ async function onSignal(payload){
   if (!from || !data) return;
   if (to && to !== myUid()) return;
 
-  // ★ hello: 接続開始の合図（衝突回避のため、UIDが小さい側だけofferを作る）
-  if (data.kind === "hello"){
+  // ★★ これを追加 ★★
+  if (data.kind === "hello") {
     await ensurePC(from);
-    if (String(myUid()) < String(from)){
-      await maybeMakeOffer(from);
-    }
+    await maybeMakeOffer(from);
     return;
   }
 
   await ensurePC(from);
   const pc = pcs.get(from);
-  if (!pc) return;
 
   if (data.kind === "sdp"){
     const desc = data.sdp;
     if (!desc) return;
 
     if (desc.type === "offer"){
-      try{
-        // ★ 衝突回避：もし自分がoffer中ならrollbackしてから相手offerを受ける
-        if (pc.signalingState !== "stable"){
-          try{ await pc.setLocalDescription({ type: "rollback" }); }catch{}
+      // ★ offer がぶつかったら rollback してから受ける（glare 対策）
+      if (pc.signalingState !== "stable"){
+        try{ await pc.setLocalDescription({ type: "rollback" }); }catch(e){ log("rollback failed", e); }
+      }
+      await pc.setRemoteDescription(desc);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await sendSignal(from, { kind:"sdp", sdp: pc.localDescription });
+    }else if (desc.type === "answer"){
+      // ★ 状態が合わない answer は無視（"stable" で setRemoteDescription すると例外になる）
+      if (pc.signalingState === "have-local-offer" || !pc.currentRemoteDescription){
+        try{
+          await pc.setRemoteDescription(desc);
+        }catch(e){
+          log("setRemoteDescription(answer) ignored", e);
         }
-        await pc.setRemoteDescription(desc);
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        await sendSignal(from, { kind:"sdp", sdp: pc.localDescription });
-      }catch(e){
-        log("handle offer error", e);
+      }else{
+        log("answer ignored (state=" + pc.signalingState + ")");
       }
-      return;
-    }
-
-    if (desc.type === "answer"){
-      // ★ こちらがofferを出している時だけanswerを適用（stableなら無視）
-      if (pc.signalingState !== "have-local-offer"){
-        log("ignore answer (wrong state)", from, pc.signalingState);
-        return;
-      }
-      try{
-        await pc.setRemoteDescription(desc);
-      }catch(e){
-        log("setRemoteDescription(answer) error", e);
-      }
-      return;
     }
   }
 
@@ -1322,15 +1308,14 @@ async function onSignal(payload){
     }catch(e){
       log("addIceCandidate error", e);
     }
-    return;
   }
 
   if (data.kind === "mute"){
     mutedMap.set(from, !!data.muted);
     refreshAudioTitles();
-    return;
   }
 }
+
 /* ===== call_participants（alive） ===== */
 async function upsertCallParticipant(){
   const { error } = await sb.from("call_participants").upsert({
@@ -1392,9 +1377,6 @@ async function joinCall(){
   await audioCtx.resume();
 }
 
-  // 既に作ってあるPCがあれば、ここで送信トラックを付け直す
-  attachTracksToAllPCs();
-
 
   // presence に参加情報を載せる
   if (callChannel){
@@ -1406,19 +1388,12 @@ async function joinCall(){
     });
   }
 
-  // ★★★ すでに部屋にいる人全員に hello（PC用意） + 片方だけOffer作成 ★★★
+  // ★★★ 超重要：すでに部屋にいる人全員に hello を送る ★★★
   const state = callChannel.presenceState() || {};
   for (const peerId of Object.keys(state)){
-    if (peerId === myUid()) continue;
-
-    // 相手にPCを作ってもらう
-    await sendSignal(peerId, { kind: "hello" });
-
-    // 自分もPC準備
-    await ensurePC(peerId);
-
-    // Offer担当（UID小さい側）だけOfferを出す
-    await maybeMakeOffer(peerId);
+    if (peerId !== myUid()){
+      await sendSignal(peerId, { kind: "hello" });
+    }
   }
 
   document.getElementById("callState").textContent = "通話に参加中";
@@ -1499,7 +1474,7 @@ function onPresenceSync(){
 }
 function onPresenceJoin(key, presences){
   refreshPresenceList();
-  refreshAudioTitles();
+  maybeMakeOffer(key);
 }
 function onPresenceLeave(key, presences){
   closePC(key);
@@ -1578,18 +1553,14 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 
   setReady(true, "待機中");
 
-  sb.auth.onAuthStateChange(async (event, session)=> {
-    authUser = session?.user || null;
+  sb.auth.onAuthStateChange(async ()=>{
+    const { data } = await sb.auth.getSession();
+    authUser = data?.session?.user || null;
     updateTop();
-
-    // ログアウト/セッション切れは即ログインへ
-    if (event === "SIGNED_OUT" || !authUser){
+    // もしログアウト状態になったらログインへ
+    if (!authUser){
       location.href = "./login.html";
-      return;
     }
-
-    // 表示名が変わった可能性があるので再取得
-    await reloadName();
   });
 
   log("ready room=", room);
