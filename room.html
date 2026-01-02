@@ -4,280 +4,664 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ゆるるチャット - Room</title>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     :root{
       --bg1:#0b1220;
-      --bg2:#0a1a2a;
-      --card:#0f1a2cdd;
-      --line:rgba(255,255,255,10);
+      --bg2:#0d1a33;
+      --card:rgba(255,255,255,.06);
+      --card2:rgba(255,255,255,.08);
+      --stroke:rgba(255,255,255,.10);
+      --stroke2:rgba(255,255,255,.14);
       --text:#eaf2ff;
-      --muted:rgba(234,242,255,65);
-      --accent:#6ee7ff;
-      --accent2:#a78bfa;
-      --good:#3be0a8;
+      --muted:rgba(234,242,255,.65);
+      --muted2:rgba(234,242,255,.45);
+      --good:#35d0a7;
+      --warn:#ffb84d;
       --bad:#ff6b6b;
+      --accent:#78a7ff;
+      --accent2:#a68bff;
+      --glow:rgba(120,167,255,.45);
+      --shadow: 0 16px 40px rgba(0,0,0,.35);
       --radius:18px;
-      --shadow: 0 18px 50px rgba(0,0,0,45);
+      --radius2:22px;
     }
-
     *{ box-sizing:border-box; }
     body{
       margin:0;
-      font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
       color:var(--text);
       background:
-        radial-gradient(900px 600px at 15% 20%, rgba(110,231,255,25), transparent 55%),
-        radial-gradient(900px 600px at 85% 25%, rgba(167,139,250,22), transparent 55%),
+        radial-gradient(1200px 600px at 20% 10%, rgba(120,167,255,.20), transparent 55%),
+        radial-gradient(900px 500px at 80% 40%, rgba(166,139,255,.18), transparent 55%),
+        radial-gradient(800px 700px at 30% 90%, rgba(53,208,167,.14), transparent 60%),
         linear-gradient(180deg, var(--bg1), var(--bg2));
-      padding: 16px;
+      min-height:100vh;
+      overflow-x:hidden;
     }
-
     .topbar{
+      position:sticky;
+      top:0;
+      z-index:50;
+      backdrop-filter: blur(14px);
+      background: linear-gradient(180deg, rgba(6,10,20,.78), rgba(6,10,20,.50));
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .topbarInner{
+      max-width:1100px;
+      margin:0 auto;
+      padding:12px 14px;
       display:flex;
-      justify-content:space-between;
       align-items:center;
+      justify-content:space-between;
       gap:12px;
-      margin-bottom: 12px;
-      flex-wrap: wrap;
     }
-    .titleBox{
-      display:flex;
-      flex-direction: column;
-      gap:2px;
-    }
-    h2{ margin:0; }
-    .subTitle{ color:var(--muted); font-size:12px; }
-
-    .pill{
+    .brand{
       display:flex;
       align-items:center;
       gap:10px;
-      padding:6px 12px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,06);
-      box-shadow:var(--shadow);
-      font-size:12px;
-      flex-wrap: wrap;
+      min-width: 240px;
+    }
+    .logo{
+      width:38px;height:38px;border-radius:14px;
+      background: radial-gradient(circle at 30% 30%, rgba(120,167,255,.95), rgba(166,139,255,.65) 55%, rgba(53,208,167,.35));
+      box-shadow: 0 0 0 1px rgba(255,255,255,.10), 0 10px 26px rgba(120,167,255,.18);
+    }
+    .brandText b{ display:block; font-size:14px; letter-spacing:.3px; }
+    .brandText span{ display:block; font-size:12px; color:var(--muted); margin-top:2px; }
+
+    .topActions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
       justify-content:flex-end;
-      max-width: 90vw;
+    }
+    .btn{
+      appearance:none;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      color:var(--text);
+      padding:10px 14px;
+      border-radius:14px;
+      cursor:pointer;
+      transition: transform .05s ease, background .15s ease, border-color .15s ease;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-weight:700;
+      box-shadow: 0 10px 20px rgba(0,0,0,.14);
+    }
+    .btn:hover{ background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.16); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{
+      background: linear-gradient(135deg, rgba(120,167,255,.35), rgba(166,139,255,.25));
+      border-color: rgba(120,167,255,.35);
+      box-shadow: 0 12px 26px rgba(120,167,255,.14);
+    }
+    .btn.danger{
+      background: linear-gradient(135deg, rgba(255,107,107,.25), rgba(166,139,255,.10));
+      border-color: rgba(255,107,107,.35);
+    }
+    .pill{
+      border:1px solid rgba(255,255,255,.10);
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      color:var(--muted);
+      background: rgba(255,255,255,.04);
+      white-space:nowrap;
     }
 
-    .avatarSm{
-      width:26px;height:26px;border-radius:50%;
-      object-fit:cover;
-      border:1px solid rgba(255,255,255,18);
-      background:rgba(255,255,255,10);
-      flex:0 0 auto;
-      vertical-align:middle;
+.avatar{
+  width:26px;height:26px;border-radius:50%;
+  object-fit:cover;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.10);
+  flex:0 0 auto;
+}
+.avatar.sm{ width:22px;height:22px; }
+.avatarFallback{
+  width:26px;height:26px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:900;
+  color:rgba(234,242,255,.9);
+  border:1px solid rgba(255,255,255,.14);
+  background: radial-gradient(circle at 30% 30%, rgba(120,167,255,.35), rgba(166,139,255,.22));
+  flex:0 0 auto;
+  user-select:none;
+}
+.avatarFallback.sm{ width:22px;height:22px;font-size:11px; }
+.userBtn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  cursor:pointer;
+  color:var(--muted);
+  font-size:12px;
+}
+.userBtn:hover{ background: rgba(255,255,255,.06); }
+.nameText{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  max-width: 240px;
+}
+
+    .wrap{
+      max-width:1100px;
+      margin:0 auto;
+      padding:16px 14px 26px;
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:14px;
+      align-items:start;
     }
-    .avatarSmFb{
-      width:26px;height:26px;border-radius:50%;
-      display:inline-flex;align-items:center;justify-content:center;
-      font-weight:900;font-size:12px;
-      color:rgba(234,242,255,92);
-      background:rgba(255,255,255,12);
-      border:1px solid rgba(255,255,255,18);
-      vertical-align:middle;
+    @media (max-width: 980px){
+      .wrap{ grid-template-columns: 1fr; }
+      .brand{ min-width:auto; }
     }
 
     .card{
-      border:1px solid var(--line);
-      background:var(--card);
-      padding:14px 14px;
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
-      margin: 12px 0;
-      backdrop-filter: blur(10px);
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius2);
+      box-shadow: var(--shadow);
+      overflow:hidden;
     }
-    .sectionTitle{
-      font-weight:800;
-      letter-spacing:0.3px;
-      margin: 0 0 8px 0;
-    }
-    .row{ display:flex; gap:8px; flex-wrap: wrap; align-items: center; }
-
-    input, textarea{
-      width: 320px;
-      max-width: 92vw;
-      padding: 10px 10px;
-      border-radius:12px;
-      border:1px solid rgba(255,255,255,14);
-      background:rgba(10,18,32,55);
-      color:var(--text);
-      outline:none;
-    }
-    textarea{ width: min(720px, 92vw); height: 110px; resize: vertical; }
-    input:focus, textarea:focus{ border-color: rgba(110,231,255,55); }
-
-    button{
-      padding: 9px 12px;
-      border-radius: 12px;
-      border:1px solid rgba(255,255,255,18);
-      background:rgba(255,255,255,10);
-      color:var(--text);
-      cursor:pointer;
-      transition: transform .05s ease, background .2s ease;
-    }
-    button:hover{ background:rgba(255,255,255,14); }
-    button:active{ transform: translateY(1px); }
-    button:disabled{ opacity:.5; cursor:not-allowed; }
-
-    .btnPrimary{
-      background: linear-gradient(90deg, rgba(110,231,255,25), rgba(167,139,250,22));
-      border-color: rgba(110,231,255,35);
-    }
-    .btnDanger{
-      background: rgba(255,107,107,16);
-      border-color: rgba(255,107,107,35);
-    }
-
-    .muted{ color:var(--muted); font-size:12px; }
-
-    #status{ margin-top: 8px; font-size: 12px; }
-    .ok{ color: var(--good); }
-    .ng{ color: var(--bad); }
-
-    #log{
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 12px;
-      white-space: pre-wrap;
-      line-height: 1.4;
-      color: rgba(234,242,255,85);
-      margin-top: 8px;
-    }
-
-    .msg{
-      border:1px solid rgba(255,255,255,10);
-      background: rgba(255,255,255,06);
-      border-radius: 14px;
-      padding: 10px;
-      margin: 8px 0;
-    }
-    .msgTop{
+    .cardHeader{
+      padding:12px 14px;
       display:flex;
-      justify-content:space-between;
       align-items:center;
+      justify-content:space-between;
       gap:10px;
-      flex-wrap: wrap;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.03);
     }
-    .msgName{
-      font-weight:900;
+    .cardHeader b{
       display:flex;
       align-items:center;
       gap:8px;
+      font-size:13px;
+      letter-spacing:.2px;
     }
-    .msgTime{ color: var(--muted); font-size: 11px; }
-    .msgText{ white-space: pre-wrap; margin-top: 8px; }
-    .msgDel{ font-size: 12px; }
+    .chip{
+      font-size:12px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      color:var(--muted);
+      background: rgba(255,255,255,.04);
+    }
+    .cardBody{ padding:14px; }
 
-    .callBox{
+    .field{
       display:flex;
-      flex-direction: column;
-      gap: 10px;
+      flex-direction:column;
+      gap:8px;
+      margin-bottom:12px;
     }
-    .readyRow{
+    .field label{ font-size:12px; color:var(--muted); }
+    input[type="text"], input[type="file"], textarea{
+      width:100%;
+      padding:12px 12px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(7,12,24,.45);
+      color:var(--text);
+      outline:none;
+    }
+    input::placeholder, textarea::placeholder{ color: rgba(234,242,255,.45); }
+    .hint{ font-size:12px; color:var(--muted2); line-height:1.5; }
+
+    .statusRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background: rgba(7,12,24,.35);
+      border:1px solid rgba(255,255,255,.08);
+      padding:10px 12px;
+      border-radius: 16px;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:50%;
+      background: rgba(234,242,255,.25);
+      box-shadow: 0 0 0 3px rgba(234,242,255,.06);
+      flex:0 0 auto;
+    }
+    .dot.ok{ background: var(--good); box-shadow: 0 0 0 3px rgba(53,208,167,.18); }
+    .dot.ng{ background: var(--bad); box-shadow: 0 0 0 3px rgba(255,107,107,.18); }
+    .statusText{
       display:flex;
       align-items:center;
       gap:10px;
-      flex-wrap: wrap;
+      flex:1;
+      min-width:0;
     }
-    .dot{
-      width: 10px; height: 10px; border-radius: 50%;
-      background: rgba(255,255,255,35);
-      box-shadow: 0 0 0 3px rgba(255,255,255,08);
+    .statusText b{ font-size:12px; }
+    .statusText span{ font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    .divider{ height:1px; background: rgba(255,255,255,.08); margin:14px 0; }
+
+    /* ===== call area ===== */
+    .callTop{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+      justify-content:space-between;
     }
-    .dotOn{
-      background: rgba(59,224,168,95);
-      box-shadow: 0 0 0 3px rgba(59,224,168,18);
+    .btnSmall{
+      padding:10px 12px;
+      border-radius:14px;
+      font-size:13px;
+    }
+    .btnAccent{
+      background: linear-gradient(135deg, rgba(53,208,167,.20), rgba(120,167,255,.15));
+      border-color: rgba(53,208,167,.30);
+    }
+    .btnAccent2{
+      background: linear-gradient(135deg, rgba(120,167,255,.22), rgba(166,139,255,.18));
+      border-color: rgba(120,167,255,.30);
+    }
+    .btnMuted{
+      background: rgba(255,255,255,.05);
+    }
+    .rangeRow{
+      margin-top:10px;
+      background: rgba(7,12,24,.30);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:16px;
+      padding:10px 12px;
+    }
+    .rangeRow .label{
+      font-size:12px; color:var(--muted);
+      display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:10px;
+    }
+    input[type="range"]{
+      width:100%;
+      accent-color: var(--accent);
     }
 
-    .nameText{ font-weight: 800; }
-    #activeUsers{ padding-left: 18px; margin: 0; }
+    /* ===== lists ===== */
+    .list{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .listItem{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 12px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.08);
+      background: rgba(7,12,24,.25);
+    }
+    .listItem .name{
+      font-size:13px;
+      color:var(--text);
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-width:0;
+    }
+    .listItem .sub{
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+    .badge{
+      padding:3px 8px;
+      border-radius:999px;
+      font-size:11px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      color:var(--muted);
+    }
+    .badge.good{ border-color: rgba(53,208,167,.30); color: rgba(165,255,230,.95); background: rgba(53,208,167,.10); }
+    .badge.warn{ border-color: rgba(255,184,77,.35); color: rgba(255,220,170,.95); background: rgba(255,184,77,.10); }
+    .badge.bad{ border-color: rgba(255,107,107,.35); color: rgba(255,190,190,.95); background: rgba(255,107,107,.10); }
+
+    /* ===== right side ===== */
+    .rightCol{
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      min-width:0;
+    }
+    .chatBox{
+      height: 520px;
+      overflow:auto;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      background: rgba(7,12,24,.25);
+      border-radius: var(--radius2);
+      border:1px solid rgba(255,255,255,.08);
+    }
+    @media (max-width: 980px){
+      .chatBox{ height: 50vh; }
+    }
+    .msgHead{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:6px;
+    }
+    .msgMeta{ color: rgba(234,242,255,.40); font-size:11px; }
+
+    .msgActions{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex:0 0 auto;
+    }
+    .trashBtn{
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      color: rgba(234,242,255,.85);
+      padding:6px 10px;
+      border-radius:12px;
+      cursor:pointer;
+      font-size:12px;
+      line-height:1;
+      transition: background .15s ease, border-color .15s ease, transform .05s ease;
+    }
+    .trashBtn:hover{
+      background: rgba(255,255,255,.08);
+      border-color: rgba(255,255,255,.18);
+    }
+    .trashBtn:active{ transform: translateY(1px); }
+
+    .msgBody{
+      font-size:14px;
+      line-height:1.5;
+      color:var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    /* ★期限切れ表示用 */
+    .msgExpired{
+      font-size:13px;
+      line-height:1.5;
+      color: rgba(234,242,255,.55);
+      border: 1px dashed rgba(255,255,255,.16);
+      background: rgba(255,255,255,.04);
+      padding: 10px 12px;
+      border-radius: 14px;
+      margin-top: 6px;
+    }
+    .msgImg{
+      margin-top:8px;
+      width:100%;
+      max-width:520px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: 0 12px 22px rgba(0,0,0,.22);
+    }
+    .composer{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      align-items:start;
+    }
+    .composer .left{
+      display:flex; flex-direction:column; gap:10px;
+      min-width:0;
+    }
+    .composer textarea{
+      min-height: 52px;
+      resize: vertical;
+    }
+    .composer .actions{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      align-items:stretch;
+    }
+    .fileRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background: rgba(7,12,24,.35);
+      border:1px solid rgba(255,255,255,.08);
+      padding:10px 12px;
+      border-radius: 16px;
+    }
+    .fileName{
+      font-size:12px; color:var(--muted);
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .tiny{ font-size:11px; color: rgba(234,242,255,.45); }
+    details{
+      border-top:1px solid rgba(255,255,255,.08);
+      margin-top:14px;
+      padding-top:10px;
+    }
+    summary{ cursor:pointer; color: var(--muted); font-size:12px; }
+    #log{
+      margin-top:10px;
+      white-space:pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:12px;
+      padding:10px 12px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(7,12,24,.35);
+      max-height: 200px;
+      overflow:auto;
+      color: rgba(234,242,255,.78);
+    }
+
+    /* ===== audio cards ===== */
+    #audios{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .audioWrap{
+      background: rgba(7,12,24,.35);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding:12px;
+      overflow:hidden;
+    }
+    .audioTitle{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .audioCtl{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-top:10px;
+      background: rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.08);
+      padding:10px 12px;
+      border-radius: 16px;
+    }
+    .audioCtl .lbl{ font-size:12px; color:var(--muted); }
+    .audioCtl .val{ font-size:12px; color:var(--text); min-width: 34px; text-align:right; }
   </style>
 </head>
 
 <body>
   <div class="topbar">
-    <div class="titleBox">
-      <h2>🧩 ルーム</h2>
-      <div class="subTitle" id="subTitle">Room</div>
-    </div>
+    <div class="topbarInner">
+      <div class="brand">
+        <div class="logo"></div>
+        <div class="brandText">
+          <b>ゆるるチャット</b>
+          <span id="subTitle">Room</span>
+        </div>
+      </div>
 
-    <div class="pill">
-      <div id="userPill"></div>
-      <button onclick="goProfile()">👤 プロフィール</button>
-      <button class="btnDanger" onclick="leaveRoom()">🚪 ロビーへ</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="sectionTitle">📍 ルーム名</div>
-    <div class="row">
-      <input id="roomName" placeholder="room" />
-      <button onclick="copyInvite()">招待URLコピー</button>
-      <span class="muted">現在: <b id="roomChip"></b></span>
+      <div class="topActions">
+        <button class="userBtn" id="userPill" type="button" onclick="goProfile()">未ログイン</button>
+        <button class="btn primary" onclick="goLobby()">🏠 ロビーへ</button>
+        <button class="btn danger" onclick="doLogout()">🚪 ログアウト</button>
+      </div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="sectionTitle">💬 メッセージ</div>
-    <div class="row">
-      <textarea id="message" placeholder="ここにメッセージ"></textarea>
-    </div>
-    <div class="row">
-      <button class="btnPrimary" onclick="sendMessage()">送信</button>
-      <button onclick="loadMessages()">更新</button>
+  <div class="wrap">
+    <!-- ===== left column ===== -->
+    <div class="leftCol">
+      <div class="card">
+        <div class="cardHeader">
+          <b>🏠 現在の部屋</b>
+          <span class="chip" id="roomChip">-</span>
+        </div>
+        <div class="cardBody">
+          <div class="field">
+            <label>部屋名</label>
+            <input id="roomName" type="text" readonly />
+          </div>
+          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btnSmall" onclick="leaveRoom()">🚪 退室</button>
+          </div>
+
+          <div style="margin-top:12px;" class="statusRow">
+            <div class="statusText">
+              <div class="dot" id="readyDot"></div>
+              <div style="min-width:0;">
+                <b id="readyTitle">準備OK</b>
+                <span id="readySub">待機中</span>
+              </div>
+            </div>
+            <span class="badge good" id="readyBadge">Ready</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cardHeader">
+          <b>🎙️ 音声通話（複数人）</b>
+          <span class="chip">Call</span>
+        </div>
+        <div class="cardBody">
+          <div class="callTop">
+            <button class="btn btnSmall primary btnAccent2" onclick="joinCall()" id="joinBtn">通話に参加（開始）</button>
+            <button class="btn btnSmall btnMuted" onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
+            <button class="btn btnSmall danger" onclick="leaveCall()" id="leaveBtn">通話退出</button>
+          </div>
+
+          <div class="rangeRow">
+            <div class="label">
+              <span>自分のマイク音量: <b id="micGainLabel">100</b></span>
+              <span class="tiny">※ 送信音量（あなたの声の大きさ）</span>
+            </div>
+            <input id="micGain" type="range" min="1" max="100" value="100" />
+            <div class="hint" style="margin-top:8px;" id="callState">未接続（必要なら通話に参加を押してね）</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="card" style="background:transparent;border:none;box-shadow:none;">
+            <div class="cardHeader" style="border:1px solid rgba(255,255,255,.08); border-radius:18px; margin-bottom:10px;">
+              <b>👥 参加者（通話：チャンネル接続中のみ表示）</b>
+              <span class="chip">Presence</span>
+            </div>
+            <div class="list" id="callUsersList">
+              <div class="hint">未接続</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="card" style="background:transparent;border:none;box-shadow:none;">
+            <div class="cardHeader" style="border:1px solid rgba(255,255,255,.08); border-radius:18px; margin-bottom:10px;">
+              <b>📞 今の部屋で通話してる人（通話に参加しなくても見える）</b>
+              <span class="chip">call_participants</span>
+            </div>
+            <div class="list" id="activeCallUsersList">
+              <div class="hint">今は誰も通話してないよ</div>
+            </div>
+          </div>
+
+          <details>
+            <summary>🔧 デバッグログ</summary>
+            <div id="log"></div>
+          </details>
+        </div>
+      </div>
     </div>
 
-    <div class="row" style="margin-top:10px;">
-      <input type="file" id="imgFile" accept="image/*" />
-      <span class="muted" id="imgName">未選択</span>
-      <button onclick="sendImage()">画像送信</button>
-    </div>
+    <!-- ===== right column ===== -->
+    <div class="rightCol">
+      <div class="card">
+        <div class="cardHeader">
+          <b>🔊 相手の音声（ここで相手の音量を調整）</b>
+          <span class="chip">Audio</span>
+        </div>
+        <div class="cardBody">
+          <div id="audios"></div>
+          <div class="hint" style="margin-top:10px;">
+            ※ 通話に参加して、相手と繋がるとここに音声が出るよ
+          </div>
+        </div>
+      </div>
 
-    <div id="status"></div>
-    <div id="messagesBox"></div>
+      <div class="card">
+        <div class="cardHeader">
+          <b>💬 チャット（画像OK）</b>
+          <span class="chip">Messages</span>
+        </div>
+        <div class="cardBody">
+          <div id="chat" class="chatBox"></div>
+
+          <div class="divider"></div>
+
+          <div class="composer">
+            <div class="left">
+              <textarea id="msg" placeholder="メッセージ（画像だけ送るなら空でもOK）"></textarea>
+
+              <div class="fileRow">
+                <div class="fileName" id="imgName">未選択</div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                  <input id="imgFile" type="file" accept="image/*" style="max-width:190px;" />
+                </div>
+              </div>
+
+              <div class="hint" id="uploadHint" style="margin-top:-2px;">
+                ※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="btn primary" onclick="sendMsg()">📨 送信</button>
+              <button class="btn btnAccent2" onclick="sendImage()" id="sendImgBtn">🖼️ 画像送信</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
-
-  <div class="card callBox">
-    <div class="sectionTitle">📞 通話</div>
-
-    <div class="readyRow">
-      <div class="dot" id="readyDot"></div>
-      <div class="muted" id="readySub">待機中</div>
-    </div>
-
-    <div class="row">
-      <button class="btnPrimary" onclick="joinCall()">参加</button>
-      <button onclick="leaveCall()">退出</button>
-      <button onclick="toggleMute()">ミュート切替</button>
-    </div>
-
-    <div class="row">
-      <label class="muted">マイク音量</label>
-      <input type="range" id="micGain" min="1" max="100" value="80" />
-      <span class="muted" id="micGainLabel">80</span>
-    </div>
-
-    <div class="muted">通話中メンバー（30秒以内に更新があった人だけ表示）</div>
-    <ul id="activeUsers"></ul>
-
-    <audio id="remoteAudio" autoplay></audio>
-  </div>
-
-  <details class="card">
-    <summary class="muted">🔧 デバッグログ</summary>
-    <div id="log"></div>
-  </details>
 
 <script>
 /* =================== Supabase 設定 =================== */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
+/* ★ログイン切れ対策：pkce/persistSession あり */
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
   (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
@@ -291,32 +675,53 @@ const sb = supabase.createClient(
   }
 );
 
-/* =================== 状態 =================== */
+/* 画像用（Public bucket名） */
+const IMAGE_BUCKET = "chat-images";
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+
+/* ★ 画像だけ投稿のダミー文字（DB制約回避用） */
+const IMAGE_PLACEHOLDER = "[image]";
+
+/* ===== 状態 ===== */
 let authUser = null;
 let room = "";
-let name = "名無しさん";
+let name = "";
 let myAvatarUrl = "";
 
-/* realtime channels */
-let msgChannel = null;
+let messagesChannel = null;
+
+/* ===== call_participants 監視（通話中一覧をリアルタイム更新） ===== */
+let callUsersChannel = null;
+
+/* ===== 通話 ===== */
 let callChannel = null;
-
-/* ===== call state ===== */
-let inCall = false;
-let pc = null;
 let localStream = null;
-let remoteStream = null;
 
+// ★送信音量（マイク）を 1-100 で調整するための WebAudio
+let audioCtx = null;
+let micSource = null;
+let micGainNode = null;
+let processedStream = null;   // Gain通過後の送信用Stream
+let myMicGain = 1.0;          // 0.0-1.0（UIは1-100）
+
+let micMuted = false;
+
+const pcs = new Map();        // peerId -> RTCPeerConnection
+const mutedMap = new Map();   // peerId -> muted(boolean)
+
+const makingOffer = new Map(); // peerId -> boolean
+function shouldCreateOffer(peerId){
+  // どちらがOfferを作るか決める（衝突防止）
+  // 文字列比較で固定（必ず片方だけがOffer担当）
+  return String(myUid()) < String(peerId);
+}
 let heartbeatTimer = null;
 const CALL_ALIVE_SEC = 30;
-const HEARTBEAT_SEC = 10;
 
-let micAudioCtx = null;
-let micGainNode = null;
-let micMuted = false;
-let myMicGain = 0.8;
+// ★相手ごとの受信音量
+const peerVolume = new Map(); // peerId -> 0.0-1.0
 
-/* =================== util: log =================== */
+/* ===== util ===== */
 function log(...args){
   const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
   console.log("[room]", ...args);
@@ -326,21 +731,18 @@ function log(...args){
   el.scrollTop = el.scrollHeight;
 }
 
-window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
-window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
-window.addEventListener("beforeunload", ()=>{
-  // 離脱時：通話中ならクリーンアップ（完全ではないが、残骸を減らす）
-  try{
-    if (inCall) {
-      stopHeartbeat();
-      try { sb.from('call_participants').delete().eq('room_id', room).eq('user_id', authUser?.id); } catch {}
-    }
-  }catch{}
-});
+function setUploadHint(t){
+  const el = document.getElementById("uploadHint");
+  if (el) el.textContent = t;
+}
 
-function setStatus(text, ok=true){
-  const el = document.getElementById("status");
-  el.innerHTML = `<span class="${ok?'ok':'ng'}">${escapeHtml(text)}</span>`;
+function getRoomFromUrl(){
+  const p = new URLSearchParams(location.search);
+  return (p.get("room") || "").trim();
+}
+
+function myUid(){
+  return authUser?.id || "";
 }
 
 function escapeHtml(s){
@@ -351,56 +753,58 @@ function escapeHtml(s){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
-function escapeAttr(s){ return escapeHtml(s).replaceAll('`','&#096;'); }
-function getInitial(s){ const t=String(s||'').trim(); if(!t) return '?'; return Array.from(t)[0] || '?'; }
-function avatarHtml(url, label){
-  const u = String(url||'').trim();
-  if (u) return `<img class="avatarSm" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
-  return `<span class="avatarSmFb">${escapeHtml(getInitial(label))}</span>`;
+
+function escapeAttr(s){
+  return escapeHtml(s).replaceAll("`","&#096;");
 }
-function bustAvatar(url){
-  const u = String(url||'').trim();
-  if (!u) return '';
-  const v = (authUser && authUser.updated_at) ? authUser.updated_at : String(Date.now());
-  return u + (u.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(v);
+function getInitial(s){
+  const t = String(s || "").trim();
+  if (!t) return "?";
+  return Array.from(t)[0] || "?";
+}
+function avatarHtml(url, label, size=""){
+  const cls = size ? `avatar ${size}` : "avatar";
+  const fbCls = size ? `avatarFallback ${size}` : "avatarFallback";
+  const u = String(url || "").trim();
+  if (u){
+    return `<img class="${cls}" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
+  }
+  return `<div class="${fbCls}">${escapeHtml(getInitial(label))}</div>`;
 }
 
-/* =================== navigation =================== */
-function goLobby(){ location.replace("./lobby.html?_r=" + Date.now()); }
-function goProfile(){
-  location.replace("./profile.html?back=room&room=" + encodeURIComponent(room) + "&_r=" + Date.now());
+
+/* =================== ナビ =================== */
+function goLobby(){
+  location.href = "./lobby.html";
 }
-async function leaveRoom(){
-  try{ await leaveCall(); }catch(e){ log('leaveCall in leaveRoom', e); }
+function goProfile(){
+  const rn = encodeURIComponent(room || "");
+  location.href = "./profile.html?back=room&room=" + rn + "&_r=" + Date.now();
+}
+async function doLogout(){
+  await sb.auth.signOut();
+  location.href = "./login.html";
+}
+function leaveRoom(){
   goLobby();
 }
-function copyInvite(){
-  const url = location.origin + location.pathname.replace(/[^/]+$/, "room.html") + "?room=" + encodeURIComponent(room);
-  navigator.clipboard.writeText(url).then(()=>setStatus("招待URLコピーした！", true)).catch(()=>setStatus("コピー失敗…", false));
-}
-function getRoomFromUrl(){
-  const p = new URLSearchParams(location.search);
-  return (p.get("room") || "").trim();
-}
 
-/* =================== auth =================== */
-async function requireLoginOrRedirect(){
-  const { data: ses, error: sesErr } = await sb.auth.getSession();
-  if (sesErr) setStatus("getSession error: " + sesErr.message, false);
+/* =================== 表示更新 =================== */
+function setReady(ok, sub){
+  const dot = document.getElementById("readyDot");
+  const subEl = document.getElementById("readySub");
+  const badge = document.getElementById("readyBadge");
 
-  const sessionUser = ses?.session?.user || null;
-  if (!sessionUser){
-    location.replace("./login.html");
-    return false;
+  if(ok){
+    dot.classList.add("ok"); dot.classList.remove("ng");
+    badge.className = "badge good";
+    badge.textContent = "Ready";
+  }else{
+    dot.classList.add("ng"); dot.classList.remove("ok");
+    badge.className = "badge bad";
+    badge.textContent = "NG";
   }
-
-  // ★別端末反映のため：refreshSession→getUser
-  try{ await sb.auth.refreshSession(); }catch{}
-  const { data: u, error: uErr } = await sb.auth.getUser();
-  if (uErr) setStatus("getUser error: " + uErr.message, false);
-
-  authUser = u?.user || sessionUser;
-  return true;
+  subEl.textContent = sub || "";
 }
 
 function updateTop(){
@@ -410,335 +814,853 @@ function updateTop(){
   const shown = dn ? dn : (em ? em : "未ログイン");
 
   const av = (authUser?.user_metadata?.avatar_url || "").trim();
-  pill.innerHTML = `${avatarHtml(bustAvatar(av), shown)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
+  pill.innerHTML = `${avatarHtml(av, shown)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
 }
 
 async function reloadName(){
+  // authUser は requireLoginOrRedirect() で最新を取り直している想定
   const dn = (authUser?.user_metadata?.display_name || "").trim();
   const em = (authUser?.email || "").trim();
   name = dn || em || "名無しさん";
+
+  // ★他端末でも反映させるため：必ず user_metadata.avatar_url を使う
   myAvatarUrl = (authUser?.user_metadata?.avatar_url || "").trim();
+
+  // 入力欄などがある場合はここで反映してOK（今はトップ表示で使うだけ）
 }
 
-/* =================== 表示更新 =================== */
-function setReady(ok, sub){
-  const dot = document.getElementById("readyDot");
-  const subEl = document.getElementById("readySub");
-  if (ok) dot.classList.add("dotOn");
-  else dot.classList.remove("dotOn");
-  subEl.textContent = sub || "";
-}
+/* =================== ログイン必須 =================== */
+async function requireLoginOrRedirect(){
+  const { data: ses, error: sesErr } = await sb.auth.getSession();
+  if (sesErr) log("getSession error", sesErr);
 
-/* =================== messages =================== */
-async function loadMessages(){
-  const box = document.getElementById("messagesBox");
-  box.innerHTML = `<div class="muted">読み込み中…</div>`;
-
-  const { data, error } = await sb
-    .from("messages_v2")
-    .select("*")
-    .eq("room_id", room)
-    .order("created_at", { ascending: true })
-    .limit(200);
-
-  if (error){
-    box.innerHTML = `<div class="ng">読み込み失敗: ${escapeHtml(error.message)}</div>`;
-    log("loadMessages error", error);
-    return;
+  const sessionUser = ses?.session?.user || null;
+  if (!sessionUser){
+    location.href = "./login.html";
+    return false;
   }
 
-  box.innerHTML = "";
-  (data || []).forEach(m => box.appendChild(renderMessage(m)));
+  // ★追加：サーバーから最新userを取り直す
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) log("getUser error", uErr);
+
+  authUser = u?.user || sessionUser;
+  return true;
 }
 
-function renderMessage(m){
-  const wrap = document.createElement("div");
-  wrap.className = "msg";
 
-  const isMine = authUser && (String(m.user_id) === String(authUser.id));
-  const dn = (m.display_name || "").trim() || "名無しさん";
-  const av = (m.avatar_url || "").trim();
-  const t = m.created_at ? new Date(m.created_at).toLocaleString() : "";
 
-  let body = "";
-  if (m.is_deleted){
-    body = `<div class="muted">（メッセージは削除されました）</div>`;
-  }else if (m.image_url){
-    body = `
-      <div class="msgText">${escapeHtml(m.text || "")}</div>
-      <div style="margin-top:10px;">
-        <img src="${escapeAttr(m.image_url)}" alt="img" style="max-width:min(680px,92vw);border-radius:14px;border:1px solid rgba(255,255,255,12);" />
-      </div>
-    `;
-  }else{
-    body = `<div class="msgText">${escapeHtml(m.text || "")}</div>`;
-  }
-
-  wrap.innerHTML = `
-    <div class="msgTop">
-      <div class="msgName">${avatarHtml(av, dn)} <span>${escapeHtml(dn)}</span></div>
-      <div class="row">
-        <span class="msgTime">${escapeHtml(t)}</span>
-        ${isMine && !m.is_deleted ? `<button class="msgDel btnDanger" onclick="deleteMessage('${escapeAttr(m.id)}')">削除</button>` : ``}
-      </div>
-    </div>
-    ${body}
-  `;
-  return wrap;
-}
-
-async function sendMessage(){
-  const ta = document.getElementById("message");
-  const text = (ta.value || "").trim();
-  if (!text) return;
-
-  const payload = {
-    room_id: room,
-    user_id: authUser.id,
-    display_name: (authUser.user_metadata?.display_name || "").trim() || name,
-    avatar_url: (authUser.user_metadata?.avatar_url || "").trim() || "",
-    text
-  };
-
-  const { error } = await sb.from("messages_v2").insert(payload);
-  if (error){
-    setStatus("送信失敗: " + error.message, false);
-    log("sendMessage error", error);
-    return;
-  }
-
-  ta.value = "";
-  setStatus("送信OK", true);
-}
-
-async function deleteMessage(messageId){
-  if (!authUser) return setStatus("未ログイン", false);
-
-  const ok = confirm("このメッセージを削除する？（自分のだけ）");
-  if (!ok) return;
-
-  const { error } = await sb
-    .from("messages_v2")
-    .update({ is_deleted: true, text: "" })
-    .eq("id", messageId)
-    .eq("user_id", authUser.id);
-
-  if (error){
-    setStatus("削除失敗: " + error.message, false);
-    log("deleteMessage error", error);
-    return;
-  }
-  setStatus("削除した！", true);
-}
-
-/* =================== images =================== */
-const IMG_BUCKET = "chat_images";
-const MAX_IMG_BYTES = 5 * 1024 * 1024;
-
-async function sendImage(){
-  const file = document.getElementById("imgFile").files?.[0];
-  if (!file) return setStatus("画像を選んでね！", false);
-  if (file.size > MAX_IMG_BYTES) return setStatus("画像が大きすぎる（最大5MB）", false);
-
-  setStatus("画像アップ中…", true);
-
-  const safeName = safeFileName(file.name);
-  const path = `${safeKey(room)}/${authUser.id}/${Date.now()}_${safeName}`;
-
-  const { error: upErr } = await sb
-    .storage.from(IMG_BUCKET)
-    .upload(path, file, {
-      cacheControl: "3600",
-      upsert: false,
-      contentType: file.type || "image/*"
-    });
-
-  if (upErr){
-    setStatus("アップ失敗: " + upErr.message, false);
-    log("sendImage upload error", upErr);
-    return;
-  }
-
-  const { data: pub } = sb.storage.from(IMG_BUCKET).getPublicUrl(path);
-  const url = pub?.publicUrl;
-  if (!url) return setStatus("publicUrl 取れなかった…", false);
-
-  const payload = {
-    room_id: room,
-    user_id: authUser.id,
-    display_name: (authUser.user_metadata?.display_name || "").trim() || name,
-    avatar_url: (authUser.user_metadata?.avatar_url || "").trim() || "",
-    text: "",
-    image_url: url
-  };
-
-  const { error } = await sb.from("messages_v2").insert(payload);
-  if (error){
-    setStatus("送信失敗: " + error.message, false);
-    log("sendImage insert error", error);
-    return;
-  }
-
-  document.getElementById("imgFile").value = "";
-  document.getElementById("imgName").textContent = "未選択";
-  setStatus("画像送信OK", true);
-}
-
-function safeFileName(name){
-  return String(name || "image.png").replace(/[^\w.\-]+/g, "_");
-}
-
-/* =================== messages realtime =================== */
+/* =========================================================
+   チャット（messages）
+   ========================================================= */
 async function startMessagesRealtime(){
-  if (msgChannel) return;
+  if (messagesChannel) return;
 
-  msgChannel = sb
-    .channel("messages-ch-" + room)
-    .on("postgres_changes", { event:"*", schema:"public", table:"messages_v2", filter: `room_id=eq.${room}` }, async () => {
-      await loadMessages();
+  messagesChannel = sb
+    .channel("messages-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"messages_v2" }, async (payload)=>{
+      const nr = payload.new || {};
+      const or = payload.old || {};
+      const rid = nr.room_id || or.room_id;
+      if (rid === room) await loadMessages();
     })
     .subscribe();
 }
 
-/* =================== call_participants =================== */
-async function loadActiveCallUsers(){
-  const ul = document.getElementById("activeUsers");
-  ul.innerHTML = "";
+function fmtTime(iso){
+  try{
+    const d = new Date(iso);
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mm = String(d.getMinutes()).padStart(2,"0");
+    return `${hh}:${mm}`;
+  }catch{
+    return "";
+  }
+}
 
+async function loadMessages(){
+  const { data, error } = await sb
+    .from("messages_v2")
+    .select("id, room_id, name, avatar_url, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by")
+    .eq("room_id", room)
+    .order("created_at", { ascending:true })
+    .limit(200);
+
+  if (error){ log("loadMessages error", error); return; }
+
+  const box = document.getElementById("chat");
+  box.innerHTML = "";
+
+  (data || []).forEach(m=>{
+    const wrap = document.createElement("div");
+
+    const head = document.createElement("div");
+    head.className = "msgHead";
+
+    const left = document.createElement("div");
+    left.style.display = "flex";
+    left.style.alignItems = "center";
+    left.style.gap = "8px";
+    left.innerHTML = `${avatarHtml(m.avatar_url, (m.name || ""), "sm")} <span class="nameText">${escapeHtml(m.name || "")}</span>`;
+
+    // 右側（時刻 + 削除ボタン）
+    const actions = document.createElement("div");
+    actions.className = "msgActions";
+
+    const meta = document.createElement("div");
+    meta.className = "msgMeta";
+    meta.textContent = fmtTime(m.created_at);
+
+    actions.appendChild(meta);
+
+    // ✅ 自分が送ったメッセージだけゴミ箱を表示（本人だけ消せる）
+    if (m.user_id && m.user_id === myUid() && !m.deleted){
+      const del = document.createElement("button");
+      del.className = "trashBtn";
+      del.type = "button";
+      del.title = "自分のメッセージを削除";
+      del.textContent = "🗑️";
+      del.onclick = async ()=>{
+        await deleteMessage(m);
+      };
+      actions.appendChild(del);
+    }
+
+    head.appendChild(left);
+    head.appendChild(actions);
+    wrap.appendChild(head);
+
+    const bodyText = (m.message || "").trim();
+    const isImagePlaceholder = (bodyText === IMAGE_PLACEHOLDER);
+    const hasImage = !!m.image_url;
+
+    if (m.deleted){
+      // ✅ 削除済み：本文や画像は表示しない（サーバーには残す）
+      if (!isImagePlaceholder){
+        const delMsg = document.createElement("div");
+        delMsg.className = "msgExpired";
+        delMsg.textContent = "🗑️ メッセージは削除されました";
+        wrap.appendChild(delMsg);
+      }
+
+      if (hasImage || isImagePlaceholder){
+        const delImg = document.createElement("div");
+        delImg.className = "msgExpired";
+        delImg.textContent = "🗑️ 画像は削除されました";
+        wrap.appendChild(delImg);
+      }
+    }else{
+      // ✅ 通常表示
+      if (bodyText && !isImagePlaceholder){
+        const body = document.createElement("div");
+        body.className = "msgBody";
+        body.textContent = bodyText;
+        wrap.appendChild(body);
+      }
+
+      // ✅ 画像があるなら表示
+      if (hasImage){
+        const img = document.createElement("img");
+        img.className = "msgImg";
+        img.src = m.image_url;
+        img.loading = "lazy";
+        img.alt = "image";
+        wrap.appendChild(img);
+      }
+
+      // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
+      if (isImagePlaceholder && !hasImage){
+        const ex = document.createElement("div");
+        ex.className = "msgExpired";
+        ex.textContent = "🗑️ 画像は期限切れで削除されました";
+        wrap.appendChild(ex);
+      }
+    }
+
+    box.appendChild(wrap);
+  });
+
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendMsg(){
+  const v = document.getElementById("msg").value.trim();
+  if (!v) return;
+  document.getElementById("msg").value = "";
+
+  const { error } = await sb.from("messages_v2").insert({
+    room_id: room,
+    name,
+    avatar_url: myAvatarUrl,
+    message: v,
+    image_url: null,
+    user_id: myUid()
+  });
+
+  if (error){ alert("送信失敗: " + error.message); }
+}
+
+/* ===== 画像送信 ===== */
+async function sendImage(){
+  try{
+    const fileInput = document.getElementById("imgFile");
+    const file = fileInput.files?.[0];
+    if (!file){
+      alert("画像ファイルを選んでね！");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES){
+      alert("画像が大きすぎるよ（最大5MB）");
+      return;
+    }
+
+    // 画像だけ送る場合もOK：msg本文は空でOK（画像行は別insert）
+    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+    const roomKey = safeKey(room);
+    const path = `${roomKey}/${myUid()}/${Date.now()}_${safeName}`;
+
+
+    setUploadHint("アップロード中…");
+
+    const { error: upErr } = await sb
+      .storage
+      .from(IMAGE_BUCKET)
+      .upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || "image/*"
+      });
+
+    if (upErr) throw upErr;
+
+    const { data: pub } = sb.storage.from(IMAGE_BUCKET).getPublicUrl(path);
+    const imageUrl = pub?.publicUrl;
+    if (!imageUrl) throw new Error("publicUrl が取得できなかった…");
+
+    const { error: insErr } = await sb.from("messages_v2").insert({
+      room_id: room,
+      name,
+      avatar_url: myAvatarUrl,
+      message: IMAGE_PLACEHOLDER,
+      image_url: imageUrl,
+      user_id: myUid()
+    });
+
+    if (insErr) throw insErr;
+
+    // UIリセット
+    fileInput.value = "";
+    document.getElementById("imgName").textContent = "未選択";
+    setUploadHint("※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）");
+
+    await loadMessages();
+  }catch(e){
+    log("sendImage error", e);
+    alert("画像送信に失敗: " + (e?.message || e));
+    setUploadHint("※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）");
+  }
+}
+
+/* =========================================================
+   🗑️ 自分の投稿だけ削除（本文 + 画像）
+   - deletedフラグで「削除されました」表示にする
+   ========================================================= */
+async function deleteMessage(m){
+  try{
+    if (!m?.id) return;
+
+    const uid = myUid();
+    console.log("[delete] uid=", uid, "m.id=", m.id, "m.user_id=", m.user_id);
+
+    if (!uid){
+      alert("ログインが切れてるっぽい！ログインし直してね");
+      location.href = "./login.html";
+      return;
+    }
+    if ((m.user_id || "") !== uid) return;
+
+    const payload = {
+      deleted: true,
+      deleted_at: new Date().toISOString(),
+      deleted_by: uid
+    };
+    console.log("[delete] payload=", payload);
+
+    const { data, error } = await sb
+      .from("messages_v2")
+      .update(payload)
+      .eq("id", m.id)
+      .eq("user_id", uid)
+      .select("id, deleted, deleted_at, deleted_by");
+
+    console.log("[delete] data=", data);
+    if (error){
+      console.log("[delete] error(full)=", error);
+      throw error;
+    }
+
+    await loadMessages();
+  }catch(e){
+    console.log("[delete] catch=", e);
+    alert("削除に失敗: " + (e?.message || e));
+  }
+}
+
+/* =========================================================
+   ルーム内「通話中の人」表示（call_participants から読む）
+   ========================================================= */
+async function loadActiveCallUsers(){
   const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
 
   const { data, error } = await sb
     .from("call_participants")
-    .select("*")
+    .select("user_id, name, avatar_url, updated_at")
     .eq("room_id", room)
     .gte("updated_at", cutoff)
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending:false });
+
+  const box = document.getElementById("activeCallUsersList");
+  box.innerHTML = "";
 
   if (error){
     log("loadActiveCallUsers error", error);
-    ul.innerHTML = `<li class="ng">読み込み失敗: ${escapeHtml(error.message)}</li>`;
+    box.innerHTML = "<div class='hint' style='color:#ff6b6b;'>通話中メンバー取得失敗</div>";
     return;
   }
 
-  (data || []).forEach(p => {
-    const li = document.createElement("li");
-    li.textContent = (p.display_name || "名無しさん") + (String(p.user_id) === String(authUser?.id) ? "（自分）" : "");
-    ul.appendChild(li);
-  });
+  const list = (data || []).map(x=>({
+    user_id: x.user_id,
+    name: (x.name || x.user_id || "").toString(),
+    avatar_url: (x.avatar_url || "").toString()
+  }));
+
+  if (list.length === 0){
+    box.innerHTML = "<div class='hint'>今は誰も通話してないよ</div>";
+    return;
+  }
+
+  const seen = new Set();
+  const uniq = [];
+  for (const p of list){
+    const k = p.user_id || p.name;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    uniq.push(p);
+  }
+
+  for (const p of uniq){
+    const row = document.createElement("div");
+    row.className = "listItem";
+    row.innerHTML = `
+      <div class="name">🎧 ${avatarHtml(p.avatar_url, p.name, "sm")} <span class="nameText">${escapeHtml(p.name)}</span></div>
+      <div class="sub"><span class="badge good">通話中</span></div>
+    `;
+    box.appendChild(row);
+  }
 }
 
+/* ===== call_participants realtime（部屋の通話中一覧） ===== */
 async function startCallParticipantsRealtime(){
-  if (callChannel) return;
+  if (callUsersChannel) return;
 
-  callChannel = sb
-    .channel("call-participants-ch-" + room)
-    .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async (payload) => {
+  callUsersChannel = sb
+    .channel("call-users-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async (payload)=>{
       const nr = payload.new || {};
       const or = payload.old || {};
       const rid = nr.room_id || or.room_id;
-      if (rid === room){
-        await loadActiveCallUsers();
-      }
+      if (rid === room) await loadActiveCallUsers();
     })
     .subscribe();
+}
+
+/* =========================================================
+   通話（Supabase Realtime Broadcast）
+   ========================================================= */
+async function startCallChannel(){
+  if (callChannel) return;
+
+  callChannel = sb.channel(`call-${room}`, {
+    config: {
+      broadcast: { self: false },
+      presence: { key: myUid() }
+    }
+  });
+
+  callChannel
+    .on("broadcast", { event:"signal" }, async ({ payload })=>{
+      await onSignal(payload);
+    })
+    .on("presence", { event:"sync" }, ()=>{
+      onPresenceSync();
+    })
+    .on("presence", { event:"join" }, ({ key, newPresences })=>{
+      onPresenceJoin(key, newPresences);
+    })
+    .on("presence", { event:"leave" }, ({ key, leftPresences })=>{
+      onPresenceLeave(key, leftPresences);
+    });
+
+  const { error } = await callChannel.subscribe(async (status)=>{
+    log("call channel status:", status);
+    if (status === "SUBSCRIBED"){
+      await callChannel.track({
+        user_id: myUid(),
+        name,
+        avatar_url: myAvatarUrl,
+        muted: micMuted,
+        at: new Date().toISOString()
+      });
+      await refreshPresenceList();
+    }
+  });
+
+  if (error) log("callChannel subscribe error", error);
+}
+
+function getSendStream(){
+  return processedStream || localStream;
+}
+
+function attachTracksToPC(peerId){
+  const pc = pcs.get(peerId);
+  const sendStream = getSendStream();
+  if (!pc || !sendStream) return;
+
+  const senders = pc.getSenders ? pc.getSenders() : [];
+  const hasAudioSender = senders.some(s => s.track && s.track.kind === "audio");
+
+  if (!hasAudioSender){
+    for (const t of sendStream.getTracks()){
+      pc.addTrack(t, sendStream);
+    }
+  }else{
+    for (const t of sendStream.getTracks()){
+      const sender = senders.find(s => s.track && s.track.kind === t.kind);
+      if (sender && sender.track !== t){
+        try{ sender.replaceTrack(t); }catch{}
+      }
+    }
+  }
+}
+
+function attachTracksToAllPCs(){
+  for (const [peerId] of pcs){
+    attachTracksToPC(peerId);
+  }
+}
+
+function ensureAudioEl(peerId){
+  const id = "audio-" + peerId;
+  let el = document.getElementById(id);
+  if (el) return el;
+
+  const wrap = document.createElement("div");
+  wrap.className = "audioWrap";
+  wrap.id = "audioWrap-" + peerId;
+
+  const titleRow = document.createElement("div");
+  titleRow.className = "audioTitle";
+  titleRow.innerHTML = `<span id="audioTitle-${peerId}">🔊 相手: ${peerId}</span> <span class="badge" id="muteBadge-${peerId}">mute?</span>`;
+
+  el = document.createElement("audio");
+  el.id = id;
+  el.autoplay = true;
+  el.playsInline = true;
+  el.controls = true;
+
+  const v = peerVolume.get(peerId) ?? 1.0;
+  el.volume = v;
+
+  const ctl = document.createElement("div");
+  ctl.className = "audioCtl";
+
+  const labelText = document.createElement("div");
+  labelText.className = "lbl";
+  labelText.textContent = "相手の音量";
+
+  const label = document.createElement("div");
+  label.className = "val";
+  label.textContent = String(Math.round(v * 100));
+
+  const range = document.createElement("input");
+  range.type = "range";
+  range.min = "1";
+  range.max = "100";
+  range.value = String(Math.round(v * 100));
+  range.oninput = ()=>{
+    const n = Math.max(1, Math.min(100, Number(range.value)));
+    const vv = n / 100;
+    peerVolume.set(peerId, vv);
+    label.textContent = String(n);
+    el.volume = vv;
+  };
+
+  ctl.appendChild(labelText);
+  ctl.appendChild(label);
+  ctl.appendChild(range);
+
+  wrap.appendChild(titleRow);
+  wrap.appendChild(el);
+  wrap.appendChild(ctl);
+
+  document.getElementById("audios").appendChild(wrap);
+  refreshAudioTitles();
+
+  return el;
+}
+
+function refreshAudioTitles(){
+  const st = callChannel?.presenceState?.() || {};
+  for (const [peerId] of pcs){
+    const pres = st[peerId]?.[0];
+    const nm = pres?.name || peerId;
+    const t = document.getElementById("audioTitle-" + peerId);
+    if (t) t.textContent = `🔊 相手: ${nm}`;
+
+    const badge = document.getElementById("muteBadge-" + peerId);
+    const muted = mutedMap.get(peerId);
+    if (badge){
+      badge.textContent = muted ? "MUTE" : "ON";
+      badge.className = "badge " + (muted ? "bad" : "good");
+    }
+  }
+}
+
+async function ensurePC(peerId){
+  if (peerId === myUid()) return;
+  if (pcs.has(peerId)) return;
+
+  const pc = new RTCPeerConnection({
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+  });
+
+  pcs.set(peerId, pc);
+
+  pc.onicecandidate = async (ev)=>{
+    if (ev.candidate) await sendSignal(peerId, { kind:"ice", candidate: ev.candidate });
+  };
+  pc.onconnectionstatechange = ()=> log("pc state", peerId, pc.connectionState);
+  pc.oniceconnectionstatechange = ()=> log("ice state", peerId, pc.iceConnectionState);
+
+  pc.ontrack = (ev)=>{
+    const el = ensureAudioEl(peerId);
+    el.srcObject = ev.streams[0];
+  };
+
+  const sendStream = getSendStream();
+  if (sendStream){
+    for (const t of sendStream.getTracks()){
+      pc.addTrack(t, sendStream);
+    }
+  }
+}
+
+async function maybeMakeOffer(peerId){
+  const pc = pcs.get(peerId);
+  if (!pc) return;
+
+  if (!shouldCreateOffer(peerId)) return;
+  if (makingOffer.get(peerId)) return;
+  if (pc.signalingState !== "stable") return;
+
+  try{
+    makingOffer.set(peerId, true);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await sendSignal(peerId, { kind:"sdp", sdp: pc.localDescription });
+  }catch(e){
+    log("maybeMakeOffer error", peerId, e);
+  }finally{
+    makingOffer.set(peerId, false);
+  }
+}
+
+function closePC(peerId){
+  const pc = pcs.get(peerId);
+  if (!pc) return;
+  try { pc.close(); } catch {}
+  pcs.delete(peerId);
+
+  const wrap = document.getElementById("audioWrap-" + peerId);
+  if (wrap) wrap.remove();
+}
+
+async function sendSignal(to, data){
+  if (!callChannel) return;
+  await callChannel.send({
+    type: "broadcast",
+    event: "signal",
+    payload: {
+      from: myUid(),
+      to,
+      data
+    }
+  });
+}
+
+async function onSignal(payload){
+  const from = payload?.from;
+  const to = payload?.to;
+  const data = payload?.data;
+  if (!from || !data) return;
+  if (to && to !== myUid()) return;
+
+  if (data.kind === "hello"){
+    await ensurePC(from);
+    if (String(myUid()) < String(from)){
+      await maybeMakeOffer(from);
+    }
+    return;
+  }
+
+  await ensurePC(from);
+  const pc = pcs.get(from);
+  if (!pc) return;
+
+  if (data.kind === "sdp"){
+    const desc = data.sdp;
+    if (!desc) return;
+
+    if (desc.type === "offer"){
+      try{
+        if (pc.signalingState !== "stable"){
+          try{ await pc.setLocalDescription({ type: "rollback" }); }catch{}
+        }
+        await pc.setRemoteDescription(desc);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await sendSignal(from, { kind:"sdp", sdp: pc.localDescription });
+      }catch(e){
+        log("handle offer error", e);
+      }
+      return;
+    }
+
+    if (desc.type === "answer"){
+      if (pc.signalingState !== "have-local-offer"){
+        log("ignore answer (wrong state)", from, pc.signalingState);
+        return;
+      }
+      try{
+        await pc.setRemoteDescription(desc);
+      }catch(e){
+        log("setRemoteDescription(answer) error", e);
+      }
+      return;
+    }
+  }
+
+  if (data.kind === "ice"){
+    try{
+      await pc.addIceCandidate(data.candidate);
+    }catch(e){
+      log("addIceCandidate error", e);
+    }
+    return;
+  }
+
+  if (data.kind === "mute"){
+    mutedMap.set(from, !!data.muted);
+    refreshAudioTitles();
+    return;
+  }
+}
+
+/* ===== call_participants（alive） ===== */
+async function upsertCallParticipant(){
+  const { error } = await sb.from("call_participants").upsert({
+    room_id: room,
+    user_id: myUid(),
+    name,
+    avatar_url: myAvatarUrl,
+    updated_at: new Date().toISOString()
+  }, { onConflict: "room_id,user_id" });
+
+  if (error) log("upsertCallParticipant error", error);
 }
 
 function startHeartbeat(){
   stopHeartbeat();
   heartbeatTimer = setInterval(async ()=>{
-    try{
-      await sb
-        .from("call_participants")
-        .upsert({
-          room_id: room,
-          user_id: authUser.id,
-          display_name: (authUser.user_metadata?.display_name || "").trim() || name,
-          avatar_url: (authUser.user_metadata?.avatar_url || "").trim() || ""
-        }, { onConflict: "room_id,user_id" });
-    }catch(e){
-      log("heartbeat error", e);
-    }
-  }, HEARTBEAT_SEC * 1000);
+    await upsertCallParticipant();
+  }, Math.max(5000, (CALL_ALIVE_SEC * 1000) / 3));
 }
 function stopHeartbeat(){
-  if (heartbeatTimer){
-    clearInterval(heartbeatTimer);
-    heartbeatTimer = null;
-  }
+  if (heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
 }
 
-/* =================== 通話（WebRTC：room(38)のロジック） =================== */
+function buildProcessedMicStreamIfNeeded(){
+  if (!localStream) return;
+  if (processedStream && micGainNode && audioCtx) return;
+
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  micSource = audioCtx.createMediaStreamSource(localStream);
+  micGainNode = audioCtx.createGain();
+  micGainNode.gain.value = myMicGain;
+
+  const dest = audioCtx.createMediaStreamDestination();
+  micSource.connect(micGainNode);
+  micGainNode.connect(dest);
+
+  processedStream = dest.stream;
+}
+
 function applyMicGain(){
-  try{
-    if (!micGainNode) return;
-    micGainNode.gain.value = micMuted ? 0.0 : myMicGain;
-  }catch{}
+  const v = Math.max(0.01, Math.min(1.0, myMicGain));
+  if (micGainNode) micGainNode.gain.value = v;
 }
 
 async function joinCall(){
-  if (inCall) return setStatus("すでに参加中！", false);
+  document.getElementById("callState").textContent = "準備中…";
 
-  setStatus("参加中…", true);
+  await startCallChannel();
 
-  // call_participants 登録 + heartbeat
-  await sb.from("call_participants").upsert({
-    room_id: room,
-    user_id: authUser.id,
-    display_name: (authUser.user_metadata?.display_name || "").trim() || name,
-    avatar_url: (authUser.user_metadata?.avatar_url || "").trim() || ""
-  }, { onConflict: "room_id,user_id" });
+  if (!localStream){
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  }
 
+  buildProcessedMicStreamIfNeeded();
+  applyMicGain();
+  if (audioCtx && audioCtx.state === "suspended") {
+    await audioCtx.resume();
+  }
+
+  attachTracksToAllPCs();
+
+  if (callChannel){
+    await callChannel.track({
+      user_id: myUid(),
+      name,
+      muted: micMuted,
+      at: new Date().toISOString()
+    });
+  }
+
+  const state = callChannel.presenceState() || {};
+  for (const peerId of Object.keys(state)){
+    if (peerId === myUid()) continue;
+
+    await sendSignal(peerId, { kind: "hello" });
+    await ensurePC(peerId);
+    await maybeMakeOffer(peerId);
+  }
+
+  document.getElementById("callState").textContent = "通話に参加中";
+  setReady(true, "通話準備OK");
   startHeartbeat();
-  await loadActiveCallUsers();
-
-  // ここは君の既存 WebRTC 実装に合わせて調整してね（最低限：localStream取得→pc作成→offer/answer）
-  // ただし、今回の不具合修正の主眼は call_participants の残骸対策なので、通話部分は元(38)のまま維持。
-
-  inCall = true;
-  setReady(true, "通話中");
-  setStatus("参加した！", true);
 }
 
 async function leaveCall(){
-  if (!inCall){
-    stopHeartbeat();
-    setReady(true, "待機中");
-    return;
+  try{
+    await sb
+      .from("call_participants")
+      .delete()
+      .eq("room_id", room)
+      .eq("user_id", myUid());
+  }catch(e){
+    log("call_participants delete error", e);
   }
-
-  setStatus("退出中…", true);
 
   stopHeartbeat();
 
-  try{
-    await sb.from("call_participants").delete().eq("room_id", room).eq("user_id", authUser.id);
-  }catch(e){
-    log("leaveCall delete error", e);
+  for (const [peerId] of pcs){
+    closePC(peerId);
+  }
+  pcs.clear();
+
+  if (localStream){
+    for (const t of localStream.getTracks()){
+      try{ t.stop(); }catch{}
+    }
+    localStream = null;
+  }
+  processedStream = null;
+  micSource = null;
+  micGainNode = null;
+
+  if (callChannel){
+    try{ await callChannel.untrack(); }catch{}
+    try{ await callChannel.unsubscribe(); }catch{}
+    callChannel = null;
   }
 
-  try{
-    if (pc) pc.close();
-  }catch{}
-  pc = null;
-
-  try{
-    if (localStream) localStream.getTracks().forEach(t => t.stop());
-  }catch{}
-  localStream = null;
-
-  remoteStream = null;
-  document.getElementById("remoteAudio").srcObject = null;
-
-  inCall = false;
+  document.getElementById("callState").textContent = "未接続（必要なら通話に参加を押してね）";
   setReady(true, "待機中");
-  await loadActiveCallUsers();
-  setStatus("退出した！", true);
+  document.getElementById("audios").innerHTML = "";
+  document.getElementById("callUsersList").innerHTML = "<div class='hint'>未接続</div>";
 }
 
 async function toggleMute(){
   micMuted = !micMuted;
-  applyMicGain();
-  setStatus(micMuted ? "ミュートON" : "ミュートOFF", true);
+
+  const btn = document.getElementById("muteBtn");
+  btn.textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
+
+  if (localStream){
+    for (const t of localStream.getAudioTracks()){
+      t.enabled = !micMuted;
+    }
+  }
+
+  if (callChannel){
+    await callChannel.track({
+      user_id: myUid(),
+      name,
+      muted: micMuted,
+      at: new Date().toISOString()
+    });
+  }
+
+  for (const [peerId] of pcs){
+    await sendSignal(peerId, { kind:"mute", muted: micMuted });
+  }
+}
+
+function onPresenceSync(){
+  refreshPresenceList();
+  refreshAudioTitles();
+}
+function onPresenceJoin(key, presences){
+  refreshPresenceList();
+  refreshAudioTitles();
+}
+function onPresenceLeave(key, presences){
+  closePC(key);
+  refreshPresenceList();
+}
+
+async function refreshPresenceList(){
+  const box = document.getElementById("callUsersList");
+  if (!callChannel){
+    box.innerHTML = "<div class='hint'>未接続</div>";
+    return;
+  }
+  const st = callChannel.presenceState();
+  const ids = Object.keys(st || {});
+  box.innerHTML = "";
+
+  if (ids.length === 0){
+    box.innerHTML = "<div class='hint'>未接続</div>";
+    return;
+  }
+
+  for (const id of ids){
+    const p = st[id]?.[0] || {};
+    const nm = p.name || id;
+    const muted = !!p.muted;
+
+    const row = document.createElement("div");
+    row.className = "listItem";
+    row.innerHTML = `
+      <div class="name">${muted ? "🔇" : "🎤"} ${avatarHtml(p.avatar_url, nm, "sm")} <span class="nameText">${escapeHtml(nm)}</span></div>
+      <div class="sub"><span class="badge ${muted ? "bad" : "good"}">${muted ? "ミュート" : "発話OK"}</span></div>
+    `;
+    box.appendChild(row);
+
+    mutedMap.set(id, muted);
+  }
+  refreshAudioTitles();
 }
 
 /* ===== UI events ===== */
@@ -771,6 +1693,7 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
   document.getElementById("roomChip").textContent = room;
   document.getElementById("subTitle").textContent = "Room: " + room;
 
+
   await loadMessages();
   await startMessagesRealtime();
 
@@ -780,23 +1703,24 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
   setReady(true, "待機中");
 
   sb.auth.onAuthStateChange(async (event, session)=> {
-    const sessionUser = session?.user || null;
-    if (!sessionUser){
-      authUser = null;
-      updateTop();
-      location.href = "./login.html";
-      return;
-    }
-
-    try{ await sb.auth.refreshSession(); }catch{}
-    const { data: u, error: uErr } = await sb.auth.getUser();
-    if (uErr) log("getUser error", uErr);
-
-    authUser = u?.user || sessionUser;
-
-    await reloadName();
+  const sessionUser = session?.user || null;
+  if (!sessionUser){
+    authUser = null;
     updateTop();
-  });
+    location.href = "./login.html";
+    return;
+  }
+
+  // ★最新 user を取り直す
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) log("getUser error", uErr);
+
+  authUser = u?.user || sessionUser;
+
+  await reloadName();  // reloadName が authUser.user_metadata を使う想定
+  updateTop();
+});
+
 
   log("ready room=", room);
 })();
@@ -808,6 +1732,12 @@ function safeKey(s){
   t = t.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
   return t || "room";
 }
+
 </script>
 </body>
 </html>
+
+
+
+
+
