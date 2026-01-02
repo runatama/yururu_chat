@@ -1179,6 +1179,13 @@ async function onSignal(payload){
   if (!from || !data) return;
   if (to && to !== myUid()) return;
 
+  // ★★ これを追加 ★★
+  if (data.kind === "hello") {
+    await ensurePC(from);
+    await maybeMakeOffer(from);
+    return;
+  }
+
   await ensurePC(from);
   const pc = pcs.get(from);
 
@@ -1262,18 +1269,17 @@ async function joinCall(){
     localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
   }
 
+  // ===== ここから追加 =====
+
+  // マイク音量調整用（既存ならOK）
   buildProcessedMicStreamIfNeeded();
   applyMicGain();
+  if (audioCtx && audioCtx.state === "suspended") {
+  await audioCtx.resume();
+}
 
-  const sendStream = getSendStream();
-  for (const [peerId, pc] of pcs){
-    try{
-      for (const t of sendStream.getTracks()){
-        pc.addTrack(t, sendStream);
-      }
-    }catch{}
-  }
 
+  // presence に参加情報を載せる
   if (callChannel){
     await callChannel.track({
       user_id: myUid(),
@@ -1283,14 +1289,31 @@ async function joinCall(){
     });
   }
 
-  startHeartbeat();
-  await upsertCallParticipant();
+  // ★★★ 超重要：すでに部屋にいる人全員に hello を送る ★★★
+  const state = callChannel.presenceState() || {};
+  for (const peerId of Object.keys(state)){
+    if (peerId !== myUid()){
+      await sendSignal(peerId, { kind: "hello" });
+    }
+  }
 
   document.getElementById("callState").textContent = "通話に参加中";
   setReady(true, "通話準備OK");
+  startHeartbeat();
+  // ===== ここまで追加 =====
 }
 
 async function leaveCall(){
+  try{
+  await sb
+    .from("call_participants")
+    .delete()
+    .eq("room_id", room)
+    .eq("user_id", myUid());
+}catch(e){
+  log("call_participants delete error", e);
+}
+
   stopHeartbeat();
 
   for (const [peerId] of pcs){
@@ -1442,3 +1465,4 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 </script>
 </body>
 </html>
+
