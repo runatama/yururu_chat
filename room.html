@@ -819,21 +819,23 @@ function updateTop(){
 
 /* =================== ログイン必須 =================== */
 async function requireLoginOrRedirect(){
-  const { data } = await sb.auth.getSession();
-  authUser = data?.session?.user || null;
+  const { data: ses, error: sesErr } = await sb.auth.getSession();
+  if (sesErr) log("getSession error", sesErr);
 
-  if(!authUser){
+  const sessionUser = ses?.session?.user || null;
+  if (!sessionUser){
     location.href = "./login.html";
     return false;
   }
+
+  // ★追加：サーバーから最新userを取り直す
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) log("getUser error", uErr);
+
+  authUser = u?.user || sessionUser;
   return true;
 }
 
-async function reloadName(){
-  const dn = (authUser.user_metadata?.display_name || "").trim();
-  name = dn || (authUser.email || "user").split("@")[0];
-  myAvatarUrl = (authUser.user_metadata?.avatar_url || "").trim();
-}
 
 
 /* =========================================================
@@ -1722,6 +1724,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
