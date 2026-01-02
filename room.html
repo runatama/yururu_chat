@@ -845,31 +845,42 @@ async function sendImage(){
     const uid = authUser?.id;
     if(!uid) throw new Error("ログイン情報がありません");
 
-    /* ★ 安全なパスに変換（ここ重要） */
+    // ★ 安全なパス
     const safeRoom = (room || "room").replace(/[^a-zA-Z0-9_-]/g, "_");
     const safeUid  = uid.replace(/[^a-zA-Z0-9_-]/g, "_");
 
-    const ext = (file.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g,"") || "png";
-    const path = `${safeRoom}/${safeUid}/${Date.now()}_${Math.random().toString(16).slice(2)}.${ext}`;
+    const ext = (file.name.split(".").pop() || "png")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g,"");
 
-    const up = await sb.storage.from(IMAGE_BUCKET).upload(path, file, {
-      cacheControl: "3600",
-      upsert: false
-    });
+    const path = `${safeRoom}/${safeUid}/${Date.now()}_${Math.random()
+      .toString(16).slice(2)}.${ext}`;
+
+    const up = await sb.storage
+      .from(IMAGE_BUCKET)
+      .upload(path, file, { cacheControl: "3600", upsert:false });
+
     if(up.error) throw up.error;
 
-    const { data } = sb.storage.from(IMAGE_BUCKET).getPublicUrl(path);
-    if(!data?.publicUrl) throw new Error("Public URL の取得に失敗しました");
+    const { data } = sb.storage
+      .from(IMAGE_BUCKET)
+      .getPublicUrl(path);
+
+    if(!data?.publicUrl) throw new Error("Public URL取得失敗");
+
+    // ★★★ ここが重要 ★★★
+    const msgForDb = caption ? caption : "[image]";
 
     const ins = await sb.from("messages").insert({
       room_id: room,
       name,
-      message: caption,
+      message: msgForDb,
       image_url: data.publicUrl,
       user_id: uid
     });
     if(ins.error) throw ins.error;
 
+    // UIリセット
     fileEl.value = "";
     document.getElementById("msg").value = "";
     document.getElementById("imgName").textContent = "未選択";
@@ -878,23 +889,13 @@ async function sendImage(){
 
   }catch(e){
     log("sendImage error", e);
-
-    if(String(e.message).includes("Bucket not found")){
-      alert(
-        "画像送信失敗：\n" +
-        "Storage に『chat-images』バケットが存在しません。\n\n" +
-        "Supabase → Storage → New bucket\n" +
-        "名前: chat-images / Public: ON"
-      );
-    }else{
-      alert("画像送信失敗: " + (e?.message || e));
-    }
-
+    alert("画像送信失敗: " + (e?.message || e));
     setUploadHint("画像送信失敗…");
   }finally{
     btn.disabled = false;
   }
 }
+
 
 /* =========================================================
    ルーム内「通話中の人」表示（call_participants から読む）
@@ -1434,3 +1435,4 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 </script>
 </body>
 </html>
+
