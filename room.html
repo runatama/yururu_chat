@@ -979,26 +979,40 @@ async function sendImage(){
 async function deleteMessage(m){
   try{
     if (!m?.id) return;
-    if ((m.user_id || "") !== myUid()) return;
 
-    const ok = confirm("このメッセージをチャット上から削除しますか？\n（※サーバー側にはログとして残ります。Storageも削除しません）");
-    if (!ok) return;
+    const uid = myUid();
+    console.log("[delete] uid=", uid, "m.id=", m.id, "m.user_id=", m.user_id);
 
-    const { error } = await sb
+    if (!uid){
+      alert("ログインが切れてるっぽい！ログインし直してね");
+      location.href = "./login.html";
+      return;
+    }
+    if ((m.user_id || "") !== uid) return;
+
+    const payload = {
+      deleted: true,
+      deleted_at: new Date().toISOString(),
+      deleted_by: uid
+    };
+    console.log("[delete] payload=", payload);
+
+    const { data, error } = await sb
       .from("messages")
-      .update({
-        deleted: true,
-        deleted_at: new Date().toISOString(),
-        deleted_by: myUid()
-      })
+      .update(payload)
       .eq("id", m.id)
-      .eq("user_id", myUid());
+      .eq("user_id", uid)
+      .select("id, deleted, deleted_at, deleted_by");
 
-    if (error) throw error;
+    console.log("[delete] data=", data);
+    if (error){
+      console.log("[delete] error(full)=", error);
+      throw error;
+    }
 
     await loadMessages();
   }catch(e){
-    log("deleteMessage error", e);
+    console.log("[delete] catch=", e);
     alert("削除に失敗: " + (e?.message || e));
   }
 }
@@ -1613,3 +1627,4 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
 </script>
 </body>
 </html>
+
