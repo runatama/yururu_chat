@@ -762,10 +762,17 @@ function getInitial(s){
   if (!t) return "?";
   return Array.from(t)[0] || "?";
 }
-function avatarHtml(url, label, size=""){
+function normalizeAvatarUrl(url, ver){
+  const u = String(url||"").trim();
+  if (!u) return "";
+  const v = String(ver||"").trim();
+  if (!v) return u;
+  return u + (u.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(v);
+}
+function avatarHtml(url, label, size="", ver=""){
   const cls = size ? `avatar ${size}` : "avatar";
   const fbCls = size ? `avatarFallback ${size}` : "avatarFallback";
-  const u = String(url || "").trim();
+  const u = normalizeAvatarUrl(url, ver);
   if (u){
     return `<img class="${cls}" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
   }
@@ -814,7 +821,8 @@ function updateTop(){
   const shown = dn ? dn : (em ? em : "未ログイン");
 
   const av = (authUser?.user_metadata?.avatar_url || "").trim();
-  pill.innerHTML = `${avatarHtml(av, shown)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
+  const avVer = (authUser?.user_metadata?.avatar_ver || "").toString();
+  pill.innerHTML = `${avatarHtml(av, shown, "", avVer)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
 }
 
 async function reloadName(){
@@ -824,7 +832,9 @@ async function reloadName(){
   name = dn || em || "名無しさん";
 
   // ★他端末でも反映させるため：必ず user_metadata.avatar_url を使う
-  myAvatarUrl = (authUser?.user_metadata?.avatar_url || "").trim();
+  const av = (authUser?.user_metadata?.avatar_url || "").trim();
+  const ver = (authUser?.user_metadata?.avatar_ver || "").toString();
+  myAvatarUrl = normalizeAvatarUrl(av, ver);
 
   // 入力欄などがある場合はここで反映してOK（今はトップ表示で使うだけ）
 }
@@ -839,6 +849,9 @@ async function requireLoginOrRedirect(){
     location.href = "./login.html";
     return false;
   }
+
+  // ★重要：他端末の更新を拾うため、まずトークンを更新してから user を取得
+  try{ await sb.auth.refreshSession(); }catch(e){ log('refreshSession warn', e); }
 
   // ★追加：サーバーから最新userを取り直す
   const { data: u, error: uErr } = await sb.auth.getUser();
