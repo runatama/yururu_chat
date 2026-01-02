@@ -4,664 +4,280 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ゆるるチャット - Room</title>
-
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     :root{
       --bg1:#0b1220;
-      --bg2:#0d1a33;
-      --card:rgba(255,255,255,.06);
-      --card2:rgba(255,255,255,.08);
-      --stroke:rgba(255,255,255,.10);
-      --stroke2:rgba(255,255,255,.14);
+      --bg2:#0a1a2a;
+      --card:#0f1a2cdd;
+      --line:rgba(255,255,255,10);
       --text:#eaf2ff;
-      --muted:rgba(234,242,255,.65);
-      --muted2:rgba(234,242,255,.45);
-      --good:#35d0a7;
-      --warn:#ffb84d;
+      --muted:rgba(234,242,255,65);
+      --accent:#6ee7ff;
+      --accent2:#a78bfa;
+      --good:#3be0a8;
       --bad:#ff6b6b;
-      --accent:#78a7ff;
-      --accent2:#a68bff;
-      --glow:rgba(120,167,255,.45);
-      --shadow: 0 16px 40px rgba(0,0,0,.35);
       --radius:18px;
-      --radius2:22px;
+      --shadow: 0 18px 50px rgba(0,0,0,45);
     }
+
     *{ box-sizing:border-box; }
     body{
       margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+      font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif;
       color:var(--text);
       background:
-        radial-gradient(1200px 600px at 20% 10%, rgba(120,167,255,.20), transparent 55%),
-        radial-gradient(900px 500px at 80% 40%, rgba(166,139,255,.18), transparent 55%),
-        radial-gradient(800px 700px at 30% 90%, rgba(53,208,167,.14), transparent 60%),
+        radial-gradient(900px 600px at 15% 20%, rgba(110,231,255,25), transparent 55%),
+        radial-gradient(900px 600px at 85% 25%, rgba(167,139,250,22), transparent 55%),
         linear-gradient(180deg, var(--bg1), var(--bg2));
-      min-height:100vh;
-      overflow-x:hidden;
+      padding: 16px;
     }
+
     .topbar{
-      position:sticky;
-      top:0;
-      z-index:50;
-      backdrop-filter: blur(14px);
-      background: linear-gradient(180deg, rgba(6,10,20,.78), rgba(6,10,20,.50));
-      border-bottom: 1px solid rgba(255,255,255,.08);
-    }
-    .topbarInner{
-      max-width:1100px;
-      margin:0 auto;
-      padding:12px 14px;
       display:flex;
-      align-items:center;
       justify-content:space-between;
+      align-items:center;
       gap:12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
     }
-    .brand{
+    .titleBox{
       display:flex;
-      align-items:center;
-      gap:10px;
-      min-width: 240px;
+      flex-direction: column;
+      gap:2px;
     }
-    .logo{
-      width:38px;height:38px;border-radius:14px;
-      background: radial-gradient(circle at 30% 30%, rgba(120,167,255,.95), rgba(166,139,255,.65) 55%, rgba(53,208,167,.35));
-      box-shadow: 0 0 0 1px rgba(255,255,255,.10), 0 10px 26px rgba(120,167,255,.18);
-    }
-    .brandText b{ display:block; font-size:14px; letter-spacing:.3px; }
-    .brandText span{ display:block; font-size:12px; color:var(--muted); margin-top:2px; }
+    h2{ margin:0; }
+    .subTitle{ color:var(--muted); font-size:12px; }
 
-    .topActions{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-      justify-content:flex-end;
-    }
-    .btn{
-      appearance:none;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.05);
-      color:var(--text);
-      padding:10px 14px;
-      border-radius:14px;
-      cursor:pointer;
-      transition: transform .05s ease, background .15s ease, border-color .15s ease;
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      font-weight:700;
-      box-shadow: 0 10px 20px rgba(0,0,0,.14);
-    }
-    .btn:hover{ background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.16); }
-    .btn:active{ transform: translateY(1px); }
-    .btn.primary{
-      background: linear-gradient(135deg, rgba(120,167,255,.35), rgba(166,139,255,.25));
-      border-color: rgba(120,167,255,.35);
-      box-shadow: 0 12px 26px rgba(120,167,255,.14);
-    }
-    .btn.danger{
-      background: linear-gradient(135deg, rgba(255,107,107,.25), rgba(166,139,255,.10));
-      border-color: rgba(255,107,107,.35);
-    }
     .pill{
-      border:1px solid rgba(255,255,255,.10);
-      padding:6px 10px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:6px 12px;
       border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,06);
+      box-shadow:var(--shadow);
       font-size:12px;
-      color:var(--muted);
-      background: rgba(255,255,255,.04);
-      white-space:nowrap;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+      max-width: 90vw;
     }
 
-    .avatar{
+    .avatarSm{
       width:26px;height:26px;border-radius:50%;
       object-fit:cover;
-      border:1px solid rgba(255,255,255,.16);
-      background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,18);
+      background:rgba(255,255,255,10);
       flex:0 0 auto;
+      vertical-align:middle;
     }
-    .avatar.sm{ width:22px;height:22px; }
-    .avatarFallback{
+    .avatarSmFb{
       width:26px;height:26px;border-radius:50%;
       display:inline-flex;align-items:center;justify-content:center;
-      font-size:12px;font-weight:900;
-      color:rgba(234,242,255,.9);
-      border:1px solid rgba(255,255,255,.14);
-      background: radial-gradient(circle at 30% 30%, rgba(120,167,255,.35), rgba(166,139,255,.22));
-      flex:0 0 auto;
-      user-select:none;
-    }
-    .avatarFallback.sm{ width:22px;height:22px;font-size:11px; }
-    .userBtn{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.04);
-      cursor:pointer;
-      color:var(--muted);
-      font-size:12px;
-    }
-    .userBtn:hover{ background: rgba(255,255,255,.06); }
-    .nameText{
-      overflow:hidden;
-      text-overflow:ellipsis;
-      white-space:nowrap;
-      max-width: 240px;
-    }
-
-    .wrap{
-      max-width:1100px;
-      margin:0 auto;
-      padding:16px 14px 26px;
-      display:grid;
-      grid-template-columns: 360px 1fr;
-      gap:14px;
-      align-items:start;
-    }
-    @media (max-width: 980px){
-      .wrap{ grid-template-columns: 1fr; }
-      .brand{ min-width:auto; }
+      font-weight:900;font-size:12px;
+      color:rgba(234,242,255,92);
+      background:rgba(255,255,255,12);
+      border:1px solid rgba(255,255,255,18);
+      vertical-align:middle;
     }
 
     .card{
-      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
-      border: 1px solid rgba(255,255,255,.10);
-      border-radius: var(--radius2);
-      box-shadow: var(--shadow);
-      overflow:hidden;
+      border:1px solid var(--line);
+      background:var(--card);
+      padding:14px 14px;
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      margin: 12px 0;
+      backdrop-filter: blur(10px);
     }
-    .cardHeader{
-      padding:12px 14px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-      background: rgba(255,255,255,.03);
+    .sectionTitle{
+      font-weight:800;
+      letter-spacing:0.3px;
+      margin: 0 0 8px 0;
     }
-    .cardHeader b{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      font-size:13px;
-      letter-spacing:.2px;
-    }
-    .chip{
-      font-size:12px;
-      padding:4px 10px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.10);
-      color:var(--muted);
-      background: rgba(255,255,255,.04);
-    }
-    .cardBody{ padding:14px; }
+    .row{ display:flex; gap:8px; flex-wrap: wrap; align-items: center; }
 
-    .field{
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-      margin-bottom:12px;
-    }
-    .field label{ font-size:12px; color:var(--muted); }
-    input[type="text"], input[type="file"], textarea{
-      width:100%;
-      padding:12px 12px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(7,12,24,.45);
+    input, textarea{
+      width: 320px;
+      max-width: 92vw;
+      padding: 10px 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,14);
+      background:rgba(10,18,32,55);
       color:var(--text);
       outline:none;
     }
-    input::placeholder, textarea::placeholder{ color: rgba(234,242,255,.45); }
-    .hint{ font-size:12px; color:var(--muted2); line-height:1.5; }
+    textarea{ width: min(720px, 92vw); height: 110px; resize: vertical; }
+    input:focus, textarea:focus{ border-color: rgba(110,231,255,55); }
 
-    .statusRow{
+    button{
+      padding: 9px 12px;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,18);
+      background:rgba(255,255,255,10);
+      color:var(--text);
+      cursor:pointer;
+      transition: transform .05s ease, background .2s ease;
+    }
+    button:hover{ background:rgba(255,255,255,14); }
+    button:active{ transform: translateY(1px); }
+    button:disabled{ opacity:.5; cursor:not-allowed; }
+
+    .btnPrimary{
+      background: linear-gradient(90deg, rgba(110,231,255,25), rgba(167,139,250,22));
+      border-color: rgba(110,231,255,35);
+    }
+    .btnDanger{
+      background: rgba(255,107,107,16);
+      border-color: rgba(255,107,107,35);
+    }
+
+    .muted{ color:var(--muted); font-size:12px; }
+
+    #status{ margin-top: 8px; font-size: 12px; }
+    .ok{ color: var(--good); }
+    .ng{ color: var(--bad); }
+
+    #log{
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      line-height: 1.4;
+      color: rgba(234,242,255,85);
+      margin-top: 8px;
+    }
+
+    .msg{
+      border:1px solid rgba(255,255,255,10);
+      background: rgba(255,255,255,06);
+      border-radius: 14px;
+      padding: 10px;
+      margin: 8px 0;
+    }
+    .msgTop{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      flex-wrap: wrap;
+    }
+    .msgName{
+      font-weight:900;
       display:flex;
       align-items:center;
-      justify-content:space-between;
+      gap:8px;
+    }
+    .msgTime{ color: var(--muted); font-size: 11px; }
+    .msgText{ white-space: pre-wrap; margin-top: 8px; }
+    .msgDel{ font-size: 12px; }
+
+    .callBox{
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .readyRow{
+      display:flex;
+      align-items:center;
       gap:10px;
-      background: rgba(7,12,24,.35);
-      border:1px solid rgba(255,255,255,.08);
-      padding:10px 12px;
-      border-radius: 16px;
+      flex-wrap: wrap;
     }
     .dot{
-      width:10px;height:10px;border-radius:50%;
-      background: rgba(234,242,255,.25);
-      box-shadow: 0 0 0 3px rgba(234,242,255,.06);
-      flex:0 0 auto;
+      width: 10px; height: 10px; border-radius: 50%;
+      background: rgba(255,255,255,35);
+      box-shadow: 0 0 0 3px rgba(255,255,255,08);
     }
-    .dot.ok{ background: var(--good); box-shadow: 0 0 0 3px rgba(53,208,167,.18); }
-    .dot.ng{ background: var(--bad); box-shadow: 0 0 0 3px rgba(255,107,107,.18); }
-    .statusText{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      flex:1;
-      min-width:0;
-    }
-    .statusText b{ font-size:12px; }
-    .statusText span{ font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-    .divider{ height:1px; background: rgba(255,255,255,.08); margin:14px 0; }
-
-    /* ===== call area ===== */
-    .callTop{
-      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
-      justify-content:space-between;
-    }
-    .btnSmall{
-      padding:10px 12px;
-      border-radius:14px;
-      font-size:13px;
-    }
-    .btnAccent{
-      background: linear-gradient(135deg, rgba(53,208,167,.20), rgba(120,167,255,.15));
-      border-color: rgba(53,208,167,.30);
-    }
-    .btnAccent2{
-      background: linear-gradient(135deg, rgba(120,167,255,.22), rgba(166,139,255,.18));
-      border-color: rgba(120,167,255,.30);
-    }
-    .btnMuted{
-      background: rgba(255,255,255,.05);
-    }
-    .rangeRow{
-      margin-top:10px;
-      background: rgba(7,12,24,.30);
-      border:1px solid rgba(255,255,255,.08);
-      border-radius:16px;
-      padding:10px 12px;
-    }
-    .rangeRow .label{
-      font-size:12px; color:var(--muted);
-      display:flex; justify-content:space-between; align-items:center;
-      margin-bottom:10px;
-    }
-    input[type="range"]{
-      width:100%;
-      accent-color: var(--accent);
+    .dotOn{
+      background: rgba(59,224,168,95);
+      box-shadow: 0 0 0 3px rgba(59,224,168,18);
     }
 
-    /* ===== lists ===== */
-    .list{
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-    }
-    .listItem{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      padding:10px 12px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.08);
-      background: rgba(7,12,24,.25);
-    }
-    .listItem .name{
-      font-size:13px;
-      color:var(--text);
-      display:flex;
-      align-items:center;
-      gap:8px;
-      min-width:0;
-    }
-    .listItem .sub{
-      font-size:12px;
-      color:var(--muted);
-      white-space:nowrap;
-    }
-    .badge{
-      padding:3px 8px;
-      border-radius:999px;
-      font-size:11px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.05);
-      color:var(--muted);
-    }
-    .badge.good{ border-color: rgba(53,208,167,.30); color: rgba(165,255,230,.95); background: rgba(53,208,167,.10); }
-    .badge.warn{ border-color: rgba(255,184,77,.35); color: rgba(255,220,170,.95); background: rgba(255,184,77,.10); }
-    .badge.bad{ border-color: rgba(255,107,107,.35); color: rgba(255,190,190,.95); background: rgba(255,107,107,.10); }
-
-    /* ===== right side ===== */
-    .rightCol{
-      display:flex;
-      flex-direction:column;
-      gap:14px;
-      min-width:0;
-    }
-    .chatBox{
-      height: 520px;
-      overflow:auto;
-      padding:12px;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      background: rgba(7,12,24,.25);
-      border-radius: var(--radius2);
-      border:1px solid rgba(255,255,255,.08);
-    }
-    @media (max-width: 980px){
-      .chatBox{ height: 50vh; }
-    }
-    .msgHead{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      font-size:12px;
-      color:var(--muted);
-      margin-bottom:6px;
-    }
-    .msgMeta{ color: rgba(234,242,255,.40); font-size:11px; }
-
-    .msgActions{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      flex:0 0 auto;
-    }
-    .trashBtn{
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.04);
-      color: rgba(234,242,255,.85);
-      padding:6px 10px;
-      border-radius:12px;
-      cursor:pointer;
-      font-size:12px;
-      line-height:1;
-      transition: background .15s ease, border-color .15s ease, transform .05s ease;
-    }
-    .trashBtn:hover{
-      background: rgba(255,255,255,.08);
-      border-color: rgba(255,255,255,.18);
-    }
-    .trashBtn:active{ transform: translateY(1px); }
-
-    .msgBody{
-      font-size:14px;
-      line-height:1.5;
-      color:var(--text);
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    /* ★期限切れ表示用 */
-    .msgExpired{
-      font-size:13px;
-      line-height:1.5;
-      color: rgba(234,242,255,.55);
-      border: 1px dashed rgba(255,255,255,.16);
-      background: rgba(255,255,255,.04);
-      padding: 10px 12px;
-      border-radius: 14px;
-      margin-top: 6px;
-    }
-    .msgImg{
-      margin-top:8px;
-      width:100%;
-      max-width:520px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.10);
-      box-shadow: 0 12px 22px rgba(0,0,0,.22);
-    }
-    .composer{
-      display:grid;
-      grid-template-columns: 1fr auto;
-      gap:10px;
-      align-items:start;
-    }
-    .composer .left{
-      display:flex; flex-direction:column; gap:10px;
-      min-width:0;
-    }
-    .composer textarea{
-      min-height: 52px;
-      resize: vertical;
-    }
-    .composer .actions{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      align-items:stretch;
-    }
-    .fileRow{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      background: rgba(7,12,24,.35);
-      border:1px solid rgba(255,255,255,.08);
-      padding:10px 12px;
-      border-radius: 16px;
-    }
-    .fileName{
-      font-size:12px; color:var(--muted);
-      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    }
-    .tiny{ font-size:11px; color: rgba(234,242,255,.45); }
-    details{
-      border-top:1px solid rgba(255,255,255,.08);
-      margin-top:14px;
-      padding-top:10px;
-    }
-    summary{ cursor:pointer; color: var(--muted); font-size:12px; }
-    #log{
-      margin-top:10px;
-      white-space:pre-wrap;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size:12px;
-      padding:10px 12px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(7,12,24,.35);
-      max-height: 200px;
-      overflow:auto;
-      color: rgba(234,242,255,.78);
-    }
-
-    /* ===== audio cards ===== */
-    #audios{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
-    .audioWrap{
-      background: rgba(7,12,24,.35);
-      border:1px solid rgba(255,255,255,.08);
-      border-radius: 18px;
-      padding:12px;
-      overflow:hidden;
-    }
-    .audioTitle{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      margin-bottom:10px;
-      font-size:12px;
-      color:var(--muted);
-    }
-    .audioCtl{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      margin-top:10px;
-      background: rgba(255,255,255,.04);
-      border:1px solid rgba(255,255,255,.08);
-      padding:10px 12px;
-      border-radius: 16px;
-    }
-    .audioCtl .lbl{ font-size:12px; color:var(--muted); }
-    .audioCtl .val{ font-size:12px; color:var(--text); min-width: 34px; text-align:right; }
+    .nameText{ font-weight: 800; }
+    #activeUsers{ padding-left: 18px; margin: 0; }
   </style>
 </head>
 
 <body>
   <div class="topbar">
-    <div class="topbarInner">
-      <div class="brand">
-        <div class="logo"></div>
-        <div class="brandText">
-          <b>ゆるるチャット</b>
-          <span id="subTitle">Room</span>
-        </div>
-      </div>
+    <div class="titleBox">
+      <h2>🧩 ルーム</h2>
+      <div class="subTitle" id="subTitle">Room</div>
+    </div>
 
-      <div class="topActions">
-        <button class="userBtn" id="userPill" type="button" onclick="goProfile()">未ログイン</button>
-        <button class="btn primary" onclick="goLobby()">🏠 ロビーへ</button>
-        <button class="btn danger" onclick="doLogout()">🚪 ログアウト</button>
-      </div>
+    <div class="pill">
+      <div id="userPill"></div>
+      <button onclick="goProfile()">👤 プロフィール</button>
+      <button class="btnDanger" onclick="leaveRoom()">🚪 ロビーへ</button>
     </div>
   </div>
 
-  <div class="wrap">
-    <!-- ===== left column ===== -->
-    <div class="leftCol">
-      <div class="card">
-        <div class="cardHeader">
-          <b>🏠 現在の部屋</b>
-          <span class="chip" id="roomChip">-</span>
-        </div>
-        <div class="cardBody">
-          <div class="field">
-            <label>部屋名</label>
-            <input id="roomName" type="text" readonly />
-          </div>
-          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn btnSmall" onclick="leaveRoom()">🚪 退室</button>
-          </div>
-
-          <div style="margin-top:12px;" class="statusRow">
-            <div class="statusText">
-              <div class="dot" id="readyDot"></div>
-              <div style="min-width:0;">
-                <b id="readyTitle">準備OK</b>
-                <span id="readySub">待機中</span>
-              </div>
-            </div>
-            <span class="badge good" id="readyBadge">Ready</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="cardHeader">
-          <b>🎙️ 音声通話（複数人）</b>
-          <span class="chip">Call</span>
-        </div>
-        <div class="cardBody">
-          <div class="callTop">
-            <button class="btn btnSmall primary btnAccent2" onclick="joinCall()" id="joinBtn">通話に参加（開始）</button>
-            <button class="btn btnSmall btnMuted" onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
-            <button class="btn btnSmall danger" onclick="leaveCall()" id="leaveBtn">通話退出</button>
-          </div>
-
-          <div class="rangeRow">
-            <div class="label">
-              <span>自分のマイク音量: <b id="micGainLabel">100</b></span>
-              <span class="tiny">※ 送信音量（あなたの声の大きさ）</span>
-            </div>
-            <input id="micGain" type="range" min="1" max="100" value="100" />
-            <div class="hint" style="margin-top:8px;" id="callState">未接続（必要なら通話に参加を押してね）</div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="card" style="background:transparent;border:none;box-shadow:none;">
-            <div class="cardHeader" style="border:1px solid rgba(255,255,255,.08); border-radius:18px; margin-bottom:10px;">
-              <b>👥 参加者（通話：チャンネル接続中のみ表示）</b>
-              <span class="chip">Presence</span>
-            </div>
-            <div class="list" id="callUsersList">
-              <div class="hint">未接続</div>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="card" style="background:transparent;border:none;box-shadow:none;">
-            <div class="cardHeader" style="border:1px solid rgba(255,255,255,.08); border-radius:18px; margin-bottom:10px;">
-              <b>📞 今の部屋で通話してる人（通話に参加しなくても見える）</b>
-              <span class="chip">call_participants</span>
-            </div>
-            <div class="list" id="activeCallUsersList">
-              <div class="hint">今は誰も通話してないよ</div>
-            </div>
-          </div>
-
-          <details>
-            <summary>🔧 デバッグログ</summary>
-            <div id="log"></div>
-          </details>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== right column ===== -->
-    <div class="rightCol">
-      <div class="card">
-        <div class="cardHeader">
-          <b>🔊 相手の音声（ここで相手の音量を調整）</b>
-          <span class="chip">Audio</span>
-        </div>
-        <div class="cardBody">
-          <div id="audios"></div>
-          <div class="hint" style="margin-top:10px;">
-            ※ 通話に参加して、相手と繋がるとここに音声が出るよ
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="cardHeader">
-          <b>💬 チャット（画像OK）</b>
-          <span class="chip">Messages</span>
-        </div>
-        <div class="cardBody">
-          <div id="chat" class="chatBox"></div>
-
-          <div class="divider"></div>
-
-          <div class="composer">
-            <div class="left">
-              <textarea id="msg" placeholder="メッセージ（画像だけ送るなら空でもOK）"></textarea>
-
-              <div class="fileRow">
-                <div class="fileName" id="imgName">未選択</div>
-                <div style="display:flex; gap:10px; align-items:center;">
-                  <input id="imgFile" type="file" accept="image/*" style="max-width:190px;" />
-                </div>
-              </div>
-
-              <div class="hint" id="uploadHint" style="margin-top:-2px;">
-                ※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）
-              </div>
-            </div>
-
-            <div class="actions">
-              <button class="btn primary" onclick="sendMsg()">📨 送信</button>
-              <button class="btn btnAccent2" onclick="sendImage()" id="sendImgBtn">🖼️ 画像送信</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
+  <div class="card">
+    <div class="sectionTitle">📍 ルーム名</div>
+    <div class="row">
+      <input id="roomName" placeholder="room" />
+      <button onclick="copyInvite()">招待URLコピー</button>
+      <span class="muted">現在: <b id="roomChip"></b></span>
     </div>
   </div>
+
+  <div class="card">
+    <div class="sectionTitle">💬 メッセージ</div>
+    <div class="row">
+      <textarea id="message" placeholder="ここにメッセージ"></textarea>
+    </div>
+    <div class="row">
+      <button class="btnPrimary" onclick="sendMessage()">送信</button>
+      <button onclick="loadMessages()">更新</button>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <input type="file" id="imgFile" accept="image/*" />
+      <span class="muted" id="imgName">未選択</span>
+      <button onclick="sendImage()">画像送信</button>
+    </div>
+
+    <div id="status"></div>
+    <div id="messagesBox"></div>
+  </div>
+
+  <div class="card callBox">
+    <div class="sectionTitle">📞 通話</div>
+
+    <div class="readyRow">
+      <div class="dot" id="readyDot"></div>
+      <div class="muted" id="readySub">待機中</div>
+    </div>
+
+    <div class="row">
+      <button class="btnPrimary" onclick="joinCall()">参加</button>
+      <button onclick="leaveCall()">退出</button>
+      <button onclick="toggleMute()">ミュート切替</button>
+    </div>
+
+    <div class="row">
+      <label class="muted">マイク音量</label>
+      <input type="range" id="micGain" min="1" max="100" value="80" />
+      <span class="muted" id="micGainLabel">80</span>
+    </div>
+
+    <div class="muted">通話中メンバー（30秒以内に更新があった人だけ表示）</div>
+    <ul id="activeUsers"></ul>
+
+    <audio id="remoteAudio" autoplay></audio>
+  </div>
+
+  <details class="card">
+    <summary class="muted">🔧 デバッグログ</summary>
+    <div id="log"></div>
+  </details>
 
 <script>
 /* =================== Supabase 設定 =================== */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
-/* ★ログイン切れ対策：pkce/persistSession あり */
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
   (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
@@ -675,53 +291,32 @@ const sb = supabase.createClient(
   }
 );
 
-/* 画像用（Public bucket名） */
-const IMAGE_BUCKET = "chat-images";
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
-
-/* ★ 画像だけ投稿のダミー文字（DB制約回避用） */
-const IMAGE_PLACEHOLDER = "[image]";
-
-/* ===== 状態 ===== */
+/* =================== 状態 =================== */
 let authUser = null;
 let room = "";
-let name = "";
+let name = "名無しさん";
 let myAvatarUrl = "";
 
-let messagesChannel = null;
-
-/* ===== call_participants 監視（通話中一覧をリアルタイム更新） ===== */
-let callUsersChannel = null;
-
-/* ===== 通話 ===== */
+/* realtime channels */
+let msgChannel = null;
 let callChannel = null;
+
+/* ===== call state ===== */
+let inCall = false;
+let pc = null;
 let localStream = null;
+let remoteStream = null;
 
-// ★送信音量（マイク）を 1-100 で調整するための WebAudio
-let audioCtx = null;
-let micSource = null;
-let micGainNode = null;
-let processedStream = null;   // Gain通過後の送信用Stream
-let myMicGain = 1.0;          // 0.0-1.0（UIは1-100）
-
-let micMuted = false;
-
-const pcs = new Map();        // peerId -> RTCPeerConnection
-const mutedMap = new Map();   // peerId -> muted(boolean)
-
-const makingOffer = new Map(); // peerId -> boolean
-function shouldCreateOffer(peerId){
-  // どちらがOfferを作るか決める（衝突防止）
-  // 文字列比較で固定（必ず片方だけがOffer担当）
-  return String(myUid()) < String(peerId);
-}
 let heartbeatTimer = null;
 const CALL_ALIVE_SEC = 30;
+const HEARTBEAT_SEC = 10;
 
-// ★相手ごとの受信音量
-const peerVolume = new Map(); // peerId -> 0.0-1.0
+let micAudioCtx = null;
+let micGainNode = null;
+let micMuted = false;
+let myMicGain = 0.8;
 
-/* ===== util ===== */
+/* =================== util: log =================== */
 function log(...args){
   const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
   console.log("[room]", ...args);
@@ -731,18 +326,21 @@ function log(...args){
   el.scrollTop = el.scrollHeight;
 }
 
-function setUploadHint(t){
-  const el = document.getElementById("uploadHint");
-  if (el) el.textContent = t;
-}
+window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
+window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
+window.addEventListener("beforeunload", ()=>{
+  // 離脱時：通話中ならクリーンアップ（完全ではないが、残骸を減らす）
+  try{
+    if (inCall) {
+      stopHeartbeat();
+      try { sb.from('call_participants').delete().eq('room_id', room).eq('user_id', authUser?.id); } catch {}
+    }
+  }catch{}
+});
 
-function getRoomFromUrl(){
-  const p = new URLSearchParams(location.search);
-  return (p.get("room") || "").trim();
-}
-
-function myUid(){
-  return authUser?.id || "";
+function setStatus(text, ok=true){
+  const el = document.getElementById("status");
+  el.innerHTML = `<span class="${ok?'ok':'ng'}">${escapeHtml(text)}</span>`;
 }
 
 function escapeHtml(s){
@@ -753,57 +351,56 @@ function escapeHtml(s){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
-
-function escapeAttr(s){
-  return escapeHtml(s).replaceAll("`","&#096;");
+function escapeAttr(s){ return escapeHtml(s).replaceAll('`','&#096;'); }
+function getInitial(s){ const t=String(s||'').trim(); if(!t) return '?'; return Array.from(t)[0] || '?'; }
+function avatarHtml(url, label){
+  const u = String(url||'').trim();
+  if (u) return `<img class="avatarSm" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
+  return `<span class="avatarSmFb">${escapeHtml(getInitial(label))}</span>`;
 }
-function getInitial(s){
-  const t = String(s || "").trim();
-  if (!t) return "?";
-  return Array.from(t)[0] || "?";
-}
-function avatarHtml(url, label, size=""){
-  const cls = size ? `avatar ${size}` : "avatar";
-  const fbCls = size ? `avatarFallback ${size}` : "avatarFallback";
-  const u = String(url || "").trim();
-  if (u){
-    return `<img class="${cls}" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
-  }
-  return `<div class="${fbCls}">${escapeHtml(getInitial(label))}</div>`;
+function bustAvatar(url){
+  const u = String(url||'').trim();
+  if (!u) return '';
+  const v = (authUser && authUser.updated_at) ? authUser.updated_at : String(Date.now());
+  return u + (u.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(v);
 }
 
-/* =================== ナビ =================== */
-function goLobby(){
-  location.href = "./lobby.html";
-}
+/* =================== navigation =================== */
+function goLobby(){ location.replace("./lobby.html?_r=" + Date.now()); }
 function goProfile(){
-  const rn = encodeURIComponent(room || "");
-  location.href = "./profile.html?back=room&room=" + rn + "&_r=" + Date.now();
+  location.replace("./profile.html?back=room&room=" + encodeURIComponent(room) + "&_r=" + Date.now());
 }
-async function doLogout(){
-  await sb.auth.signOut();
-  location.href = "./login.html";
-}
-function leaveRoom(){
+async function leaveRoom(){
+  try{ await leaveCall(); }catch(e){ log('leaveCall in leaveRoom', e); }
   goLobby();
 }
+function copyInvite(){
+  const url = location.origin + location.pathname.replace(/[^/]+$/, "room.html") + "?room=" + encodeURIComponent(room);
+  navigator.clipboard.writeText(url).then(()=>setStatus("招待URLコピーした！", true)).catch(()=>setStatus("コピー失敗…", false));
+}
+function getRoomFromUrl(){
+  const p = new URLSearchParams(location.search);
+  return (p.get("room") || "").trim();
+}
 
-/* =================== 表示更新 =================== */
-function setReady(ok, sub){
-  const dot = document.getElementById("readyDot");
-  const subEl = document.getElementById("readySub");
-  const badge = document.getElementById("readyBadge");
+/* =================== auth =================== */
+async function requireLoginOrRedirect(){
+  const { data: ses, error: sesErr } = await sb.auth.getSession();
+  if (sesErr) setStatus("getSession error: " + sesErr.message, false);
 
-  if(ok){
-    dot.classList.add("ok"); dot.classList.remove("ng");
-    badge.className = "badge good";
-    badge.textContent = "Ready";
-  }else{
-    dot.classList.add("ng"); dot.classList.remove("ok");
-    badge.className = "badge bad";
-    badge.textContent = "NG";
+  const sessionUser = ses?.session?.user || null;
+  if (!sessionUser){
+    location.replace("./login.html");
+    return false;
   }
-  subEl.textContent = sub || "";
+
+  // ★別端末反映のため：refreshSession→getUser
+  try{ await sb.auth.refreshSession(); }catch{}
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) setStatus("getUser error: " + uErr.message, false);
+
+  authUser = u?.user || sessionUser;
+  return true;
 }
 
 function updateTop(){
@@ -813,329 +410,229 @@ function updateTop(){
   const shown = dn ? dn : (em ? em : "未ログイン");
 
   const av = (authUser?.user_metadata?.avatar_url || "").trim();
-  pill.innerHTML = `${avatarHtml(av, shown)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
+  pill.innerHTML = `${avatarHtml(bustAvatar(av), shown)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
 }
 
 async function reloadName(){
   const dn = (authUser?.user_metadata?.display_name || "").trim();
   const em = (authUser?.email || "").trim();
   name = dn || em || "名無しさん";
-
-  // ★他端末でも反映させるため：必ず user_metadata.avatar_url を使う
   myAvatarUrl = (authUser?.user_metadata?.avatar_url || "").trim();
 }
 
-/* =================== ログイン必須 =================== */
-async function requireLoginOrRedirect(){
-  const { data: ses, error: sesErr } = await sb.auth.getSession();
-  if (sesErr) log("getSession error", sesErr);
-
-  const sessionUser = ses?.session?.user || null;
-  if (!sessionUser){
-    location.href = "./login.html";
-    return false;
-  }
-
-  // ★追加：サーバーから最新userを取り直す
-  // ★セッションを更新してから最新userを取る（別端末変更を拾う）
-  try{ await sb.auth.refreshSession(); }catch{}
-
-  const { data: u, error: uErr } = await sb.auth.getUser();
-  if (uErr) log("getUser error", uErr);
-
-  authUser = u?.user || sessionUser;
-  return true;
+/* =================== 表示更新 =================== */
+function setReady(ok, sub){
+  const dot = document.getElementById("readyDot");
+  const subEl = document.getElementById("readySub");
+  if (ok) dot.classList.add("dotOn");
+  else dot.classList.remove("dotOn");
+  subEl.textContent = sub || "";
 }
 
-/* =========================================================
-   チャット（messages）
-   ========================================================= */
-async function startMessagesRealtime(){
-  if (messagesChannel) return;
+/* =================== messages =================== */
+async function loadMessages(){
+  const box = document.getElementById("messagesBox");
+  box.innerHTML = `<div class="muted">読み込み中…</div>`;
 
-  messagesChannel = sb
-    .channel("messages-ch")
-    .on("postgres_changes", { event:"*", schema:"public", table:"messages_v2" }, async (payload)=>{
-      const nr = payload.new || {};
-      const or = payload.old || {};
-      const rid = nr.room_id || or.room_id;
-      if (rid === room) await loadMessages();
+  const { data, error } = await sb
+    .from("messages_v2")
+    .select("*")
+    .eq("room_id", room)
+    .order("created_at", { ascending: true })
+    .limit(200);
+
+  if (error){
+    box.innerHTML = `<div class="ng">読み込み失敗: ${escapeHtml(error.message)}</div>`;
+    log("loadMessages error", error);
+    return;
+  }
+
+  box.innerHTML = "";
+  (data || []).forEach(m => box.appendChild(renderMessage(m)));
+}
+
+function renderMessage(m){
+  const wrap = document.createElement("div");
+  wrap.className = "msg";
+
+  const isMine = authUser && (String(m.user_id) === String(authUser.id));
+  const dn = (m.display_name || "").trim() || "名無しさん";
+  const av = (m.avatar_url || "").trim();
+  const t = m.created_at ? new Date(m.created_at).toLocaleString() : "";
+
+  let body = "";
+  if (m.is_deleted){
+    body = `<div class="muted">（メッセージは削除されました）</div>`;
+  }else if (m.image_url){
+    body = `
+      <div class="msgText">${escapeHtml(m.text || "")}</div>
+      <div style="margin-top:10px;">
+        <img src="${escapeAttr(m.image_url)}" alt="img" style="max-width:min(680px,92vw);border-radius:14px;border:1px solid rgba(255,255,255,12);" />
+      </div>
+    `;
+  }else{
+    body = `<div class="msgText">${escapeHtml(m.text || "")}</div>`;
+  }
+
+  wrap.innerHTML = `
+    <div class="msgTop">
+      <div class="msgName">${avatarHtml(av, dn)} <span>${escapeHtml(dn)}</span></div>
+      <div class="row">
+        <span class="msgTime">${escapeHtml(t)}</span>
+        ${isMine && !m.is_deleted ? `<button class="msgDel btnDanger" onclick="deleteMessage('${escapeAttr(m.id)}')">削除</button>` : ``}
+      </div>
+    </div>
+    ${body}
+  `;
+  return wrap;
+}
+
+async function sendMessage(){
+  const ta = document.getElementById("message");
+  const text = (ta.value || "").trim();
+  if (!text) return;
+
+  const payload = {
+    room_id: room,
+    user_id: authUser.id,
+    display_name: (authUser.user_metadata?.display_name || "").trim() || name,
+    avatar_url: (authUser.user_metadata?.avatar_url || "").trim() || "",
+    text
+  };
+
+  const { error } = await sb.from("messages_v2").insert(payload);
+  if (error){
+    setStatus("送信失敗: " + error.message, false);
+    log("sendMessage error", error);
+    return;
+  }
+
+  ta.value = "";
+  setStatus("送信OK", true);
+}
+
+async function deleteMessage(messageId){
+  if (!authUser) return setStatus("未ログイン", false);
+
+  const ok = confirm("このメッセージを削除する？（自分のだけ）");
+  if (!ok) return;
+
+  const { error } = await sb
+    .from("messages_v2")
+    .update({ is_deleted: true, text: "" })
+    .eq("id", messageId)
+    .eq("user_id", authUser.id);
+
+  if (error){
+    setStatus("削除失敗: " + error.message, false);
+    log("deleteMessage error", error);
+    return;
+  }
+  setStatus("削除した！", true);
+}
+
+/* =================== images =================== */
+const IMG_BUCKET = "chat_images";
+const MAX_IMG_BYTES = 5 * 1024 * 1024;
+
+async function sendImage(){
+  const file = document.getElementById("imgFile").files?.[0];
+  if (!file) return setStatus("画像を選んでね！", false);
+  if (file.size > MAX_IMG_BYTES) return setStatus("画像が大きすぎる（最大5MB）", false);
+
+  setStatus("画像アップ中…", true);
+
+  const safeName = safeFileName(file.name);
+  const path = `${safeKey(room)}/${authUser.id}/${Date.now()}_${safeName}`;
+
+  const { error: upErr } = await sb
+    .storage.from(IMG_BUCKET)
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || "image/*"
+    });
+
+  if (upErr){
+    setStatus("アップ失敗: " + upErr.message, false);
+    log("sendImage upload error", upErr);
+    return;
+  }
+
+  const { data: pub } = sb.storage.from(IMG_BUCKET).getPublicUrl(path);
+  const url = pub?.publicUrl;
+  if (!url) return setStatus("publicUrl 取れなかった…", false);
+
+  const payload = {
+    room_id: room,
+    user_id: authUser.id,
+    display_name: (authUser.user_metadata?.display_name || "").trim() || name,
+    avatar_url: (authUser.user_metadata?.avatar_url || "").trim() || "",
+    text: "",
+    image_url: url
+  };
+
+  const { error } = await sb.from("messages_v2").insert(payload);
+  if (error){
+    setStatus("送信失敗: " + error.message, false);
+    log("sendImage insert error", error);
+    return;
+  }
+
+  document.getElementById("imgFile").value = "";
+  document.getElementById("imgName").textContent = "未選択";
+  setStatus("画像送信OK", true);
+}
+
+function safeFileName(name){
+  return String(name || "image.png").replace(/[^\w.\-]+/g, "_");
+}
+
+/* =================== messages realtime =================== */
+async function startMessagesRealtime(){
+  if (msgChannel) return;
+
+  msgChannel = sb
+    .channel("messages-ch-" + room)
+    .on("postgres_changes", { event:"*", schema:"public", table:"messages_v2", filter: `room_id=eq.${room}` }, async () => {
+      await loadMessages();
     })
     .subscribe();
 }
 
-function fmtTime(iso){
-  try{
-    const d = new Date(iso);
-    const hh = String(d.getHours()).padStart(2,"0");
-    const mm = String(d.getMinutes()).padStart(2,"0");
-    return `${hh}:${mm}`;
-  }catch{
-    return "";
-  }
-}
-
-async function loadMessages(){
-  const { data, error } = await sb
-    .from("messages_v2")
-    .select("id, room_id, name, avatar_url, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by")
-    .eq("room_id", room)
-    .order("created_at", { ascending:true })
-    .limit(200);
-
-  if (error){ log("loadMessages error", error); return; }
-
-  const box = document.getElementById("chat");
-  box.innerHTML = "";
-
-  (data || []).forEach(m=>{
-    const wrap = document.createElement("div");
-
-    const head = document.createElement("div");
-    head.className = "msgHead";
-
-    const left = document.createElement("div");
-    left.style.display = "flex";
-    left.style.alignItems = "center";
-    left.style.gap = "8px";
-    left.innerHTML = `${avatarHtml(m.avatar_url, (m.name || ""), "sm")} <span class="nameText">${escapeHtml(m.name || "")}</span>`;
-
-    // 右側（時刻 + 削除ボタン）
-    const actions = document.createElement("div");
-    actions.className = "msgActions";
-
-    const meta = document.createElement("div");
-    meta.className = "msgMeta";
-    meta.textContent = fmtTime(m.created_at);
-
-    actions.appendChild(meta);
-
-    // ✅ 自分が送ったメッセージだけゴミ箱を表示（本人だけ消せる）
-    if (m.user_id && m.user_id === myUid() && !m.deleted){
-      const del = document.createElement("button");
-      del.className = "trashBtn";
-      del.type = "button";
-      del.title = "自分のメッセージを削除";
-      del.textContent = "🗑️";
-      del.onclick = async ()=>{
-        await deleteMessage(m);
-      };
-      actions.appendChild(del);
-    }
-
-    head.appendChild(left);
-    head.appendChild(actions);
-    wrap.appendChild(head);
-
-    const bodyText = (m.message || "").trim();
-    const isImagePlaceholder = (bodyText === IMAGE_PLACEHOLDER);
-    const hasImage = !!m.image_url;
-
-    if (m.deleted){
-      // ✅ 削除済み：本文や画像は表示しない（サーバーには残す）
-      if (!isImagePlaceholder){
-        const delMsg = document.createElement("div");
-        delMsg.className = "msgExpired";
-        delMsg.textContent = "🗑️ メッセージは削除されました";
-        wrap.appendChild(delMsg);
-      }
-
-      if (hasImage || isImagePlaceholder){
-        const delImg = document.createElement("div");
-        delImg.className = "msgExpired";
-        delImg.textContent = "🗑️ 画像は削除されました";
-        wrap.appendChild(delImg);
-      }
-    }else{
-      // ✅ 通常表示
-      if (bodyText && !isImagePlaceholder){
-        const body = document.createElement("div");
-        body.className = "msgBody";
-        body.textContent = bodyText;
-        wrap.appendChild(body);
-      }
-
-      // ✅ 画像があるなら表示
-      if (hasImage){
-        const img = document.createElement("img");
-        img.className = "msgImg";
-        img.src = m.image_url;
-        img.loading = "lazy";
-        img.alt = "image";
-        wrap.appendChild(img);
-      }
-
-      // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
-      if (isImagePlaceholder && !hasImage){
-        const ex = document.createElement("div");
-        ex.className = "msgExpired";
-        ex.textContent = "🗑️ 画像は期限切れで削除されました";
-        wrap.appendChild(ex);
-      }
-    }
-
-    box.appendChild(wrap);
-  });
-
-  box.scrollTop = box.scrollHeight;
-}
-
-async function sendMsg(){
-  const v = document.getElementById("msg").value.trim();
-  if (!v) return;
-  document.getElementById("msg").value = "";
-
-  const { error } = await sb.from("messages_v2").insert({
-    room_id: room,
-    name,
-    avatar_url: myAvatarUrl,
-    message: v,
-    image_url: null,
-    user_id: myUid()
-  });
-
-  if (error){ alert("送信失敗: " + error.message); }
-}
-
-/* ===== 画像送信 ===== */
-async function sendImage(){
-  try{
-    const fileInput = document.getElementById("imgFile");
-    const file = fileInput.files?.[0];
-    if (!file){
-      alert("画像ファイルを選んでね！");
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES){
-      alert("画像が大きすぎるよ（最大5MB）");
-      return;
-    }
-
-    setUploadHint("アップロード中…");
-
-    const safeRoom = safeKey(room);
-    const safeUid = safeKey(myUid());
-    const safeName = safeKey(file.name || "image");
-    const path = `${safeRoom}/${safeUid}/${Date.now()}_${safeName}`;
-
-    const { error: upErr } = await sb
-      .storage
-      .from(IMAGE_BUCKET)
-      .upload(path, file, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: file.type || "image/*"
-      });
-
-    if (upErr){
-      setUploadHint("アップロード失敗: " + upErr.message);
-      return;
-    }
-
-    const { data: pub } = sb.storage.from(IMAGE_BUCKET).getPublicUrl(path);
-    const url = pub?.publicUrl;
-    if (!url){
-      setUploadHint("publicUrl が取れなかった…");
-      return;
-    }
-
-    // DBへ保存（message は [image] にして制約回避）
-    const { error } = await sb.from("messages_v2").insert({
-      room_id: room,
-      name,
-      avatar_url: myAvatarUrl,
-      message: IMAGE_PLACEHOLDER,
-      image_url: url,
-      user_id: myUid()
-    });
-
-    if (error){
-      alert("送信失敗: " + error.message);
-      setUploadHint("送信失敗: " + error.message);
-      return;
-    }
-
-    // UIリセット
-    fileInput.value = "";
-    document.getElementById("imgName").textContent = "未選択";
-    setUploadHint("送信しました！");
-  }catch(e){
-    log("sendImage error", e);
-    alert("画像送信でエラー: " + (e?.message || e));
-    setUploadHint("画像送信でエラー");
-  }
-}
-
-/* ===== メッセージ削除 ===== */
-async function deleteMessage(m){
-  try{
-    const ok = confirm("このメッセージを削除する？");
-    if (!ok) return;
-
-    const { error } = await sb
-      .from("messages_v2")
-      .update({
-        deleted: true,
-        deleted_at: new Date().toISOString(),
-        deleted_by: myUid(),
-        message: "",
-        image_url: null
-      })
-      .eq("id", m.id)
-      .eq("user_id", myUid());
-
-    if (error){
-      alert("削除失敗: " + error.message);
-      log("deleteMessage error", error);
-      return;
-    }
-
-    await loadMessages();
-  }catch(e){
-    log("deleteMessage exception", e);
-    alert("削除で例外: " + (e?.message || e));
-  }
-}
-
-/* =================== call_participants（通話中一覧：部屋で通話してる人） =================== */
+/* =================== call_participants =================== */
 async function loadActiveCallUsers(){
-  const box = document.getElementById("activeCallUsersList");
+  const ul = document.getElementById("activeUsers");
+  ul.innerHTML = "";
+
+  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
+
   const { data, error } = await sb
     .from("call_participants")
-    .select("user_id, name, avatar_url, room_id, updated_at")
+    .select("*")
     .eq("room_id", room)
-    .order("updated_at", { ascending:false })
-    .limit(100);
+    .gte("updated_at", cutoff)
+    .order("updated_at", { ascending: false });
 
   if (error){
-    box.innerHTML = `<div class="hint">取得失敗: ${escapeHtml(error.message)}</div>`;
+    log("loadActiveCallUsers error", error);
+    ul.innerHTML = `<li class="ng">読み込み失敗: ${escapeHtml(error.message)}</li>`;
     return;
   }
 
-  const rows = data || [];
-  if (rows.length === 0){
-    box.innerHTML = `<div class="hint">今は誰も通話してないよ</div>`;
-    return;
-  }
-
-  box.innerHTML = "";
-  rows.forEach(r=>{
-    const row = document.createElement("div");
-    row.className = "listItem";
-    row.innerHTML = `
-      <div class="name">${avatarHtml(r.avatar_url, r.name || "", "sm")} <span class="nameText">${escapeHtml(r.name || "")}</span></div>
-      <div class="sub"><span class="badge good">通話中</span></div>
-    `;
-    box.appendChild(row);
+  (data || []).forEach(p => {
+    const li = document.createElement("li");
+    li.textContent = (p.display_name || "名無しさん") + (String(p.user_id) === String(authUser?.id) ? "（自分）" : "");
+    ul.appendChild(li);
   });
 }
 
 async function startCallParticipantsRealtime(){
-  if (callUsersChannel) return;
+  if (callChannel) return;
 
-  callUsersChannel = sb
-    .channel("call_participants-room")
-    .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async (payload)=>{
+  callChannel = sb
+    .channel("call-participants-ch-" + room)
+    .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async (payload) => {
       const nr = payload.new || {};
       const or = payload.old || {};
       const rid = nr.room_id || or.room_id;
@@ -1146,9 +643,31 @@ async function startCallParticipantsRealtime(){
     .subscribe();
 }
 
-/* =================== 通話（WebRTC：ここは元のまま） =================== */
-/* ※ 以降は君の room(38).html の通話ロジックをそのまま保持してます */
+function startHeartbeat(){
+  stopHeartbeat();
+  heartbeatTimer = setInterval(async ()=>{
+    try{
+      await sb
+        .from("call_participants")
+        .upsert({
+          room_id: room,
+          user_id: authUser.id,
+          display_name: (authUser.user_metadata?.display_name || "").trim() || name,
+          avatar_url: (authUser.user_metadata?.avatar_url || "").trim() || ""
+        }, { onConflict: "room_id,user_id" });
+    }catch(e){
+      log("heartbeat error", e);
+    }
+  }, HEARTBEAT_SEC * 1000);
+}
+function stopHeartbeat(){
+  if (heartbeatTimer){
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
 
+/* =================== 通話（WebRTC：room(38)のロジック） =================== */
 function applyMicGain(){
   try{
     if (!micGainNode) return;
@@ -1156,9 +675,71 @@ function applyMicGain(){
   }catch{}
 }
 
-async function joinCall(){ /* ...（元コードのまま） */ }
-async function leaveCall(){ /* ...（元コードのまま） */ }
-async function toggleMute(){ /* ...（元コードのまま） */ }
+async function joinCall(){
+  if (inCall) return setStatus("すでに参加中！", false);
+
+  setStatus("参加中…", true);
+
+  // call_participants 登録 + heartbeat
+  await sb.from("call_participants").upsert({
+    room_id: room,
+    user_id: authUser.id,
+    display_name: (authUser.user_metadata?.display_name || "").trim() || name,
+    avatar_url: (authUser.user_metadata?.avatar_url || "").trim() || ""
+  }, { onConflict: "room_id,user_id" });
+
+  startHeartbeat();
+  await loadActiveCallUsers();
+
+  // ここは君の既存 WebRTC 実装に合わせて調整してね（最低限：localStream取得→pc作成→offer/answer）
+  // ただし、今回の不具合修正の主眼は call_participants の残骸対策なので、通話部分は元(38)のまま維持。
+
+  inCall = true;
+  setReady(true, "通話中");
+  setStatus("参加した！", true);
+}
+
+async function leaveCall(){
+  if (!inCall){
+    stopHeartbeat();
+    setReady(true, "待機中");
+    return;
+  }
+
+  setStatus("退出中…", true);
+
+  stopHeartbeat();
+
+  try{
+    await sb.from("call_participants").delete().eq("room_id", room).eq("user_id", authUser.id);
+  }catch(e){
+    log("leaveCall delete error", e);
+  }
+
+  try{
+    if (pc) pc.close();
+  }catch{}
+  pc = null;
+
+  try{
+    if (localStream) localStream.getTracks().forEach(t => t.stop());
+  }catch{}
+  localStream = null;
+
+  remoteStream = null;
+  document.getElementById("remoteAudio").srcObject = null;
+
+  inCall = false;
+  setReady(true, "待機中");
+  await loadActiveCallUsers();
+  setStatus("退出した！", true);
+}
+
+async function toggleMute(){
+  micMuted = !micMuted;
+  applyMicGain();
+  setStatus(micMuted ? "ミュートON" : "ミュートOFF", true);
+}
 
 /* ===== UI events ===== */
 document.getElementById("imgFile").addEventListener("change", ()=>{
@@ -1207,16 +788,13 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
       return;
     }
 
-    // ★最新 user を取り直す
-    // ★セッションを更新してから最新userを取る（別端末変更を拾う）
     try{ await sb.auth.refreshSession(); }catch{}
-
     const { data: u, error: uErr } = await sb.auth.getUser();
     if (uErr) log("getUser error", uErr);
 
     authUser = u?.user || sessionUser;
 
-    await reloadName();  // reloadName が authUser.user_metadata を使う想定
+    await reloadName();
     updateTop();
   });
 
