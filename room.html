@@ -1607,26 +1607,42 @@ async function leaveCall(){
 async function toggleMute(){
   micMuted = !micMuted;
 
+  // ボタン表示（ボタン無い場合でも落ちない）
   const btn = document.getElementById("muteBtn");
-  btn.textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
+  if (btn) btn.textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
 
-  if (localStream){
-    for (const t of localStream.getAudioTracks()){
-      t.enabled = !micMuted;
+  // ★ミュートは stop() じゃなく enabled 切替だけ
+  try{
+    if (localStream){
+      for (const t of localStream.getAudioTracks()){
+        t.enabled = !micMuted;
+      }
     }
+  }catch(e){
+    log("toggleMute: localStream fail", e);
   }
 
-  if (callChannel){
-    await callChannel.track({
-      user_id: myUid(),
-      name,
-      muted: micMuted,
-      at: new Date().toISOString()
-    });
+  // presence更新（失敗しても通話を止めない）
+  try{
+    if (callChannel){
+      await callChannel.track({
+        user_id: myUid(),
+        name,
+        muted: micMuted,
+        at: new Date().toISOString()
+      });
+    }
+  }catch(e){
+    log("toggleMute: presence track warn", e);
   }
 
-  for (const [peerId] of pcs){
-    await sendSignal(peerId, { kind:"mute", muted: micMuted });
+  // 相手のUI更新（失敗しても通話を止めない）
+  try{
+    for (const [peerId] of pcs){
+      await sendSignal(peerId, { kind:"mute", muted: micMuted });
+    }
+  }catch(e){
+    log("toggleMute: sendSignal warn", e);
   }
 }
 
@@ -1749,6 +1765,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
