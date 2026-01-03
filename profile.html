@@ -209,23 +209,35 @@ function getBackUrl(){
 
 /* ================= auth ================= */
 async function requireLogin(){
+  // 1) セッション確認
   const { data: ses } = await sb.auth.getSession();
   if (!ses?.session){
     location.replace("./login.html");
     return false;
   }
 
-  // ★必ず最新を取得
-  await sb.auth.refreshSession();
+  // 2) 最新ユーザー情報を取得（←ここ超重要）
   const { data: u } = await sb.auth.getUser();
+  if (!u?.user){
+    location.replace("./login.html");
+    return false;
+  }
+
+  // 3) グローバルに保持
   authUser = u.user;
+
+  // 4) ★プロフィール画像キャッシュ対策（画像戻る問題の核心）
+  const av = (authUser?.user_metadata?.avatar_url || "").trim();
+  const ver = String(authUser?.user_metadata?.avatar_ver ?? "").trim();
+  if (av && !ver){
+    await sb.auth.updateUser({ data: { avatar_ver: Date.now() } });
+    const { data: uu } = await sb.auth.getUser();
+    authUser = uu.user;
+  }
+
   return true;
 }
 
-async function signOut(){
-  await sb.auth.signOut({ scope:"local" });
-  location.replace("./login.html");
-}
 
 /* ================= UI ================= */
 function buildAvatarUrl(){
