@@ -230,8 +230,10 @@ async function signOut(){
 /* ================= UI ================= */
 function buildAvatarUrl(){
   const base = (authUser?.user_metadata?.avatar_url || "").trim();
-  const ver  = authUser?.user_metadata?.avatar_ver || "";
+  const verRaw = authUser?.user_metadata?.avatar_ver;
+  const ver = String(verRaw ?? "").trim();
   if (!base) return "";
+  if (!ver) return base; // ★ver無いなら ?v= を付けない
   return base + (base.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(ver);
 }
 
