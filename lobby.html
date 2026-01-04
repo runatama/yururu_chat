@@ -246,17 +246,6 @@
 </div>
 
 <div class="card">
-  <div class="sectionTitle">📝 表示名</div>
-  <div class="row">
-    <input id="displayName" placeholder="表示名（例: ゆるたま）" />
-    <button class="btnPrimary" type="button" onclick="saveDisplayName()">保存</button>
-  </div>
-  <div style="font-size:12px;color:var(--muted);margin-top:6px;">
-    ※ 右上の名前表示・通話表示にも反映されます
-  </div>
-</div>
-
-<div class="card">
   <div class="sectionTitle">🏠 ルーム</div>
   <div class="row">
     <input id="room" placeholder="部屋名（例: test）" />
@@ -390,10 +379,6 @@ async function refreshAuth(){
 
   authUser = u?.user || sessionUser;
   updateTopRightUser();
-
-  const dn = (authUser.user_metadata?.display_name || "").trim();
-  const dnEl = document.getElementById("displayName");
-  if (dnEl && !dnEl.value) dnEl.value = dn;
 
   return true;
 }
@@ -646,24 +631,33 @@ async function enterRoom(){
 }
 
     /* =================== 表示名保存 =================== */
-    async function saveDisplayName() {
-        if (!authUser) return alert("ログインしてね！");
+async function saveDisplayName() {
+  if (!authUser) return alert("ログインしてね！");
 
-        const input = document.getElementById("displayName");
-        if (!input) return;
+  const input = document.getElementById("displayName");
+  if (!input) return;
 
-        const dn = input.value.trim();
-        if (!dn) return alert("表示名を入力してね！");
+  const dn = input.value.trim();
+  if (!dn) return alert("表示名を入力してね！");
 
-        // 1) まず保存
-        const { error } = await sb.auth.updateUser({
-            data: { display_name: dn }
-        });
+  const { error } = await sb.auth.updateUser({
+    data: { display_name: dn }
+  });
 
-        if (error) {
-            alert("保存失敗: " + error.message);
-            return;
-        }
+  if (error) {
+    alert("保存失敗: " + error.message);
+    return;
+  }
+
+  try { await sb.auth.refreshSession(); } catch (e) {}
+  const { data: u } = await sb.auth.getUser();
+  authUser = u?.user || authUser;
+
+  input.value = (authUser.user_metadata?.display_name || "").trim();
+  updateTopRightUser();
+  setStatus("表示名を保存しました！", true);
+}
+
 
         // 2) ★プロフィールと同じ思想：必ず最新を取り直す（他端末更新/反映遅延に強い）
         try { await sb.auth.refreshSession(); } catch (e) { log("refreshSession warn", e); }
@@ -733,9 +727,6 @@ function avatarHtml(url, label, ver){
 
   if (!(await requireLoginOrRedirect())) return;
 
-  document.getElementById("displayName").value =
-    (authUser.user_metadata?.display_name || "").trim();
-
   await loadRooms();
   await startRealtime();
   await startCallParticipantsRealtime();
@@ -752,4 +743,5 @@ function avatarHtml(url, label, ver){
 
 </body>
 </html>
+
 
