@@ -249,7 +249,8 @@
   <div class="sectionTitle">🏠 ルーム</div>
   <div class="row">
     <input id="room" placeholder="部屋名（例: test）" />
-    <button class="btnPrimary" type="button" onclick="createRoom()">作成</button>
+    <button class="btnPrimary" type="button" onclick="log('create clicked (card)'); createRoom();">作成</button>
+
     <button type="button" onclick="enterRoom()">入室</button>
     <button type="button" onclick="loadRooms()">更新</button>
   </div>
@@ -640,33 +641,68 @@ async function loadRooms(){
 
 /* =================== 部屋作成 / 入室 =================== */
 async function createRoom(){
+  log("=== createRoom start ===");
+
   try{
-    // ★これを最初に必ず入れる（authUser を確実に復元）
+    // 0) セッション
+    const ses = await sb.auth.getSession();
+    log("getSession:", ses?.data?.session ? {
+      role: ses.data.session.user?.role,
+      uid: ses.data.session.user?.id,
+      email: ses.data.session.user?.email
+    } : "NO SESSION", "sesErr:", ses?.error || null);
+
+    // 1) authUser 復元
     const ok = await refreshAuth();
+    log("refreshAuth:", ok, "authUser:", authUser ? { id: authUser.id, email: authUser.email } : null);
+
     if (!ok || !authUser){
       alert("ログインが切れてるよ。もう一回ログインしてね！");
       goLogin();
       return;
     }
 
+    // 2) 部屋名
     const rn = document.getElementById("room").value.trim();
-    if (!rn) return alert("部屋名を入れてね！");
+    log("room input:", rn);
+    if (!rn){
+      alert("部屋名を入れてね！");
+      return;
+    }
 
-    const { data: exists, error: e1 } = await sb
-      .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
-    if (e1) return alert("確認失敗: " + e1.message);
-    if (exists) return alert("その部屋はもうあるよ！");
+    // 3) exists チェック
+    const q1 = await sb.from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+    log("exists check:", q1);
 
-    const { error } = await sb
-      .from("rooms")
-      .insert({ room_name: rn, owner_id: authUser.id });
+    if (q1.error){
+      alert("確認失敗(詳細):\n" + JSON.stringify(q1.error, null, 2));
+      return;
+    }
+    if (q1.data){
+      alert("その部屋はもうあるよ！");
+      return;
+    }
 
-    if (error) return alert("作成失敗: " + error.message);
+    // 4) INSERT
+    const payload = { room_name: rn, owner_id: authUser.id };
+    log("insert payload:", payload);
 
+    const q2 = await sb.from("rooms").insert(payload).select().maybeSingle();
+    log("insert result:", q2);
+
+    if (q2.error){
+      alert("作成失敗(詳細):\n" + JSON.stringify(q2.error, null, 2));
+      return;
+    }
+
+    alert("部屋作成OK！");
     await loadRooms();
+
   }catch(e){
-    console.error(e);
-    alert("作成で落ちた: " + (e?.message || e));
+    log("createRoom exception:", e?.stack || e);
+    alert("作成で例外:\n" + (e?.stack || e?.message || e));
+  }finally{
+    log("=== createRoom end ===");
   }
 }
 
@@ -797,6 +833,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
