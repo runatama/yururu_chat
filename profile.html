@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ゆるるチャット - Profile</title>
+  <title>ゆるるチャット - ログイン</title>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -12,381 +12,831 @@
       --bg1:#0b1220;
       --bg2:#0a1a2a;
       --card:#0f1a2cdd;
+      --card2:#0f1a2caa;
       --line:rgba(255,255,255,.10);
       --text:#eaf2ff;
-      --muted:rgba(234,242,255,.65);
+      --muted:rgba(234,242,255,.7);
+      --muted2:rgba(234,242,255,.55);
       --accent:#6ee7ff;
       --accent2:#a78bfa;
       --good:#3be0a8;
       --bad:#ff6b6b;
+
       --radius:18px;
       --shadow: 0 18px 50px rgba(0,0,0,.45);
+      --shadow2: 0 10px 30px rgba(0,0,0,.35);
     }
+
     *{ box-sizing:border-box; }
+    html,body{ height:100%; }
     body{
       margin:0;
-      font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", sans-serif;
       color:var(--text);
       background:
-        radial-gradient(900px 600px at 15% 20%, rgba(110,231,255,.25), transparent 55%),
-        radial-gradient(900px 600px at 85% 25%, rgba(167,139,250,.22), transparent 55%),
+        radial-gradient(900px 550px at 15% 20%, rgba(110,231,255,.28), transparent 55%),
+        radial-gradient(900px 550px at 85% 25%, rgba(167,139,250,.26), transparent 55%),
+        radial-gradient(1000px 650px at 40% 95%, rgba(59,224,168,.18), transparent 60%),
         linear-gradient(180deg, var(--bg1), var(--bg2));
-      padding:20px;
-      min-height:100vh;
+      padding: 24px 16px 40px;
+      overflow-x:hidden;
     }
 
-    h2{ margin:0; }
+    /* 背景のキラっと粒 */
+    .grain{
+      position:fixed; inset:0;
+      pointer-events:none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.25'/%3E%3C/svg%3E");
+      opacity:.08;
+      mix-blend-mode: overlay;
+    }
 
-    .topbar{
+    .wrap{
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    /* ヘッダー */
+    .header{
       display:flex;
+      align-items:center;
       justify-content:space-between;
+      gap:12px;
+      margin-bottom: 16px;
+    }
+
+    .brand{
+      display:flex;
       align-items:center;
       gap:12px;
-      margin-bottom:16px;
-      flex-wrap:wrap;
+      min-width: 0;
     }
 
-    .btn{
-      cursor:pointer;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.08);
-      color:var(--text);
-      padding:10px 14px;
-      font-weight:800;
+    .logo{
+      width:44px; height:44px;
+      border-radius: 14px;
+      background:
+        radial-gradient(16px 16px at 30% 30%, rgba(255,255,255,.9), transparent 55%),
+        linear-gradient(135deg, rgba(110,231,255,.9), rgba(167,139,250,.85));
+      box-shadow: 0 14px 30px rgba(110,231,255,.15), 0 14px 30px rgba(167,139,250,.10);
+      position:relative;
+      overflow:hidden;
+    }
+    .logo::after{
+      content:"";
+      position:absolute; inset:-30%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+      transform: rotate(20deg);
+      animation: sheen 3.2s infinite;
+    }
+    @keyframes sheen{
+      0%{ transform: translateX(-40%) rotate(20deg); opacity:.0; }
+      20%{ opacity:.6; }
+      50%{ opacity:.25; }
+      100%{ transform: translateX(40%) rotate(20deg); opacity:0; }
+    }
+
+    .titleBox{ min-width:0; }
+    .title{
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: .02em;
+      margin:0;
+      line-height:1.1;
+    }
+    .subtitle{
+      margin:6px 0 0;
+      font-size:12px;
+      color: var(--muted);
+      line-height:1.4;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 62vw;
+    }
+
+    .pill{
       display:inline-flex;
       align-items:center;
       gap:8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      box-shadow: var(--shadow2);
+      font-size:12px;
+      color: var(--muted);
+      white-space:nowrap;
     }
-    .btn:hover{ filter:brightness(1.1); }
-    .btnPrimary{
-      background:linear-gradient(135deg, var(--accent), var(--accent2));
-      color:#08131f;
-      border:none;
+    .dot{
+      width:9px;height:9px;border-radius:999px;
+      background: rgba(255,255,255,.35);
+      box-shadow: 0 0 0 4px rgba(255,255,255,.06);
     }
-    .btnDanger{
-      background:rgba(255,107,107,.18);
-      border-color:rgba(255,107,107,.4);
+    .pill.ok .dot{ background: var(--good); box-shadow: 0 0 0 4px rgba(59,224,168,.14); }
+    .pill.ng .dot{ background: var(--bad); box-shadow: 0 0 0 4px rgba(255,107,107,.14); }
+
+    /* カード */
+    .grid{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap:16px;
+      align-items:start;
+    }
+    @media (max-width: 900px){
+      .grid{ grid-template-columns: 1fr; }
+      .subtitle{ max-width: 78vw; }
     }
 
     .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
-      border:1px solid var(--line);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
-      padding:16px;
-      margin-bottom:16px;
-      max-width:760px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      position:relative;
+      overflow:hidden;
+    }
+    .card::before{
+      content:"";
+      position:absolute;
+      inset:-2px;
+      border-radius: var(--radius);
+      background:
+        radial-gradient(600px 220px at 20% 0%, rgba(110,231,255,.18), transparent 60%),
+        radial-gradient(600px 220px at 80% 0%, rgba(167,139,250,.16), transparent 60%);
+      pointer-events:none;
+    }
+    .card > *{ position:relative; z-index:1; }
+
+    .sectionTitle{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom: 10px;
+    }
+    .sectionTitle b{
+      font-size:14px;
+      color: rgba(234,242,255,.92);
+      letter-spacing:.02em;
+    }
+    .hint{
+      font-size:12px;
+      color: var(--muted);
+      line-height:1.6;
+      margin-top:6px;
+    }
+    .hint.small{ font-size:11px; color: var(--muted2); }
+
+    .divider{
+      height:1px;
+      background: var(--line);
+      margin: 12px 0;
     }
 
-    .row{
+    /* ボタン */
+    .btnRow{
       display:flex;
       gap:10px;
       flex-wrap:wrap;
       align-items:center;
+      margin-top:10px;
+    }
+    button{
+      appearance:none;
+      border:none;
+      cursor:pointer;
+      color: var(--text);
+      font-weight: 800;
+      padding: 11px 14px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid var(--line);
+      transition: transform .08s ease, filter .12s ease, background .12s ease;
+    }
+    button:hover{ filter: brightness(1.08); }
+    button:active{ transform: translateY(1px) scale(.99); }
+    button:disabled{ opacity:.55; cursor:not-allowed; }
+
+    .btnPrimary{
+      background: linear-gradient(135deg, rgba(110,231,255,.92), rgba(167,139,250,.88));
+      border-color: rgba(255,255,255,.18);
+      color: #07101c;
+      box-shadow: 0 18px 35px rgba(110,231,255,.13), 0 18px 35px rgba(167,139,250,.10);
+    }
+    .btnGhost{
+      background: rgba(255,255,255,.06);
+    }
+    .btnDanger{
+      background: rgba(255,107,107,.14);
+      border-color: rgba(255,107,107,.25);
     }
 
+    /* Googleボタン */
+    .googleBtn{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.16);
+    }
+    .googleIcon{
+      width:20px;height:20px; border-radius:6px;
+      background:#fff;
+      display:grid; place-items:center;
+      color:#111;
+      font-weight:900;
+      font-size: 12px;
+    }
+    .googleBtn b{ color: var(--text); }
+    .googleBtn span{ color: var(--muted); font-size:12px; font-weight:600; }
+
+    /* モード選択 */
+    .modeBtns { display:flex; gap:10px; flex-wrap: wrap; margin-top: 10px; }
+    .modeBtn{
+      flex: 1 1 220px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      border-radius: 16px;
+      padding: 12px 14px;
+      text-align:left;
+      cursor:pointer;
+      transition: transform .08s ease, filter .12s ease, background .12s ease, border-color .12s ease;
+    }
+    .modeBtn:hover{ filter: brightness(1.08); }
+    .modeBtn:active{ transform: translateY(1px) scale(.995); }
+
+    .modeBtn.active{
+      border-color: rgba(110,231,255,.45);
+      background: linear-gradient(180deg, rgba(110,231,255,.16), rgba(167,139,250,.10));
+      box-shadow: 0 16px 28px rgba(110,231,255,.08);
+    }
+    .modeTitle{ font-weight: 900; display:block; margin-bottom: 4px; }
+    .modeDesc{ font-size: 12px; color:var(--muted); }
+
+    /* 入力 */
+    .row { display:flex; gap:10px; flex-wrap: wrap; align-items: center; }
+    .field{
+      flex: 1 1 260px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    label{
+      font-size: 11px;
+      color: var(--muted2);
+      font-weight: 700;
+    }
     input{
-      padding:12px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.25);
-      color:var(--text);
-      width:100%;
+      width: 100%;
+      padding: 12px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.22);
+      color: var(--text);
+      outline:none;
+      transition: border-color .12s ease, box-shadow .12s ease;
+    }
+    input::placeholder{ color: rgba(234,242,255,.38); }
+    input:focus{
+      border-color: rgba(110,231,255,.55);
+      box-shadow: 0 0 0 4px rgba(110,231,255,.12);
     }
 
-    .hint{ font-size:12px; color:var(--muted); line-height:1.6; }
-
-    .avatarBig{
-      width:96px;height:96px;border-radius:50%;
-      object-fit:cover;
-      border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.10);
-      box-shadow: 0 10px 26px rgba(0,0,0,.25);
+    /* ステータス */
+    .statusLine{
+      margin-top:10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      font-size: 12px;
+      color: var(--muted);
+      display:flex;
+      align-items:center;
+      gap:8px;
     }
-    .avatarFallback{
-      width:96px;height:96px;border-radius:50%;
-      display:flex;align-items:center;justify-content:center;
-      font-size:32px;font-weight:900;
-      border:1px solid rgba(255,255,255,.16);
-      background: radial-gradient(circle at 30% 30%, rgba(110,231,255,.28), rgba(167,139,250,.18));
-      color: rgba(234,242,255,.92);
+    .statusLine.ok{ border-color: rgba(59,224,168,.25); background: rgba(59,224,168,.08); color: rgba(234,242,255,.85); }
+    .statusLine.ng{ border-color: rgba(255,107,107,.25); background: rgba(255,107,107,.10); color: rgba(234,242,255,.88); }
+    .statusIcon{
+      width: 10px; height: 10px; border-radius: 999px;
+      background: rgba(255,255,255,.35);
+      box-shadow: 0 0 0 4px rgba(255,255,255,.05);
+      flex: 0 0 auto;
+    }
+    .statusLine.ok .statusIcon{ background: var(--good); box-shadow: 0 0 0 4px rgba(59,224,168,.13); }
+    .statusLine.ng .statusIcon{ background: var(--bad); box-shadow: 0 0 0 4px rgba(255,107,107,.13); }
+
+    /* details */
+    details { margin-top: 12px; }
+    summary{
+      cursor:pointer;
+      color: rgba(234,242,255,.85);
+      font-weight:800;
+      font-size: 12px;
       user-select:none;
     }
+    #log {
+      margin-top: 10px;
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      padding: 10px;
+      border-radius: 14px;
+      max-height: 220px;
+      overflow: auto;
+      color: rgba(234,242,255,.88);
+    }
 
-    #status{ margin-top:10px; font-size:12px; }
-    .ok{ color:var(--good); }
-    .ng{ color:var(--bad); }
+    .danger {
+      border-color: rgba(255,107,107,.45) !important;
+      background: rgba(255,107,107,.14) !important;
+    }
+
+    /* 右カラムの補助カード */
+    .miniCard{
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      border-radius: var(--radius);
+      padding: 14px;
+    }
+    .miniCard b{ font-size: 13px; }
+    .list{
+      margin: 10px 0 0;
+      padding:0;
+      list-style:none;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .list li{
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      font-size: 12px;
+      color: var(--muted);
+      line-height:1.55;
+      padding: 10px 10px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(0,0,0,.18);
+    }
+    .badge{
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      color: rgba(234,242,255,.80);
+      white-space:nowrap;
+      flex: 0 0 auto;
+    }
+
+    .footer{
+      margin-top: 16px;
+      text-align:center;
+      font-size: 11px;
+      color: rgba(234,242,255,.45);
+    }
+    a{ color: rgba(110,231,255,.9); text-decoration:none; }
+    a:hover{ text-decoration:underline; }
   </style>
 </head>
 
 <body>
+  <div class="grain"></div>
 
-<div class="topbar">
-  <h2>👤 プロフィール</h2>
-  <div class="row">
-    <button class="btn" onclick="goBack()">⬅ 戻る</button>
-    <button class="btn btnDanger" onclick="signOut()">🚪 ログアウト</button>
-  </div>
-</div>
+  <div class="wrap">
 
-<div class="card">
-  <div class="row" style="align-items:flex-start;">
-    <div id="avatarBox"></div>
-    <div style="flex:1; min-width:260px;">
-      <div style="font-weight:900;margin-bottom:8px;">📝 表示名</div>
-      <div class="row">
-        <input id="displayName" placeholder="表示名（例: ゆるたま）" />
-        <button class="btn btnPrimary" onclick="saveDisplayName()">保存</button>
+    <div class="header">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="titleBox">
+          <h1 class="title">ゆるるチャット</h1>
+          <p class="subtitle">Googleログイン対応 / まずはサクッと入室しよう</p>
+        </div>
       </div>
 
-      <div style="height:14px;"></div>
-
-      <div style="font-weight:900;margin-bottom:8px;">🖼️ プロフィール画像</div>
-      <div class="row">
-        <input id="avatarFile" type="file" accept="image/*" />
-        <button class="btn btnPrimary" onclick="uploadAvatar()">アップロード</button>
-        <button class="btn btnDanger" onclick="removeAvatar()">削除</button>
+      <div class="pill" id="authPillWrap">
+        <span class="dot" id="authDot"></span>
+        <span id="authPill">未ログイン</span>
       </div>
-
-      <div class="hint" style="margin-top:8px;">
-        ・正方形（1:1）推奨 / 2MB以下<br>
-        ・他端末でも即反映されます
-      </div>
-
-      <div id="status"></div>
     </div>
+
+    <div class="grid">
+      <!-- 左：ログインカード -->
+      <div class="card">
+        <div class="sectionTitle">
+          <b>はじめに選んでね</b>
+          <span class="badge">Login / Sign up</span>
+        </div>
+
+        <div class="hint">「ログイン」か「新規登録」どっちをする？</div>
+
+        <div class="modeBtns">
+          <div class="modeBtn" id="btnModeSignIn" onclick="setMode('signin')">
+            <span class="modeTitle">🔐 ログイン</span>
+            <span class="modeDesc">すでにアカウントがある人</span>
+          </div>
+
+          <div class="modeBtn" id="btnModeSignUp" onclick="setMode('signup')">
+            <span class="modeTitle">🆕 新規登録</span>
+            <span class="modeDesc">はじめて使う人（メール確認が必要なことあり）</span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Google -->
+        <button class="googleBtn" onclick="signInWithGoogle()">
+          <span class="googleIcon">G</span>
+          <span style="display:flex;flex-direction:column;gap:2px;text-align:left;">
+            <b>Googleでログイン</b>
+            <span>ワンタップで入れる（おすすめ）</span>
+          </span>
+        </button>
+
+        <div class="hint small" style="margin-top:10px;">
+          ※ログインできない時は、下の「デバッグログ」をコピペして送ってね
+        </div>
+      </div>
+
+      <!-- 右：案内カード -->
+      <div class="miniCard">
+        <b>✨ 使い方（30秒）</b>
+        <ul class="list">
+          <li><span class="badge">1</span>Googleで入る（いちばん簡単）</li>
+          <li><span class="badge">2</span>初回だけ表示名を設定</li>
+          <li><span class="badge">3</span>ロビーへ移動して部屋に参加</li>
+        </ul>
+
+        <div class="divider"></div>
+
+        <b>🔒 安心ポイント</b>
+        <ul class="list">
+          <li><span class="badge">PKCE</span>安全な認証フローでログイン</li>
+          <li><span class="badge">Session</span>ログイン状態を維持</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ログイン/新規登録フォーム -->
+    <div class="card" id="formCard" style="display:none; margin-top:16px;">
+      <div class="sectionTitle">
+        <b id="formTitle">🔐 ログイン</b>
+        <span class="badge" id="formBadge">フォーム</span>
+      </div>
+      <div class="hint" id="formHint">ログインに成功したらメインページへ移動するよ</div>
+
+      <div class="row" style="margin-top:12px;">
+        <div class="field">
+          <label for="email">メールアドレス</label>
+          <input id="email" placeholder="example@mail.com" autocomplete="email" />
+        </div>
+        <div class="field">
+          <label for="pass">パスワード</label>
+          <input id="pass" type="password" placeholder="パスワード" autocomplete="current-password" />
+        </div>
+      </div>
+
+      <div class="btnRow">
+        <button class="btnPrimary" onclick="doPrimary()" id="primaryBtn">ログイン</button>
+        <button class="btnGhost" onclick="resetMode()">戻る</button>
+        <button class="btnDanger" onclick="signOut()" id="signOutBtn" disabled>ログアウト</button>
+      </div>
+
+      <div class="statusLine" id="statusLine">
+        <span class="statusIcon" id="statusIcon"></span>
+        <span id="status">未ログイン</span>
+      </div>
+
+      <details>
+        <summary>🔧 デバッグログ（困ったらここをコピペして送って）</summary>
+        <div id="log"></div>
+      </details>
+    </div>
+
+    <!-- 表示名（ログイン後だけ） -->
+    <div class="card" id="nameCard" style="display:none; margin-top:16px;">
+      <div class="sectionTitle">
+        <b>🪪 表示名（チャット名）</b>
+        <span class="badge">Profile</span>
+      </div>
+      <div class="hint">ここで設定した表示名が、メインページ右上に出るよ</div>
+
+      <div class="row" style="margin-top:12px;">
+        <div class="field" style="flex: 1 1 360px;">
+          <label for="displayName">表示名</label>
+          <input id="displayName" placeholder="表示名（例: ゆるたま）" autocomplete="nickname" />
+        </div>
+        <div class="btnRow" style="margin-top:0;">
+          <button class="btnPrimary" onclick="saveDisplayName()" id="saveNameBtn">表示名保存</button>
+          <button class="btnGhost" onclick="gotoMain()">メインへ</button>
+        </div>
+      </div>
+
+      <div class="hint" id="authState">未ログイン</div>
+    </div>
+
+    <div class="footer">
+      ゆるるチャット © <span id="y"></span> / UI: simple glow theme
+    </div>
+
   </div>
-</div>
 
 <script>
-/* ================= Supabase ================= */
+/* =================== Supabase 設定 =================== */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
 const sb = supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_KEY,
+  SUPABASE_URL.trim(),
+  (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
   {
-    auth:{
-      flowType:"pkce",
-      persistSession:true,
-      autoRefreshToken:true,
-      detectSessionInUrl:true
+    auth: {
+      flowType: "pkce",
+      detectSessionInUrl: true,
+      autoRefreshToken: true,
+      persistSession: true
     }
   }
 );
 
-const AVATAR_BUCKET = "avatar-images";
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
-
+/* =================== 状態 =================== */
 let authUser = null;
+let mode = null; // 'signin' | 'signup' | null
 
-/* ================= util ================= */
-function escapeHtml(s){
-  return String(s||"")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-function getInitial(s){
-  const t = String(s||"").trim();
-  return t ? Array.from(t)[0] : "?";
-}
-function setStatus(msg, ok=true){
-  document.getElementById("status").innerHTML =
-    `<span class="${ok?"ok":"ng"}">${escapeHtml(msg)}</span>`;
-}
-function getBackUrl(){
-  const p = new URLSearchParams(location.search);
-  if (p.get("back")==="room" && p.get("room")){
-    return "./room.html?room="+encodeURIComponent(p.get("room"));
-  }
-  return "./lobby.html";
+/* =================== ログ =================== */
+function log(...args){
+  const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
+  console.log("[login]", ...args); // lobbyなら "[lobby]"
+  const el = document.getElementById("log");
+  if (!el) return;
+  el.textContent += s + "\n";
+  el.scrollTop = el.scrollHeight;
 }
 
-/* ================= auth ================= */
+window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
+window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
 
-  async function signOut(){
-  try{
-    await sb.auth.signOut();
-  }catch(e){
-    console.error(e);
-  }
 
-  // ログアウト後はログイン画面へ
-  location.replace("./login.html");
+function setStatus(text, ok = true) {
+  const el = document.getElementById("status");
+  const line = document.getElementById("statusLine");
+  el.textContent = text;
+
+  line.classList.remove("ok", "ng");
+  if (ok === true) line.classList.add("ok");
+  if (ok === false) line.classList.add("ng");
 }
-  
-async function requireLogin(){
-  // 1) セッション確認
-  const { data: ses } = await sb.auth.getSession();
-  if (!ses?.session){
-    location.replace("./login.html");
-    return false;
-  }
 
-  // 2) 最新ユーザー情報を取得
-  const { data: u } = await sb.auth.getUser();
-  if (!u?.user){
-    location.replace("./login.html");
-    return false;
-  }
+function showAuthError(prefix, error) {
+  if (!error) return;
+  log(prefix, error);
+  const full =
+    (error.message || "") +
+    (error.status ? ` (status:${error.status})` : "") +
+    (error.code ? ` (code:${error.code})` : "");
+  alert(prefix + ": " + full);
+  setStatus(prefix + ": " + full, false);
+}
 
-  // 3) グローバルに保持
-  authUser = u.user;
+/* =================== 便利：今のページURL（パラメータ無し） =================== */
+function currentPageUrlNoParams(){
+  const u = new URL(location.href);
+  u.search = "";
+  u.hash = "";
+  return u.toString();
+}
 
-  // 4) Googleログイン対策（custom_avatar方式）
-  const um = authUser.user_metadata || {};
+/* =================== UI：モード切替 =================== */
+function setMode(next){
+  mode = next;
 
-  const legacyUrl = String(um.avatar_url || "").trim();
-  const legacyVer = String(um.avatar_ver ?? "").trim();
-  const customUrl = String(um.custom_avatar_url || "").trim();
+  document.getElementById("btnModeSignIn").classList.toggle("active", mode === "signin");
+  document.getElementById("btnModeSignUp").classList.toggle("active", mode === "signup");
 
-  // 旧データ移行（avatar_url に保存していた人向け）
-  const looksLikeStorage =
-    legacyUrl.includes("/storage/v1/object/public/") &&
-    legacyUrl.includes("/" + AVATAR_BUCKET + "/");
+  const formCard = document.getElementById("formCard");
+  formCard.style.display = "block";
 
-  if (!customUrl && looksLikeStorage){
-    const now = Date.now();
-    await sb.auth.updateUser({
-      data:{
-        custom_avatar_url: legacyUrl,
-        custom_avatar_ver: legacyVer || String(now)
-      }
-    });
-    const { data: uu } = await sb.auth.getUser();
-    if (uu?.user) authUser = uu.user;
+  const title = document.getElementById("formTitle");
+  const hint = document.getElementById("formHint");
+  const primaryBtn = document.getElementById("primaryBtn");
+  const badge = document.getElementById("formBadge");
+
+  if (mode === "signin") {
+    title.textContent = "🔐 ログイン";
+    hint.textContent = "ログインに成功したらメインページへ移動するよ";
+    primaryBtn.textContent = "ログイン";
+    badge.textContent = "Sign in";
+    document.getElementById("pass").placeholder = "パスワード";
+    document.getElementById("pass").autocomplete = "current-password";
+  } else {
+    title.textContent = "🆕 新規登録";
+    hint.textContent = "新規登録 →（必要なら）メール確認 → ログイン、の流れだよ";
+    primaryBtn.textContent = "新規登録";
+    badge.textContent = "Sign up";
+    document.getElementById("pass").placeholder = "パスワード（6文字以上 / 推奨8以上）";
+    document.getElementById("pass").autocomplete = "new-password";
   }
 
-  // custom_avatar_ver が無い場合の補完
-  const um2 = authUser.user_metadata || {};
-  if (um2.custom_avatar_url && !um2.custom_avatar_ver){
-    await sb.auth.updateUser({
-      data:{ custom_avatar_ver: Date.now() }
-    });
-    const { data: uu } = await sb.auth.getUser();
-    if (uu?.user) authUser = uu.user;
+  document.getElementById("email").focus();
+}
+
+function resetMode(){
+  mode = null;
+  document.getElementById("btnModeSignIn").classList.remove("active");
+  document.getElementById("btnModeSignUp").classList.remove("active");
+  document.getElementById("formCard").style.display = "none";
+}
+
+/* =================== メインへ =================== */
+function gotoMain() {
+  const u = new URL("./lobby.html", location.href);
+  u.searchParams.set("_r", String(Date.now()));
+  setTimeout(() => location.replace(u.toString()), 300);
+}
+
+/* =================== セッション表示 =================== */
+function setAuthPill(){
+  const pill = document.getElementById("authPill");
+  const dotWrap = document.getElementById("authPillWrap");
+  const dot = document.getElementById("authDot");
+
+  dotWrap.classList.remove("ok", "ng");
+  dot.style.background = "rgba(255,255,255,.35)";
+
+  if (!authUser) {
+    pill.textContent = "未ログイン";
+    dotWrap.classList.add("ng");
+    return;
   }
-
-  return true;
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  pill.textContent = dn ? `ログイン中: ${dn}` : `ログイン中: ${authUser.email}`;
+  dotWrap.classList.add("ok");
 }
 
-
-/* ================= UI ================= */
-function buildAvatarUrl(){
-  const um = authUser?.user_metadata || {};
-  const hasCustom = !!String(um.custom_avatar_url || "").trim();
-  const base = hasCustom
-    ? String(um.custom_avatar_url || "").trim()
-    : String(um.avatar_url || "").trim();
-
-  const verRaw = hasCustom ? um.custom_avatar_ver : um.avatar_ver;
-  const ver = String(verRaw ?? "").trim();
-
-  if (!base) return "";
-  if (!ver) return base;
-  return base + (base.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(ver);
+function setAuthStateText() {
+  const el = document.getElementById("authState");
+  if (!authUser) { el.textContent = "未ログイン"; return; }
+  const dn = (authUser.user_metadata && authUser.user_metadata.display_name) || "";
+  el.textContent = `ログイン中: ${authUser.email}${dn ? " / 表示名: " + dn : ""}`;
 }
 
-function renderAvatar(){
-  const box = document.getElementById("avatarBox");
-  const dn = authUser?.user_metadata?.display_name || "";
-  const url = buildAvatarUrl();
+function setLoggedInUI(){
+  const loggedIn = !!authUser;
+  document.getElementById("signOutBtn").disabled = !loggedIn;
 
-  if (url){
-    box.innerHTML = `<img class="avatarBig" src="${url}" />`;
-  }else{
-    box.innerHTML = `<div class="avatarFallback">${escapeHtml(getInitial(dn))}</div>`;
+  document.getElementById("nameCard").style.display = loggedIn ? "block" : "none";
+  if (loggedIn) {
+    document.getElementById("displayName").value = (authUser?.user_metadata?.display_name || "");
+  }
+  setAuthPill();
+  setAuthStateText();
+}
+
+/* =================== 起動/セッション取得 =================== */
+async function reloadSession() {
+  const { data, error } = await sb.auth.getSession();
+  if (error) log("getSession error", error);
+
+  authUser = data?.session?.user || null;
+  setLoggedInUI();
+
+  if (authUser) setStatus("ログイン中：メインへ行けます", true);
+  else setStatus("未ログイン：まずモードを選んでね", true);
+}
+
+/* =================== Googleログイン =================== */
+async function signInWithGoogle(){
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      // ★ /login でも /login.html でもOK：今いるページへ戻す
+      redirectTo: currentPageUrlNoParams()
+    }
+  });
+  if (error) showAuthError("Googleログイン失敗", error);
+}
+
+/* =================== ボタン：ログイン/新規登録（共通） =================== */
+async function doPrimary(){
+  if (mode === "signin") return await signIn();
+  if (mode === "signup") return await signUp();
+  alert("まず「ログイン」か「新規登録」を選んでね！");
+}
+
+/* =================== Auth操作 =================== */
+async function signUp() {
+  const email = document.getElementById("email").value.trim();
+  const pass = document.getElementById("pass").value;
+
+  if (!email || !pass) return alert("メールとパスワード入れてね！");
+  if (pass.length < 6) return alert("パスワード短すぎ！6文字以上にしてね（推奨8文字以上）");
+
+  const { data, error } = await sb.auth.signUp({
+    email,
+    password: pass,
+    options: {
+      // ★ /login でも /login.html でもOK
+      emailRedirectTo: currentPageUrlNoParams()
+    }
+  });
+
+  if (error) { showAuthError("新規登録失敗", error); return; }
+
+      // OK
+  log("signUp data", data);
+  alert("新規登録OK！メール確認が必要なら、メールを確認してからログインしてね！");
+  await reloadSession();
+
+  if (!authUser) {
+    setMode("signin");
+    setStatus("メール確認が必要なら先に確認 → その後ログインしてね", true);
   }
 }
 
-function refreshUI(){
-  document.getElementById("displayName").value =
-    authUser?.user_metadata?.display_name || "";
-  renderAvatar();
+async function signIn() {
+  const email = document.getElementById("email").value.trim();
+  const pass = document.getElementById("pass").value;
+
+  if (!email || !pass) return alert("メールとパスワード入れてね！");
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showAuthError("ログイン失敗", error); return; }
+
+  log("signIn data", data);
+  alert("ログインOK！メインへ移動するよ！");
+  await reloadSession();
+  gotoMain();
 }
 
-/* ================= save ================= */
-async function saveDisplayName(){
+async function signOut() {
+  const { error } = await sb.auth.signOut({ scope: "local" });
+  if (error) log("signOut error", error);
+  authUser = null;
+  setLoggedInUI();
+  setStatus("ログアウトしました", true);
+}
+
+/* =================== 表示名保存 =================== */
+async function saveDisplayName() {
+  if (!authUser) return alert("先にログインしてね！");
   const dn = document.getElementById("displayName").value.trim();
-  if (!dn) return setStatus("表示名を入力してね", false);
+  if (!dn) return alert("表示名を入れてね！");
 
-  const { data, error } = await sb.auth.updateUser({
-    data:{ display_name: dn }
-  });
-  if (error) return setStatus(error.message,false);
+  const btn = document.getElementById("saveNameBtn");
+  if (btn) btn.disabled = true;
 
-  authUser = data.user;
-  refreshUI();
-  setStatus("保存しました！");
+  try {
+    const { error } = await sb.auth.updateUser({ data: { display_name: dn } });
+    if (error) { showAuthError("表示名保存失敗", error); return; }
+
+    alert("表示名保存OK！");
+    await reloadSession();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
-async function uploadAvatar(){
-  const file = document.getElementById("avatarFile").files[0];
-  if (!file) return setStatus("画像を選んでね", false);
-  if (file.size > MAX_AVATAR_BYTES) return setStatus("2MB以下にしてね", false);
+/* =================== 起動時：OAuth戻りを確定させる =================== */
+(async () => {
+  document.getElementById("y").textContent = String(new Date().getFullYear());
 
-  const safeName = file.name.replace(/[^\w.-]+/g, "_");
-  const path = `${authUser.id}/${Date.now()}_${safeName}`;
+  try {
+    const url = new URL(location.href);
+    const hasAuthParams =
+      url.searchParams.has("code") ||
+      url.searchParams.has("type") ||
+      url.searchParams.has("access_token") ||
+      url.searchParams.has("refresh_token") ||
+      (location.hash && (location.hash.includes("access_token=") || location.hash.includes("refresh_token=")));
 
-  setStatus("アップロード中…");
-
-  const { error: upErr } = await sb.storage
-    .from(AVATAR_BUCKET)
-    .upload(path, file, {
-      upsert: false,
-      cacheControl: "0"   // ✅ 追加：キャッシュさせない（戻る問題の決定打）
-    });
-
-  if (upErr) return setStatus(upErr.message, false);
-
-  const { data } = sb.storage.from(AVATAR_BUCKET).getPublicUrl(path);
-  const url = data.publicUrl;
-
-  const now = Date.now();
-  const { data: ud, error } = await sb.auth.updateUser({
-    data: {
-      custom_avatar_url: url,
-      custom_avatar_ver: now  // ★ここが最重要（URLに ?v= が付く）
+    if (hasAuthParams) {
+      const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
+      if (error) log("getSessionFromUrl error", error);
+      if (data?.session?.user) {
+        log("OAuth session OK", data.session.user.email);
+      }
+      history.replaceState({}, document.title, currentPageUrlNoParams());
     }
+  } catch (e) {
+    log("init exception", e);
+  }
+
+  await reloadSession();
+
+  sb.auth.onAuthStateChange(async () => {
+    await reloadSession();
+    if (authUser) gotoMain();
   });
-  if (error) return setStatus(error.message, false);
-
-  // ✅ 念押し：サーバーから最新の user_metadata を取り直す（端末差のバグ潰し）
-  const { data: uu } = await sb.auth.getUser();
-  authUser = uu?.user || ud.user;
-
-  document.getElementById("avatarFile").value = "";
-  refreshUI();
-  setStatus("画像を更新しました！");
-}
-
-async function removeAvatar(){
-  const { data, error } = await sb.auth.updateUser({
-    data:{
-      custom_avatar_url:"",
-      custom_avatar_ver: Date.now()
-    }
-  });
-  if (error) return setStatus(error.message,false);
-
-  authUser = data.user;
-  refreshUI();
-  setStatus("削除しました");
-}
-
-/* ================= init ================= */
-function goBack(){ location.replace(getBackUrl()); }
-
-(async()=>{
-  if (!await requireLogin()) return;
-  refreshUI();
 })();
 </script>
-
 </body>
 </html>
+
