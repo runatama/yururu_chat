@@ -780,7 +780,7 @@ function avatarHtml(url, label, size="", ver=""){
   return `<div class="${fbCls}">${escapeHtml(getInitial(label))}</div>`;
 }
 
-// ★必ずグローバル（外側）に置く
+// ★必ず avatarHtml の外（ここ）に置く！！
 function getPreferredAvatarMeta(){
   const um = authUser?.user_metadata || {};
   const hasCustom = !!String(um.custom_avatar_url || "").trim();
@@ -1845,6 +1845,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
