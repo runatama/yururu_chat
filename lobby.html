@@ -388,17 +388,19 @@ async function refreshAuth(){
 }
 
 async function requireLoginOrRedirect(){
-  // 最大3回まで待つ（OAuth直後対策）
-  for (let i = 0; i < 3; i++) {
+  // OAuth直後対策：数回待つ
+  for (let i = 0; i < 3; i++){
     const ok = await refreshAuth();
     if (ok) return true;
     await new Promise(r => setTimeout(r, 300));
   }
 
-  // それでもダメなら本当に未ログイン
+  // それでもダメなら「壊れたセッション」と判断
+  clearSupabaseLocalStorage();
   goLogin();
   return false;
 }
+
 
 /* =================== ログアウト =================== */
 function clearSupabaseLocalStorage(){
@@ -791,6 +793,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
