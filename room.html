@@ -972,14 +972,26 @@ async function loadMessages(){
       }
 
       // ✅ 画像があるなら表示
-      if (hasImage){
-        const img = document.createElement("img");
-        img.className = "msgImg";
-        img.src = m.image_url;
-        img.loading = "lazy";
-        img.alt = "image";
-        wrap.appendChild(img);
-      }
+      // ✅ 画像があるなら表示
+if (hasImage){
+  const img = document.createElement("img");
+  img.className = "msgImg";
+  img.src = m.image_url;
+  img.loading = "lazy";
+  img.alt = "image";
+
+  // ★追加：サーバー側で削除されてたら「削除されました」に置き換える
+  img.onerror = () => {
+    try { img.remove(); } catch {}
+    const delImg = document.createElement("div");
+    delImg.className = "msgExpired";
+    delImg.textContent = "🗑️ 画像はサーバー側から削除されました";
+    wrap.appendChild(delImg);
+  };
+
+  wrap.appendChild(img);
+}
+
 
       // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
       if (isImagePlaceholder && !hasImage){
@@ -1765,6 +1777,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
