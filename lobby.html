@@ -310,8 +310,8 @@ function setStatus(text, ok=true){
 
 /* =================== 移動 =================== */
 function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
-function goRoom(roomId, roomName){
-  location.replace("./room.html?room_id=" + encodeURIComponent(roomId) + "&room=" + encodeURIComponent(roomName) + "&_r=" + Date.now());
+function goRoom(roomName){
+  location.replace("./room.html?room=" + encodeURIComponent(roomName) + "&_r=" + Date.now());
 }
 function goProfile(){
   location.replace("./profile.html?back=lobby&_r=" + Date.now());
@@ -456,20 +456,19 @@ async function startCallParticipantsRealtime(){
 /* =================== 通話中かどうか判定 =================== */
 const CALL_ALIVE_SEC = 30;
 
-async function isRoomInCall(roomId){
+async function isRoomInCall(roomName){
   const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
 
   const { data, error } = await sb
     .from("call_participants")
     .select("user_id")
-    .eq("room_id", roomId)
+    .eq("room_id", roomName)
     .gte("updated_at", cutoff)
     .limit(1);
 
   if (error){
     log("isRoomInCall error", error);
-    setStatus("通話判定エラー: " + (error.message || ""), false);
-    return false; // ★判定不能でも操作できるようにする
+    return true; // 判定できない時は安全側（削除させない）
   }
   return (data || []).length > 0;
 }
@@ -522,7 +521,7 @@ async function loadRooms(){
 
   const { data, error } = await sb
     .from("rooms")
-    .select("id, room_name, created_at, owner_id")
+    .select("room_name, created_at, owner_id")
     .order("created_at", { ascending:true });
 
   if (error){
@@ -544,7 +543,6 @@ async function loadRooms(){
 
   for (const r of data){
     const rn = r.room_name;
-    const rid = r.id;
 
     const row = document.createElement("div");
     row.className = "roomRow";
@@ -554,9 +552,9 @@ async function loadRooms(){
     btn.className = "roomBtn";
     btn.textContent = rn;
     btn.onclick = () => document.getElementById("room").value = rn;
-    btn.ondblclick = () => goRoom(rid, rn);
+    btn.ondblclick = () => goRoom(rn);
 
-    const users = activeMap.get(rid) || [];
+    const users = activeMap.get(rn) || [];
     if (users.length > 0){
       const names = users.map(x=>x.name).filter(Boolean);
       const line = document.createElement("div");
@@ -574,7 +572,7 @@ async function loadRooms(){
     del.textContent = "🗑";
     del.title = "通話中は削除できません";
 
-    const inCall = await isRoomInCall(rid);
+    const inCall = await isRoomInCall(rn);
     if (inCall){
       del.disabled = true;
       del.style.opacity = "0.4";
@@ -592,7 +590,7 @@ async function loadRooms(){
     }
 
     // ② 通話中かチェック
-    const nowInCall = await isRoomInCall(rid);
+    const nowInCall = await isRoomInCall(rn);
     if (nowInCall) {
       alert("この部屋は通話中なので削除できません。");
       await loadRooms();
@@ -606,7 +604,7 @@ async function loadRooms(){
     const { error } = await sb
       .from("rooms")
       .delete()
-      .eq("id", rid);
+      .eq("room_name", rn);
 
     if (error) {
       alert("削除失敗: " + error.message);
@@ -646,7 +644,7 @@ async function createRoom(){
     if (!rn) return alert("部屋名を入れてね！");
 
     const { data: exists, error: e1 } = await sb
-      .from("rooms").select("id, room_name").eq("room_name", rn).maybeSingle();
+      .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
     if (e1) return alert("確認失敗: " + e1.message);
     if (exists) return alert("その部屋はもうあるよ！");
 
@@ -669,12 +667,12 @@ async function enterRoom(){
   if (!rn) return alert("部屋名を入れてね！");
 
   const { data: exists, error } = await sb
-    .from("rooms").select("id, room_name").eq("room_name", rn).maybeSingle();
+    .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
 
   if (error) return alert("確認失敗: " + error.message);
   if (!exists) return alert("その部屋はまだないよ。先に部屋作成してね！");
 
-  goRoom(exists.id, rn);
+  goRoom(rn);
 }
 
     /* =================== 表示名保存 =================== */
@@ -789,7 +787,6 @@ function getPreferredAvatar(){
 
 </body>
 </html>
-
 
 
 
