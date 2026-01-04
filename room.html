@@ -971,15 +971,28 @@ async function loadMessages(){
         wrap.appendChild(body);
       }
 
-      // ✅ 画像があるなら表示
       if (hasImage){
-        const img = document.createElement("img");
-        img.className = "msgImg";
-        img.src = m.image_url;
-        img.loading = "lazy";
-        img.alt = "image";
-        wrap.appendChild(img);
-      }
+  const img = document.createElement("img");
+  img.className = "msgImg";
+  img.src = m.image_url;
+  img.loading = "lazy";
+  img.alt = "image";
+
+  // ★サーバ側（Storage）から消された/URL切れ等 → 表示を差し替える
+  img.onerror = () => {
+    // 画像要素を消す
+    try { img.remove(); } catch {}
+
+    // 代わりの表示
+    const gone = document.createElement("div");
+    gone.className = "msgExpired";
+    gone.textContent = "🗑️ 画像はサーバー側から削除されました";
+    wrap.appendChild(gone);
+  };
+
+  wrap.appendChild(img);
+}
+
 
       // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
       if (isImagePlaceholder && !hasImage){
@@ -1765,6 +1778,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
