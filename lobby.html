@@ -388,12 +388,16 @@ async function refreshAuth(){
 }
 
 async function requireLoginOrRedirect(){
-  const ok = await refreshAuth();
-  if (!ok){
-    goLogin();
-    return false;
+  // 最大3回まで待つ（OAuth直後対策）
+  for (let i = 0; i < 3; i++) {
+    const ok = await refreshAuth();
+    if (ok) return true;
+    await new Promise(r => setTimeout(r, 300));
   }
-  return true;
+
+  // それでもダメなら本当に未ログイン
+  goLogin();
+  return false;
 }
 
 /* =================== ログアウト =================== */
@@ -787,6 +791,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
