@@ -725,12 +725,13 @@ const peerVolume = new Map(); // peerId -> 0.0-1.0
 /* ===== util ===== */
 function log(...args){
   const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
-  console.log("[room]", ...args);
+  console.log("[lobby]", ...args);
   const el = document.getElementById("log");
   if (!el) return;
   el.textContent += s + "\n";
   el.scrollTop = el.scrollHeight;
 }
+
 
 function setUploadHint(t){
   const el = document.getElementById("uploadHint");
@@ -792,19 +793,16 @@ function getPreferredAvatarMeta(){
   return { url, ver };
 }
 
-
-
 function getPreferredAvatarMeta(){
   const um = authUser?.user_metadata || {};
   const hasCustom = !!String(um.custom_avatar_url || "").trim();
-  const url = hasCustom ? String(um.custom_avatar_url || "").trim() : String(um.avatar_url || "").trim();
+  const url = hasCustom
+    ? String(um.custom_avatar_url || "").trim()
+    : String(um.avatar_url || "").trim();
   const verRaw = hasCustom ? um.custom_avatar_ver : um.avatar_ver;
   const ver = String(verRaw ?? "").trim();
   return { url, ver };
 }
-  return `<div class="${fbCls}">${escapeHtml(getInitial(label))}</div>`;
-}
-
 
 /* =================== ナビ =================== */
 function goLobby(){
@@ -1845,6 +1843,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
