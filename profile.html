@@ -237,14 +237,55 @@ async function requireLogin(){
 
   // 3) グローバルに保持
   authUser = u.user;
+async function requireLogin(){
+  // 1) セッション確認
+  const { data: ses } = await sb.auth.getSession();
+  if (!ses?.session){
+    location.replace("./login.html");
+    return false;
+  }
 
-  // 4) ★プロフィール画像キャッシュ対策（画像戻る問題の核心）
-  const av = (authUser?.user_metadata?.avatar_url || "").trim();
-  const ver = String(authUser?.user_metadata?.avatar_ver ?? "").trim();
-  if (av && !ver){
-    await sb.auth.updateUser({ data: { avatar_ver: Date.now() } });
+  // 2) 最新ユーザー情報を取得（←ここ超重要）
+  const { data: u } = await sb.auth.getUser();
+  if (!u?.user){
+    location.replace("./login.html");
+    return false;
+  }
+
+  // 3) グローバルに保持
+  authUser = u.user;
+
+  // 4) ★Googleログイン対策：
+  //    Googleはログイン時に user_metadata.avatar_url を上書きすることがある。
+  //    なので自分の画像は custom_avatar_url/custom_avatar_ver を使う（ここが核心）
+  const um = authUser?.user_metadata || {};
+  const legacyUrl = String(um.avatar_url || "").trim();
+  const legacyVer = String(um.avatar_ver ?? "").trim();
+  const customUrl = String(um.custom_avatar_url || "").trim();
+  const customVer = String(um.custom_avatar_ver ?? "").trim();
+
+  // 4-1) 旧データ移行：過去に avatar_url に保存していた人のために、StorageっぽいURLなら customへコピー
+  const looksLikeStorage = legacyUrl.includes("/storage/v1/object/public/") && legacyUrl.includes("/" + AVATAR_BUCKET + "/");
+  if (!customUrl && looksLikeStorage){
+    const now = Date.now();
+    await sb.auth.updateUser({
+      data: {
+        custom_avatar_url: legacyUrl,
+        custom_avatar_ver: legacyVer || String(now)
+      }
+    });
     const { data: uu } = await sb.auth.getUser();
-    authUser = uu.user;
+    if (uu?.user) authUser = uu.user;
+  }
+
+  // 4-2) verが無い場合の補完（custom側）
+  const um2 = authUser?.user_metadata || {};
+  const cUrl2 = String(um2.custom_avatar_url || "").trim();
+  const cVer2 = String(um2.custom_avatar_ver ?? "").trim();
+  if (cUrl2 && !cVer2){
+    await sb.auth.updateUser({ data: { custom_avatar_ver: Date.now() } });
+    const { data: uu } = await sb.auth.getUser();
+    if (uu?.user) authUser = uu.user;
   }
 
   return true;
@@ -253,11 +294,17 @@ async function requireLogin(){
 
 /* ================= UI ================= */
 function buildAvatarUrl(){
-  const base = (authUser?.user_metadata?.avatar_url || "").trim();
-  const verRaw = authUser?.user_metadata?.avatar_ver;
+  const um = authUser?.user_metadata || {};
+  const hasCustom = !!String(um.custom_avatar_url || "").trim();
+  const base = hasCustom
+    ? String(um.custom_avatar_url || "").trim()
+    : String(um.avatar_url || "").trim();
+
+  const verRaw = hasCustom ? um.custom_avatar_ver : um.avatar_ver;
   const ver = String(verRaw ?? "").trim();
+
   if (!base) return "";
-  if (!ver) return base; // ★ver無いなら ?v= を付けない
+  if (!ver) return base;
   return base + (base.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(ver);
 }
 
@@ -319,8 +366,8 @@ async function uploadAvatar(){
   const now = Date.now();
   const { data: ud, error } = await sb.auth.updateUser({
     data: {
-      avatar_url: url,
-      avatar_ver: now  // ★ここが最重要（URLに ?v= が付く）
+      custom_avatar_url: url,
+      custom_avatar_ver: now  // ★ここが最重要（URLに ?v= が付く）
     }
   });
   if (error) return setStatus(error.message, false);
@@ -337,8 +384,8 @@ async function uploadAvatar(){
 async function removeAvatar(){
   const { data, error } = await sb.auth.updateUser({
     data:{
-      avatar_url:"",
-      avatar_ver: Date.now()
+      custom_avatar_url:"",
+      custom_avatar_ver: Date.now()
     }
   });
   if (error) return setStatus(error.message,false);
