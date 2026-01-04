@@ -649,16 +649,6 @@ async function saveDisplayName() {
     return;
   }
 
-  try { await sb.auth.refreshSession(); } catch (e) {}
-  const { data: u } = await sb.auth.getUser();
-  authUser = u?.user || authUser;
-
-  input.value = (authUser.user_metadata?.display_name || "").trim();
-  updateTopRightUser();
-  setStatus("表示名を保存しました！", true);
-}
-
-
         // 2) ★プロフィールと同じ思想：必ず最新を取り直す（他端末更新/反映遅延に強い）
         try { await sb.auth.refreshSession(); } catch (e) { log("refreshSession warn", e); }
 
@@ -743,5 +733,6 @@ function avatarHtml(url, label, ver){
 
 </body>
 </html>
+
 
 
