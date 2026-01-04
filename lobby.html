@@ -364,13 +364,15 @@ async function refreshAuth(){
   refreshAuthInFlight = (async ()=>{
     log("refreshAuth: start");
 
-    // 1) getSession
+    // 1) getSession（これが取れればまずOK）
     log("refreshAuth: before getSession");
     const { data: ses, error: sesErr } = await withTimeout(sb.auth.getSession(), "sb.auth.getSession", 8000);
     log("refreshAuth: after getSession");
     if (sesErr) log("getSession error", sesErr);
 
-    const sessionUser = ses?.session?.user || null;
+    const session = ses?.session || null;
+    const sessionUser = session?.user || null;
+
     if (!sessionUser){
       authUser = null;
       updateTopRightUser();
@@ -378,32 +380,42 @@ async function refreshAuth(){
       return false;
     }
 
-    // 2) refreshSession（ここが詰まりやすい）
-    try {
-      log("refreshAuth: before refreshSession");
-      await withTimeout(sb.auth.refreshSession(), "sb.auth.refreshSession", 8000);
-      log("refreshAuth: after refreshSession");
-    } catch (e) {
-      log("refreshSession warn", String(e?.message || e));
-      // ここで落とさず続行（getUserで拾えることがある）
+    // ★重要：refreshSession は呼ばない（ここが詰まってた）
+    // 2) getUser（アクセストークンが生きてれば通る）
+    try{
+      log("refreshAuth: before getUser");
+      const { data: u, error: uErr } = await withTimeout(sb.auth.getUser(), "sb.auth.getUser", 8000);
+      log("refreshAuth: after getUser");
+
+      if (uErr){
+        log("getUser error", uErr);
+
+        // token切れ/無効ならログインに戻す
+        authUser = null;
+        updateTopRightUser();
+        return false;
+      }
+
+      authUser = u?.user || sessionUser;
+      updateTopRightUser();
+      log("refreshAuth: ok user=", authUser?.id || "???");
+      return true;
+
+    }catch(e){
+      log("getUser exception", String(e?.message || e));
+      // 例外時も sessionUser で続行（最低限動かす）
+      authUser = sessionUser;
+      updateTopRightUser();
+      log("refreshAuth: ok (sessionUser fallback) user=", authUser?.id || "???");
+      return true;
     }
-
-    // 3) getUser
-    log("refreshAuth: before getUser");
-    const { data: u, error: uErr } = await withTimeout(sb.auth.getUser(), "sb.auth.getUser", 8000);
-    log("refreshAuth: after getUser");
-    if (uErr) log("getUser error", uErr);
-
-    authUser = u?.user || sessionUser;
-    updateTopRightUser();
-    log("refreshAuth: ok user=", authUser?.id || "???");
-    return true;
   })().finally(()=>{
     refreshAuthInFlight = null;
   });
 
   return refreshAuthInFlight;
 }
+
 
 async function requireLoginOrRedirect(){
   for (let i = 0; i < 3; i++){
@@ -808,3 +820,4 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
