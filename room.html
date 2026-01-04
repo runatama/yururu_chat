@@ -793,17 +793,6 @@ function getPreferredAvatarMeta(){
   return { url, ver };
 }
 
-function getPreferredAvatarMeta(){
-  const um = authUser?.user_metadata || {};
-  const hasCustom = !!String(um.custom_avatar_url || "").trim();
-  const url = hasCustom
-    ? String(um.custom_avatar_url || "").trim()
-    : String(um.avatar_url || "").trim();
-  const verRaw = hasCustom ? um.custom_avatar_ver : um.avatar_ver;
-  const ver = String(verRaw ?? "").trim();
-  return { url, ver };
-}
-
 /* =================== ナビ =================== */
 function goLobby(){
   location.href = "./lobby.html";
@@ -1843,6 +1832,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
