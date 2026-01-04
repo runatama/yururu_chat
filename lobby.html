@@ -474,7 +474,10 @@ async function isRoomInCall(roomName){
 
   if (error){
     log("isRoomInCall error", error);
-    return true; // 判定できない時は安全側（削除させない）
+
+    // ★ここ重要：判定不能なら “通話中” 扱いにせず、削除ボタンは押せるようにする
+    // ただし、押した時にもう一回チェックしてダメなら止める、でOK
+    return false;
   }
   return (data || []).length > 0;
 }
@@ -793,6 +796,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
