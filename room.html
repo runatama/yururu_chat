@@ -916,6 +916,7 @@ async function loadMessages(){
     left.style.gap = "8px";
     left.innerHTML = `${avatarHtml(m.avatar_url, (m.name || ""), "sm")} <span class="nameText">${escapeHtml(m.name || "")}</span>`;
 
+
     // 右側（時刻 + 削除ボタン）
     const actions = document.createElement("div");
     actions.className = "msgActions";
@@ -1794,6 +1795,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
