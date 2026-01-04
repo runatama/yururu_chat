@@ -674,13 +674,12 @@ function setCreateButtonsDisabled(disabled){
 }
 
 async function createRoom(){
-  setCreateButtonsDisabled(true);
-  try{
-    log("=== createRoom start ===");
+  log("=== createRoom start ===");
 
+  try{
     log("createRoom: refreshAuth...");
     const ok = await refreshAuth();
-    log("createRoom: refreshAuth done ->", ok);
+    log("createRoom: refreshAuth done ->", ok, "uid=", authUser?.id || null);
 
     if (!ok || !authUser){
       alert("ログインが切れてるよ。もう一回ログインしてね！");
@@ -690,38 +689,52 @@ async function createRoom(){
 
     const rn = document.getElementById("room").value.trim();
     log("createRoom: rn=", rn);
-    if (!rn) return alert("部屋名を入れてね！");
+    if (!rn){
+      alert("部屋名を入れてね！");
+      return;
+    }
 
+    // ① exists チェック
     log("createRoom: check exists...");
-    const { data: exists, error: e1 } = await withTimeout(
+    const q1 = await withTimeout(
       sb.from("rooms").select("room_name").eq("room_name", rn).maybeSingle(),
       "rooms exists check",
       8000
     );
-    log("createRoom: exists result", { exists: !!exists, error: e1 ? e1.message : null });
+    log("createRoom: exists raw=", q1);
 
-    if (e1) return alert("確認失敗: " + e1.message);
-    if (exists) return alert("その部屋はもうあるよ！");
+    if (q1.error){
+      alert("確認失敗(詳細):\n" + JSON.stringify(q1.error, null, 2));
+      return;
+    }
+    if (q1.data){
+      alert("その部屋はもうあるよ！");
+      return;
+    }
 
+    // ② insert
     log("createRoom: insert...");
-    const { error } = await withTimeout(
-      sb.from("rooms").insert({ room_name: rn, owner_id: authUser.id }),
+    const q2 = await withTimeout(
+      sb.from("rooms").insert({ room_name: rn, owner_id: authUser.id }).select().maybeSingle(),
       "rooms insert",
       8000
     );
-    log("createRoom: insert done", error ? error.message : "OK");
+    log("createRoom: insert raw=", q2);
 
-    if (error) return alert("作成失敗: " + error.message);
+    if (q2.error){
+      alert("作成失敗(詳細):\n" + JSON.stringify(q2.error, null, 2));
+      return;
+    }
 
+    alert("部屋作成OK！");
     await loadRooms();
     log("=== createRoom ok ===");
 
   }catch(e){
-    console.error(e);
-    log("createRoom exception", String(e?.message || e));
-    alert("作成で落ちた: " + (e?.message || e));
-  } finally {
-    setCreateButtonsDisabled(false);
+    log("createRoom exception:", String(e?.message || e));
+    alert("作成で例外:\n" + (e?.stack || e?.message || e));
+  }finally{
+    log("=== createRoom end ===");
   }
 }
 
@@ -820,4 +833,5 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
