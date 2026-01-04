@@ -240,7 +240,7 @@
     <!-- アイコンは userPill の中に1個だけ出す（ここにimgは置かない） -->
     <button class="userPill" id="userNamePill" type="button" onclick="goProfile()">未ログイン</button>
     <span class="userText" id="userMailText"></span>
-    <button class="btnPrimary" onclick="goLogin()" id="goLoginBtn" style="display:none;">ログイン</button>
+    <button class="btnPrimary" type="button" onclick="log('create clicked'); createRoom();">作成</button>
     <button class="btnDanger" onclick="signOut()" id="signOutBtn" style="display:none;">ログアウト</button>
   </div>
 </div>
@@ -772,7 +772,8 @@ function getPreferredAvatar(){
       const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
       if (error) log("getSessionFromUrl error", error);
       if (data?.session?.user) log("OAuth session OK", data.session.user.email);
-      history.replaceState({}, document.title, "./lobby.html");
+      history.replaceState({}, document.title, "./lobby.html?_r=" + Date.now());
+
     }
   } catch (e) {
     log("init session url exception", e);
@@ -796,6 +797,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
