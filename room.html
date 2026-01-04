@@ -776,6 +776,21 @@ function avatarHtml(url, label, size="", ver=""){
   if (u){
     return `<img class="${cls}" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
   }
+  return `<div class="${fbCls}">${escapeHtml(getInitial(label))}</div>`;
+}
+
+// ★これを avatarHtml の外に出す（超重要）
+function getPreferredAvatarMeta(){
+  const um = authUser?.user_metadata || {};
+  const hasCustom = !!String(um.custom_avatar_url || "").trim();
+  const url = hasCustom
+    ? String(um.custom_avatar_url || "").trim()
+    : String(um.avatar_url || "").trim();
+  const verRaw = hasCustom ? um.custom_avatar_ver : um.avatar_ver;
+  const ver = String(verRaw ?? "").trim();
+  return { url, ver };
+}
+
 
 function getPreferredAvatarMeta(){
   const um = authUser?.user_metadata || {};
@@ -1828,6 +1843,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
