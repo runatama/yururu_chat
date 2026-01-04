@@ -580,46 +580,19 @@ async function loadRooms(){
     }
 
     del.onclick = async () => {
-  try {
-    // ① まずログイン情報を確実に取得
-    const ok = await refreshAuth();
-    if (!ok || !authUser) {
-      alert("ログインが切れてるよ。もう一回ログインしてね！");
-      goLogin();
-      return;
-    }
+      const nowInCall = await isRoomInCall(rn);
+      if (nowInCall){
+        alert("この部屋は通話中なので削除できません。");
+        await loadRooms();
+        return;
+      }
 
-    // ② 通話中かチェック
-    const nowInCall = await isRoomInCall(rn);
-    if (nowInCall) {
-      alert("この部屋は通話中なので削除できません。");
+      if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
+
+      const r2 = await sb.from("rooms").delete().eq("room_name", rn);
+      if (r2.error){ alert("削除失敗: " + r2.error.message); return; }
       await loadRooms();
-      return;
-    }
-
-    // ③ 本当に消すか確認
-    if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
-
-    // ④ 削除実行
-    const { error } = await sb
-      .from("rooms")
-      .delete()
-      .eq("room_name", rn);
-
-    if (error) {
-      alert("削除失敗: " + error.message);
-      return;
-    }
-
-    // ⑤ 再読み込み
-    await loadRooms();
-
-  } catch (e) {
-    console.error(e);
-    alert("削除処理でエラー: " + (e?.message || e));
-  }
-};
-
+    };
 
     row.appendChild(btn);
     row.appendChild(del);
@@ -631,36 +604,22 @@ async function loadRooms(){
 
 /* =================== 部屋作成 / 入室 =================== */
 async function createRoom(){
-  try{
-    // ★これを最初に必ず入れる（authUser を確実に復元）
-    const ok = await refreshAuth();
-    if (!ok || !authUser){
-      alert("ログインが切れてるよ。もう一回ログインしてね！");
-      goLogin();
-      return;
-    }
+  const rn = document.getElementById("room").value.trim();
+  if (!rn) return alert("部屋名を入れてね！");
 
-    const rn = document.getElementById("room").value.trim();
-    if (!rn) return alert("部屋名を入れてね！");
+  const { data: exists, error: e1 } = await sb
+    .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+  if (e1) return alert("確認失敗: " + e1.message);
+  if (exists) return alert("その部屋はもうあるよ！");
 
-    const { data: exists, error: e1 } = await sb
-      .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
-    if (e1) return alert("確認失敗: " + e1.message);
-    if (exists) return alert("その部屋はもうあるよ！");
+  const { error } = await sb
+    .from("rooms")
+    .insert({ room_name: rn, owner_id: authUser.id });
 
-    const { error } = await sb
-      .from("rooms")
-      .insert({ room_name: rn, owner_id: authUser.id });
+  if (error) return alert("作成失敗: " + error.message);
 
-    if (error) return alert("作成失敗: " + error.message);
-
-    await loadRooms();
-  }catch(e){
-    console.error(e);
-    alert("作成で落ちた: " + (e?.message || e));
-  }
+  await loadRooms();
 }
-
 
 async function enterRoom(){
   const rn = document.getElementById("room").value.trim();
@@ -787,7 +746,6 @@ function getPreferredAvatar(){
 
 </body>
 </html>
-
 
 
 
