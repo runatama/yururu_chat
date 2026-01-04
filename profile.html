@@ -228,12 +228,52 @@ async function requireLogin(){
     return false;
   }
 
-  // 2) 最新ユーザー情報を取得（←ここ超重要）
+  // 2) 最新ユーザー情報を取得
   const { data: u } = await sb.auth.getUser();
   if (!u?.user){
     location.replace("./login.html");
     return false;
   }
+
+  // 3) グローバルに保持
+  authUser = u.user;
+
+  // 4) Googleログイン対策：自分の画像は custom_avatar_* に保存する
+  const um = authUser?.user_metadata || {};
+  const legacyUrl = String(um.avatar_url || "").trim();
+  const legacyVer = String(um.avatar_ver ?? "").trim();
+  const customUrl = String(um.custom_avatar_url || "").trim();
+
+  // 4-1) 旧データ移行：過去に avatar_url に保存していた人用（StorageのURLなら customへコピー）
+  const looksLikeStorage =
+    legacyUrl.includes("/storage/v1/object/public/") &&
+    legacyUrl.includes("/" + AVATAR_BUCKET + "/");
+
+  if (!customUrl && looksLikeStorage){
+    const now = Date.now();
+    await sb.auth.updateUser({
+      data: {
+        custom_avatar_url: legacyUrl,
+        custom_avatar_ver: legacyVer || String(now)
+      }
+    });
+    const { data: uu } = await sb.auth.getUser();
+    if (uu?.user) authUser = uu.user;
+  }
+
+  // 4-2) verが無い場合の補完（custom側）
+  const um2 = authUser?.user_metadata || {};
+  const cUrl2 = String(um2.custom_avatar_url || "").trim();
+  const cVer2 = String(um2.custom_avatar_ver ?? "").trim();
+  if (cUrl2 && !cVer2){
+    await sb.auth.updateUser({ data: { custom_avatar_ver: Date.now() } });
+    const { data: uu } = await sb.auth.getUser();
+    if (uu?.user) authUser = uu.user;
+  }
+
+  return true;
+}
+
 
   // 3) グローバルに保持
   authUser = u.user;
