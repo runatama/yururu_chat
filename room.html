@@ -3,665 +3,276 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ゆるるチャット - Room</title>
-
+  <title>ゆるるチャット - Lobby</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     :root{
       --bg1:#0b1220;
-      --bg2:#0d1a33;
-      --card:rgba(255,255,255,.06);
-      --card2:rgba(255,255,255,.08);
-      --stroke:rgba(255,255,255,.10);
-      --stroke2:rgba(255,255,255,.14);
+      --bg2:#0a1a2a;
+      --card:#0f1a2cdd;
+      --line:rgba(255,255,255,.10);
       --text:#eaf2ff;
       --muted:rgba(234,242,255,.65);
-      --muted2:rgba(234,242,255,.45);
-      --good:#35d0a7;
-      --warn:#ffb84d;
+      --accent:#6ee7ff;
+      --accent2:#a78bfa;
+      --good:#3be0a8;
       --bad:#ff6b6b;
-      --accent:#78a7ff;
-      --accent2:#a68bff;
-      --glow:rgba(120,167,255,.45);
-      --shadow: 0 16px 40px rgba(0,0,0,.35);
       --radius:18px;
-      --radius2:22px;
+      --shadow: 0 18px 50px rgba(0,0,0,.45);
     }
+
     *{ box-sizing:border-box; }
     body{
       margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+      font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif;
       color:var(--text);
       background:
-        radial-gradient(1200px 600px at 20% 10%, rgba(120,167,255,.20), transparent 55%),
-        radial-gradient(900px 500px at 80% 40%, rgba(166,139,255,.18), transparent 55%),
-        radial-gradient(800px 700px at 30% 90%, rgba(53,208,167,.14), transparent 60%),
+        radial-gradient(900px 600px at 15% 20%, rgba(110,231,255,.25), transparent 55%),
+        radial-gradient(900px 600px at 85% 25%, rgba(167,139,250,.22), transparent 55%),
         linear-gradient(180deg, var(--bg1), var(--bg2));
-      min-height:100vh;
-      overflow-x:hidden;
+      padding: 20px;
     }
+
+    h2{ margin:0; }
+
+    /* ===== Top ===== */
     .topbar{
-      position:sticky;
-      top:0;
-      z-index:50;
-      backdrop-filter: blur(14px);
-      background: linear-gradient(180deg, rgba(6,10,20,.78), rgba(6,10,20,.50));
-      border-bottom: 1px solid rgba(255,255,255,.08);
-    }
-    .topbarInner{
-      max-width:1100px;
-      margin:0 auto;
-      padding:12px 14px;
       display:flex;
-      align-items:center;
       justify-content:space-between;
+      align-items:center;
       gap:12px;
+      margin-bottom:16px;
     }
-    .brand{
+
+    .userBox{
       display:flex;
       align-items:center;
       gap:10px;
-      min-width: 240px;
+      padding:6px 12px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      box-shadow:var(--shadow);
+      font-size:12px;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+      max-width: 62vw;
     }
-    .logo{
-      width:38px;height:38px;border-radius:14px;
-      background: radial-gradient(circle at 30% 30%, rgba(120,167,255,.95), rgba(166,139,255,.65) 55%, rgba(53,208,167,.35));
-      box-shadow: 0 0 0 1px rgba(255,255,255,.10), 0 10px 26px rgba(120,167,255,.18);
+    .userPill{
+      padding:2px 8px;
+      border-radius:999px;
+      background:rgba(255,255,255,.10);
+      border:1px solid var(--line);
+      white-space: nowrap;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      cursor:pointer;
     }
-    .brandText b{ display:block; font-size:14px; letter-spacing:.3px; }
-    .brandText span{ display:block; font-size:12px; color:var(--muted); margin-top:2px; }
+    .userText{
+      color:var(--muted);
+      max-width:30vw;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
 
-    .topActions{
+    .avatarSm{
+      width:26px;height:26px;border-radius:50%;
+      object-fit:cover;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10);
+      flex:0 0 auto;
+    }
+    .avatarSmFb{
+      width:26px;height:26px;border-radius:50%;
+      display:inline-flex;align-items:center;justify-content:center;
+      font-weight:900;font-size:12px;
+      color:rgba(234,242,255,.92);
+      border:1px solid rgba(255,255,255,.18);
+      background:linear-gradient(135deg, rgba(110,231,255,.20), rgba(167,139,250,.18));
+      flex:0 0 auto;
+      user-select:none;
+    }
+
+    button{
+      cursor:pointer;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.08);
+      color:var(--text);
+      padding:10px 14px;
+      font-weight:700;
+    }
+    button:hover{ filter:brightness(1.1); }
+    button:disabled{ opacity:.5; cursor:not-allowed; }
+
+    .btnPrimary{
+      background:linear-gradient(135deg, var(--accent), var(--accent2));
+      color:#08131f;
+      border:none;
+    }
+    .btnDanger{
+      background:rgba(255,107,107,.18);
+      border-color:rgba(255,107,107,.4);
+    }
+
+    /* ===== Cards ===== */
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:16px;
+      margin-bottom:16px;
+    }
+
+    .sectionTitle{
+      font-weight:900;
+      margin-bottom:8px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+
+    input{
+      padding:12px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+      color:var(--text);
+      width:100%;
+    }
+
+    .row{
       display:flex;
       gap:10px;
       flex-wrap:wrap;
       align-items:center;
-      justify-content:flex-end;
-    }
-    .btn{
-      appearance:none;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.05);
-      color:var(--text);
-      padding:10px 14px;
-      border-radius:14px;
-      cursor:pointer;
-      transition: transform .05s ease, background .15s ease, border-color .15s ease;
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      font-weight:700;
-      box-shadow: 0 10px 20px rgba(0,0,0,.14);
-    }
-    .btn:hover{ background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.16); }
-    .btn:active{ transform: translateY(1px); }
-    .btn.primary{
-      background: linear-gradient(135deg, rgba(120,167,255,.35), rgba(166,139,255,.25));
-      border-color: rgba(120,167,255,.35);
-      box-shadow: 0 12px 26px rgba(120,167,255,.14);
-    }
-    .btn.danger{
-      background: linear-gradient(135deg, rgba(255,107,107,.25), rgba(166,139,255,.10));
-      border-color: rgba(255,107,107,.35);
-    }
-    .pill{
-      border:1px solid rgba(255,255,255,.10);
-      padding:6px 10px;
-      border-radius:999px;
-      font-size:12px;
-      color:var(--muted);
-      background: rgba(255,255,255,.04);
-      white-space:nowrap;
     }
 
-.avatar{
-  width:26px;height:26px;border-radius:50%;
-  object-fit:cover;
-  border:1px solid rgba(255,255,255,.16);
-  background:rgba(255,255,255,.10);
-  flex:0 0 auto;
-}
-.avatar.sm{ width:22px;height:22px; }
-.avatarFallback{
-  width:26px;height:26px;border-radius:50%;
-  display:inline-flex;align-items:center;justify-content:center;
-  font-size:12px;font-weight:900;
-  color:rgba(234,242,255,.9);
-  border:1px solid rgba(255,255,255,.14);
-  background: radial-gradient(circle at 30% 30%, rgba(120,167,255,.35), rgba(166,139,255,.22));
-  flex:0 0 auto;
-  user-select:none;
-}
-.avatarFallback.sm{ width:22px;height:22px;font-size:11px; }
-.userBtn{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:6px 10px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.04);
-  cursor:pointer;
-  color:var(--muted);
-  font-size:12px;
-}
-.userBtn:hover{ background: rgba(255,255,255,.06); }
-.nameText{
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  max-width: 240px;
-}
-
-    .wrap{
-      max-width:1100px;
-      margin:0 auto;
-      padding:16px 14px 26px;
-      display:grid;
-      grid-template-columns: 360px 1fr;
-      gap:14px;
-      align-items:start;
-    }
-    @media (max-width: 980px){
-      .wrap{ grid-template-columns: 1fr; }
-      .brand{ min-width:auto; }
-    }
-
-    .card{
-      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
-      border: 1px solid rgba(255,255,255,.10);
-      border-radius: var(--radius2);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-    .cardHeader{
-      padding:12px 14px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-      background: rgba(255,255,255,.03);
-    }
-    .cardHeader b{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      font-size:13px;
-      letter-spacing:.2px;
-    }
-    .chip{
-      font-size:12px;
-      padding:4px 10px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.10);
-      color:var(--muted);
-      background: rgba(255,255,255,.04);
-    }
-    .cardBody{ padding:14px; }
-
-    .field{
+    /* ===== Room list ===== */
+    #roomsBox{
       display:flex;
       flex-direction:column;
-      gap:8px;
-      margin-bottom:12px;
-    }
-    .field label{ font-size:12px; color:var(--muted); }
-    input[type="text"], input[type="file"], textarea{
-      width:100%;
-      padding:12px 12px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(7,12,24,.45);
-      color:var(--text);
-      outline:none;
-    }
-    input::placeholder, textarea::placeholder{ color: rgba(234,242,255,.45); }
-    .hint{ font-size:12px; color:var(--muted2); line-height:1.5; }
-
-    .statusRow{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
       gap:10px;
-      background: rgba(7,12,24,.35);
-      border:1px solid rgba(255,255,255,.08);
-      padding:10px 12px;
-      border-radius: 16px;
-    }
-    .dot{
-      width:10px;height:10px;border-radius:50%;
-      background: rgba(234,242,255,.25);
-      box-shadow: 0 0 0 3px rgba(234,242,255,.06);
-      flex:0 0 auto;
-    }
-    .dot.ok{ background: var(--good); box-shadow: 0 0 0 3px rgba(53,208,167,.18); }
-    .dot.ng{ background: var(--bad); box-shadow: 0 0 0 3px rgba(255,107,107,.18); }
-    .statusText{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      flex:1;
-      min-width:0;
-    }
-    .statusText b{ font-size:12px; }
-    .statusText span{ font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-    .divider{ height:1px; background: rgba(255,255,255,.08); margin:14px 0; }
-
-    /* ===== call area ===== */
-    .callTop{
-      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
-      justify-content:space-between;
-    }
-    .btnSmall{
-      padding:10px 12px;
-      border-radius:14px;
-      font-size:13px;
-    }
-    .btnAccent{
-      background: linear-gradient(135deg, rgba(53,208,167,.20), rgba(120,167,255,.15));
-      border-color: rgba(53,208,167,.30);
-    }
-    .btnAccent2{
-      background: linear-gradient(135deg, rgba(120,167,255,.22), rgba(166,139,255,.18));
-      border-color: rgba(120,167,255,.30);
-    }
-    .btnMuted{
-      background: rgba(255,255,255,.05);
-    }
-    .rangeRow{
       margin-top:10px;
-      background: rgba(7,12,24,.30);
-      border:1px solid rgba(255,255,255,.08);
-      border-radius:16px;
-      padding:10px 12px;
-    }
-    .rangeRow .label{
-      font-size:12px; color:var(--muted);
-      display:flex; justify-content:space-between; align-items:center;
-      margin-bottom:10px;
-    }
-    input[type="range"]{
-      width:100%;
-      accent-color: var(--accent);
     }
 
-    /* ===== lists ===== */
-    .list{
+    .roomRow{
       display:flex;
-      flex-direction:column;
-      gap:8px;
-    }
-    .listItem{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
       gap:10px;
-      padding:10px 12px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.08);
-      background: rgba(7,12,24,.25);
-    }
-    .listItem .name{
-      font-size:13px;
-      color:var(--text);
-      display:flex;
       align-items:center;
-      gap:8px;
-      min-width:0;
     }
-    .listItem .sub{
+
+    .roomBtn{
+      flex:1;
+      text-align:left;
+      padding:14px;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      color:var(--text);
+    }
+
+    .roomBtn:hover{
+      background:linear-gradient(180deg, rgba(110,231,255,.15), rgba(255,255,255,.05));
+    }
+
+    .callLine{
+      margin-top:6px;
       font-size:12px;
       color:var(--muted);
       white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
+
     .badge{
-      padding:3px 8px;
+      margin-left:6px;
+      padding:2px 8px;
       border-radius:999px;
       font-size:11px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.05);
-      color:var(--muted);
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.08);
     }
-    .badge.good{ border-color: rgba(53,208,167,.30); color: rgba(165,255,230,.95); background: rgba(53,208,167,.10); }
-    .badge.warn{ border-color: rgba(255,184,77,.35); color: rgba(255,220,170,.95); background: rgba(255,184,77,.10); }
-    .badge.bad{ border-color: rgba(255,107,107,.35); color: rgba(255,190,190,.95); background: rgba(255,107,107,.10); }
 
-    /* ===== right side ===== */
-    .rightCol{
-      display:flex;
-      flex-direction:column;
-      gap:14px;
-      min-width:0;
+    .delBtn{
+      width:44px;
+      padding:10px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
     }
-    .chatBox{
-      height: 520px;
-      overflow:auto;
-      padding:12px;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      background: rgba(7,12,24,.25);
-      border-radius: var(--radius2);
-      border:1px solid rgba(255,255,255,.08);
-    }
-    @media (max-width: 980px){
-      .chatBox{ height: 50vh; }
-    }
-    .msgHead{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
+    .delBtn:hover{ background:rgba(255,107,107,.25); }
+
+    #status{
+      margin-top:10px;
       font-size:12px;
       color:var(--muted);
-      margin-bottom:6px;
     }
-    .msgMeta{ color: rgba(234,242,255,.40); font-size:11px; }
+    .ok{ color:var(--good); }
+    .ng{ color:var(--bad); }
 
-    .msgActions{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      flex:0 0 auto;
-    }
-    .trashBtn{
-      border:1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.04);
-      color: rgba(234,242,255,.85);
-      padding:6px 10px;
-      border-radius:12px;
-      cursor:pointer;
-      font-size:12px;
-      line-height:1;
-      transition: background .15s ease, border-color .15s ease, transform .05s ease;
-    }
-    .trashBtn:hover{
-      background: rgba(255,255,255,.08);
-      border-color: rgba(255,255,255,.18);
-    }
-    .trashBtn:active{ transform: translateY(1px); }
-
-    .msgBody{
-      font-size:14px;
-      line-height:1.5;
-      color:var(--text);
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    /* ★期限切れ表示用 */
-    .msgExpired{
-      font-size:13px;
-      line-height:1.5;
-      color: rgba(234,242,255,.55);
-      border: 1px dashed rgba(255,255,255,.16);
-      background: rgba(255,255,255,.04);
-      padding: 10px 12px;
-      border-radius: 14px;
-      margin-top: 6px;
-    }
-    .msgImg{
-      margin-top:8px;
-      width:100%;
-      max-width:520px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.10);
-      box-shadow: 0 12px 22px rgba(0,0,0,.22);
-    }
-    .composer{
-      display:grid;
-      grid-template-columns: 1fr auto;
-      gap:10px;
-      align-items:start;
-    }
-    .composer .left{
-      display:flex; flex-direction:column; gap:10px;
-      min-width:0;
-    }
-    .composer textarea{
-      min-height: 52px;
-      resize: vertical;
-    }
-    .composer .actions{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      align-items:stretch;
-    }
-    .fileRow{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      background: rgba(7,12,24,.35);
-      border:1px solid rgba(255,255,255,.08);
-      padding:10px 12px;
-      border-radius: 16px;
-    }
-    .fileName{
-      font-size:12px; color:var(--muted);
-      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    }
-    .tiny{ font-size:11px; color: rgba(234,242,255,.45); }
-    details{
-      border-top:1px solid rgba(255,255,255,.08);
-      margin-top:14px;
-      padding-top:10px;
-    }
-    summary{ cursor:pointer; color: var(--muted); font-size:12px; }
+    details{ margin-top:12px; }
     #log{
-      margin-top:10px;
-      white-space:pre-wrap;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      margin-top:8px;
       font-size:12px;
-      padding:10px 12px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(7,12,24,.35);
-      max-height: 200px;
+      background:rgba(0,0,0,.35);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:10px;
+      max-height:200px;
       overflow:auto;
-      color: rgba(234,242,255,.78);
+      white-space:pre-wrap;
     }
 
-    /* ===== audio cards ===== */
-    #audios{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
-    .audioWrap{
-      background: rgba(7,12,24,.35);
-      border:1px solid rgba(255,255,255,.08);
-      border-radius: 18px;
-      padding:12px;
-      overflow:hidden;
-    }
-    .audioTitle{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      margin-bottom:10px;
-      font-size:12px;
-      color:var(--muted);
-    }
-    .audioCtl{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      margin-top:10px;
-      background: rgba(255,255,255,.04);
-      border:1px solid rgba(255,255,255,.08);
-      padding:10px 12px;
-      border-radius: 16px;
-    }
-    .audioCtl .lbl{ font-size:12px; color:var(--muted); }
-    .audioCtl .val{ font-size:12px; color:var(--text); min-width: 34px; text-align:right; }
+    .row > button{ white-space:nowrap; }
   </style>
 </head>
 
 <body>
-  <div class="topbar">
-    <div class="topbarInner">
-      <div class="brand">
-        <div class="logo"></div>
-        <div class="brandText">
-          <b>ゆるるチャット</b>
-          <span id="subTitle">Room</span>
-        </div>
-      </div>
 
-      <div class="topActions">
-        <button class="userBtn" id="userPill" type="button" onclick="goProfile()">未ログイン</button>
-        <button class="btn primary" onclick="goLobby()">🏠 ロビーへ</button>
-        <button class="btn danger" onclick="doLogout()">🚪 ログアウト</button>
-      </div>
-    </div>
+<div class="topbar">
+  <h2>🎧 ゆるるチャット – ロビー</h2>
+  <div class="userBox">
+    <!-- アイコンは userPill の中に1個だけ出す（ここにimgは置かない） -->
+    <button class="userPill" id="userNamePill" type="button" onclick="goProfile()">未ログイン</button>
+    <span class="userText" id="userMailText"></span>
+    <button class="btnPrimary" onclick="goLogin()" id="goLoginBtn" style="display:none;">ログイン</button>
+    <button class="btnDanger" onclick="signOut()" id="signOutBtn" style="display:none;">ログアウト</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="sectionTitle">🏠 ルーム</div>
+  <div class="row">
+    <input id="room" placeholder="部屋名（例: test）" />
+    <button class="btnPrimary" type="button" onclick="createRoom()">作成</button>
+    <button type="button" onclick="enterRoom()">入室</button>
+    <button type="button" onclick="loadRooms()">更新</button>
   </div>
 
-  <div class="wrap">
-    <!-- ===== left column ===== -->
-    <div class="leftCol">
-      <div class="card">
-        <div class="cardHeader">
-          <b>🏠 現在の部屋</b>
-          <span class="chip" id="roomChip">-</span>
-        </div>
-        <div class="cardBody">
-          <div class="field">
-            <label>部屋名</label>
-            <input id="roomName" type="text" readonly />
-          </div>
-          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn btnSmall" onclick="leaveRoom()">🚪 退室</button>
-          </div>
+  <div class="sectionTitle" style="margin-top:14px;">📋 部屋一覧</div>
+  <div id="roomsBox"></div>
 
-          <div style="margin-top:12px;" class="statusRow">
-            <div class="statusText">
-              <div class="dot" id="readyDot"></div>
-              <div style="min-width:0;">
-                <b id="readyTitle">準備OK</b>
-                <span id="readySub">待機中</span>
-              </div>
-            </div>
-            <span class="badge good" id="readyBadge">Ready</span>
-          </div>
-        </div>
-      </div>
+  <details>
+    <summary>🔧 デバッグログ</summary>
+    <div id="log"></div>
+  </details>
 
-      <div class="card">
-        <div class="cardHeader">
-          <b>🎙️ 音声通話（複数人）</b>
-          <span class="chip">Call</span>
-        </div>
-        <div class="cardBody">
-          <div class="callTop">
-            <button class="btn btnSmall primary btnAccent2" onclick="joinCall()" id="joinBtn">通話に参加（開始）</button>
-            <button class="btn btnSmall btnMuted" onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
-            <button class="btn btnSmall danger" onclick="leaveCall()" id="leaveBtn">通話退出</button>
-          </div>
-
-          <div class="rangeRow">
-            <div class="label">
-              <span>自分のマイク音量: <b id="micGainLabel">100</b></span>
-              <span class="tiny">※ 送信音量（あなたの声の大きさ）</span>
-            </div>
-            <input id="micGain" type="range" min="1" max="100" value="100" />
-            <div class="hint" style="margin-top:8px;" id="callState">未接続（必要なら通話に参加を押してね）</div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="card" style="background:transparent;border:none;box-shadow:none;">
-            <div class="cardHeader" style="border:1px solid rgba(255,255,255,.08); border-radius:18px; margin-bottom:10px;">
-              <b>👥 参加者（通話：チャンネル接続中のみ表示）</b>
-              <span class="chip">Presence</span>
-            </div>
-            <div class="list" id="callUsersList">
-              <div class="hint">未接続</div>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="card" style="background:transparent;border:none;box-shadow:none;">
-            <div class="cardHeader" style="border:1px solid rgba(255,255,255,.08); border-radius:18px; margin-bottom:10px;">
-              <b>📞 今の部屋で通話してる人（通話に参加しなくても見える）</b>
-              <span class="chip">call_participants</span>
-            </div>
-            <div class="list" id="activeCallUsersList">
-              <div class="hint">今は誰も通話してないよ</div>
-            </div>
-          </div>
-
-          <details>
-            <summary>🔧 デバッグログ</summary>
-            <div id="log"></div>
-          </details>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== right column ===== -->
-    <div class="rightCol">
-      <div class="card">
-        <div class="cardHeader">
-          <b>🔊 相手の音声（ここで相手の音量を調整）</b>
-          <span class="chip">Audio</span>
-        </div>
-        <div class="cardBody">
-          <div id="audios"></div>
-          <div class="hint" style="margin-top:10px;">
-            ※ 通話に参加して、相手と繋がるとここに音声が出るよ
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="cardHeader">
-          <b>💬 チャット（画像OK）</b>
-          <span class="chip">Messages</span>
-        </div>
-        <div class="cardBody">
-          <div id="chat" class="chatBox"></div>
-
-          <div class="divider"></div>
-
-          <div class="composer">
-            <div class="left">
-              <textarea id="msg" placeholder="メッセージ（画像だけ送るなら空でもOK）"></textarea>
-
-              <div class="fileRow">
-                <div class="fileName" id="imgName">未選択</div>
-                <div style="display:flex; gap:10px; align-items:center;">
-                  <input id="imgFile" type="file" accept="image/*" style="max-width:190px;" />
-                </div>
-              </div>
-
-              <div class="hint" id="uploadHint" style="margin-top:-2px;">
-                ※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）
-              </div>
-            </div>
-
-            <div class="actions">
-              <button class="btn primary" onclick="sendMsg()">📨 送信</button>
-              <button class="btn btnAccent2" onclick="sendImage()" id="sendImgBtn">🖼️ 画像送信</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
+  <div id="status"></div>
+</div>
 
 <script>
 /* =================== Supabase 設定 =================== */
-const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+    const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
 
-/* ★ログイン切れ対策：pkce/persistSession あり */
+/* ★ここは anon public key を入れてね（日本語/全角/改行が混ざると fetch が死ぬ） */
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+
+/* ★重要：login.html と同じ auth 設定で createClient（ロビーで「切れる」を防ぐ） */
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
   (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
@@ -675,76 +286,386 @@ const sb = supabase.createClient(
   }
 );
 
-/* 画像用（Public bucket名） */
-const IMAGE_BUCKET = "chat-images";
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
-
-/* ★ 画像だけ投稿のダミー文字（DB制約回避用） */
-const IMAGE_PLACEHOLDER = "[image]";
-
-/* ===== 状態 ===== */
+/* =================== 状態 =================== */
 let authUser = null;
-let room = "";
-let name = "";
-let myAvatarUrl = "";
+let roomsChannel = null;
+let callParticipantsChannel = null;
 
-let messagesChannel = null;
-
-/* ===== call_participants 監視（通話中一覧をリアルタイム更新） ===== */
-let callUsersChannel = null;
-
-/* ===== 通話 ===== */
-let callChannel = null;
-let localStream = null;
-
-// ★送信音量（マイク）を 1-100 で調整するための WebAudio
-let audioCtx = null;
-let micSource = null;
-let micGainNode = null;
-let processedStream = null;   // Gain通過後の送信用Stream
-let myMicGain = 1.0;          // 0.0-1.0（UIは1-100）
-
-let micMuted = false;
-
-const pcs = new Map();        // peerId -> RTCPeerConnection
-const mutedMap = new Map();   // peerId -> muted(boolean)
-
-const makingOffer = new Map(); // peerId -> boolean
-function shouldCreateOffer(peerId){
-  // どちらがOfferを作るか決める（衝突防止）
-  // 文字列比較で固定（必ず片方だけがOffer担当）
-  return String(myUid()) < String(peerId);
-}
-let heartbeatTimer = null;
-const CALL_ALIVE_SEC = 30;
-
-// ★相手ごとの受信音量
-const peerVolume = new Map(); // peerId -> 0.0-1.0
-
-/* ===== util ===== */
+/* =================== ログ =================== */
 function log(...args){
   const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
-  console.log("[room]", ...args);
+  console.log("[lobby]", ...args);
   const el = document.getElementById("log");
   if (!el) return;
   el.textContent += s + "\n";
   el.scrollTop = el.scrollHeight;
 }
+window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
+window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
 
-function setUploadHint(t){
-  const el = document.getElementById("uploadHint");
-  if (el) el.textContent = t;
+function setStatus(text, ok=true){
+  const el = document.getElementById("status");
+  el.innerHTML = `<span class="${ok?'ok':'ng'}">${escapeHtml(text)}</span>`;
 }
 
-function getRoomFromUrl(){
-  const p = new URLSearchParams(location.search);
-  return (p.get("room") || "").trim();
+/* =================== 移動 =================== */
+function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
+function goRoom(roomName){
+  location.replace("./room.html?room=" + encodeURIComponent(roomName) + "&_r=" + Date.now());
+}
+function goProfile(){
+  location.replace("./profile.html?back=lobby&_r=" + Date.now());
 }
 
-function myUid(){
-  return authUser?.id || "";
+/* =================== 右上ユーザー表示 =================== */
+function setTopRightButtons(isLoggedIn){
+  const goBtn = document.getElementById("goLoginBtn");
+  const soBtn = document.getElementById("signOutBtn");
+  if (goBtn) goBtn.style.display = isLoggedIn ? "none" : "";
+  if (soBtn) soBtn.style.display = isLoggedIn ? "" : "none";
 }
 
+function updateTopRightUser(){
+  const pill = document.getElementById("userNamePill");
+  const mail = document.getElementById("userMailText");
+  if (!pill) return;
+
+if (!authUser){
+  pill.textContent = "未ログイン";
+  if (mail) mail.textContent = "";
+
+  // ★ここ重要：セッションが残ってるならログアウトは出す
+  sb.auth.getSession().then(({data})=>{
+    const hasSession = !!data?.session;
+    setTopRightButtons(hasSession); // セッションある→ログアウト出す / ない→ログイン出す
+  }).catch(()=>{
+    setTopRightButtons(false);
+  });
+
+  return;
+}
+
+
+  const dn = (authUser.user_metadata?.display_name || "").trim();
+  const em = (authUser.email || "").trim();
+  const shown = dn || em || "ログイン中";
+
+  pill.innerHTML = `
+    ${avatarHtml(authUser.user_metadata?.avatar_url || "", shown, authUser.user_metadata?.avatar_ver || "")}
+    <span>${escapeHtml(shown)}</span>
+  `;
+
+  if (mail) mail.textContent = em ? `(${em})` : "";
+  setTopRightButtons(true);
+}
+
+/* =================== セッション復元 =================== */
+async function refreshAuth(){
+  const { data: ses, error: sesErr } = await sb.auth.getSession();
+  if (sesErr) log("getSession error", sesErr);
+
+  const sessionUser = ses?.session?.user || null;
+  if (!sessionUser){
+    authUser = null;
+    updateTopRightUser();
+    return false;
+  }
+
+  // ★他端末更新を拾う：refresh → getUser
+  try { await sb.auth.refreshSession(); } catch (e) { log("refreshSession warn", e); }
+
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) log("getUser error", uErr);
+
+  authUser = u?.user || sessionUser;
+  updateTopRightUser();
+
+  return true;
+}
+
+async function requireLoginOrRedirect(){
+  const ok = await refreshAuth();
+  if (!ok){
+    goLogin();
+    return false;
+  }
+  return true;
+}
+
+/* =================== ログアウト =================== */
+function clearSupabaseLocalStorage(){
+  try{
+    // Supabase v2 の保存キーを全部消す（これで“確実に”ローカルログアウト）
+    for (const k of Object.keys(localStorage)){
+      if (k.startsWith("sb-") || k.includes("supabase")) localStorage.removeItem(k);
+    }
+    for (const k of Object.keys(sessionStorage)){
+      if (k.startsWith("sb-") || k.includes("supabase")) sessionStorage.removeItem(k);
+    }
+  }catch(e){
+    console.warn("clear storage warn", e);
+  }
+}
+
+    async function signOut() {
+        const btn = document.getElementById("signOutBtn");
+        if (btn) btn.disabled = true;
+
+        try {
+            // 先に realtime を止める（エラーで止まるのを防ぐ）
+            try { await sb.removeAllChannels?.(); } catch (e) { log("removeAllChannels warn", e); }
+
+            // 1) ローカル削除（最重要）
+            clearSupabaseLocalStorage();
+
+            // 2) サーバ signOut（失敗してもOK）
+            try { await sb.auth.signOut({ scope: "local" }); } catch (e) { log("signOut warn", e); }
+        } finally {
+            // ★何が起きてもここで必ずログインへ
+            location.replace("./login.html?_r=" + Date.now());
+        }
+    }
+
+/* =================== Realtime =================== */
+async function startRealtime(){
+  if (roomsChannel) return;
+
+  roomsChannel = sb
+    .channel("rooms-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"rooms" }, async () => {
+      await loadRooms();
+    })
+    .subscribe();
+}
+
+async function startCallParticipantsRealtime(){
+  if (callParticipantsChannel) return;
+
+  callParticipantsChannel = sb
+    .channel("call-participants-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async () => {
+      await loadRooms();
+    })
+    .subscribe();
+}
+
+/* =================== 通話中かどうか判定 =================== */
+const CALL_ALIVE_SEC = 30;
+
+async function isRoomInCall(roomName){
+  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
+
+  const { data, error } = await sb
+    .from("call_participants")
+    .select("user_id")
+    .eq("room_id", roomName)
+    .gte("updated_at", cutoff)
+    .limit(1);
+
+  if (error){
+    log("isRoomInCall error", error);
+    return true; // 判定できない時は安全側（削除させない）
+  }
+  return (data || []).length > 0;
+}
+
+/* =================== ロビーで「各部屋の通話中メンバー」をまとめて取得 =================== */
+async function fetchActiveCallUsersByRoom(){
+  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
+
+  const { data, error } = await sb
+    .from("call_participants")
+    .select("room_id, name, user_id, updated_at")
+    .gte("updated_at", cutoff)
+    .order("updated_at", { ascending:false });
+
+  if (error){
+    log("fetchActiveCallUsersByRoom error", error);
+    return new Map();
+  }
+
+  const map = new Map(); // room_id -> [{name,user_id}]
+  for (const row of (data || [])){
+    const rid = row.room_id;
+    if (!rid) continue;
+    if (!map.has(rid)) map.set(rid, []);
+    map.get(rid).push({
+      name: (row.name || row.user_id || "").toString(),
+      user_id: row.user_id
+    });
+  }
+
+  // 重複除去
+  for (const [rid, arr] of map.entries()){
+    const seen = new Set();
+    const out = [];
+    for (const a of arr){
+      const k = a.user_id || a.name;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(a);
+    }
+    map.set(rid, out);
+  }
+
+  return map;
+}
+
+/* =================== 部屋一覧読み込み =================== */
+async function loadRooms(){
+  if (!authUser) return;
+
+  const { data, error } = await sb
+    .from("rooms")
+    .select("room_name, created_at, owner_id")
+    .order("created_at", { ascending:true });
+
+  if (error){
+    log("loadRooms error", error);
+    setStatus("部屋一覧取得失敗: " + error.message, false);
+    return;
+  }
+
+  const activeMap = await fetchActiveCallUsersByRoom();
+
+  const box = document.getElementById("roomsBox");
+  box.innerHTML = "";
+
+  if (!data || data.length === 0){
+    box.innerHTML = "<div style='color:var(--muted);font-size:12px;'>まだ部屋がないよ（部屋作成してね）</div>";
+    setStatus("部屋なし", true);
+    return;
+  }
+
+  for (const r of data){
+    const rn = r.room_name;
+
+    const row = document.createElement("div");
+    row.className = "roomRow";
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "roomBtn";
+    btn.textContent = rn;
+    btn.onclick = () => document.getElementById("room").value = rn;
+    btn.ondblclick = () => goRoom(rn);
+
+    const users = activeMap.get(rn) || [];
+    if (users.length > 0){
+      const names = users.map(x=>x.name).filter(Boolean);
+      const line = document.createElement("div");
+      line.className = "callLine";
+      const shown = names.slice(0, 4).join("、");
+      const more = names.length > 4 ? ` …(+${names.length-4})` : "";
+      line.innerHTML = `📞 通話中: ${escapeHtml(shown + more)} <span class="badge">${names.length}</span>`;
+      btn.appendChild(line);
+      btn.title = "通話中: " + names.join("、");
+    }
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "delBtn";
+    del.textContent = "🗑";
+    del.title = "通話中は削除できません";
+
+    const inCall = await isRoomInCall(rn);
+    if (inCall){
+      del.disabled = true;
+      del.style.opacity = "0.4";
+      del.style.cursor = "not-allowed";
+    }
+
+    del.onclick = async () => {
+      const nowInCall = await isRoomInCall(rn);
+      if (nowInCall){
+        alert("この部屋は通話中なので削除できません。");
+        await loadRooms();
+        return;
+      }
+
+      if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
+
+      const r2 = await sb.from("rooms").delete().eq("room_name", rn);
+      if (r2.error){ alert("削除失敗: " + r2.error.message); return; }
+      await loadRooms();
+    };
+
+    row.appendChild(btn);
+    row.appendChild(del);
+    box.appendChild(row);
+  }
+
+  setStatus(`部屋一覧OK（${data.length}件）`, true);
+}
+
+/* =================== 部屋作成 / 入室 =================== */
+async function createRoom(){
+  const rn = document.getElementById("room").value.trim();
+  if (!rn) return alert("部屋名を入れてね！");
+
+  const { data: exists, error: e1 } = await sb
+    .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+  if (e1) return alert("確認失敗: " + e1.message);
+  if (exists) return alert("その部屋はもうあるよ！");
+
+  const { error } = await sb
+    .from("rooms")
+    .insert({ room_name: rn, owner_id: authUser.id });
+
+  if (error) return alert("作成失敗: " + error.message);
+
+  await loadRooms();
+}
+
+async function enterRoom(){
+  const rn = document.getElementById("room").value.trim();
+  if (!rn) return alert("部屋名を入れてね！");
+
+  const { data: exists, error } = await sb
+    .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+
+  if (error) return alert("確認失敗: " + error.message);
+  if (!exists) return alert("その部屋はまだないよ。先に部屋作成してね！");
+
+  goRoom(rn);
+}
+
+    /* =================== 表示名保存 =================== */
+async function saveDisplayName() {
+  if (!authUser) return alert("ログインしてね！");
+
+  const input = document.getElementById("displayName");
+  if (!input) return;
+
+  const dn = input.value.trim();
+  if (!dn) return alert("表示名を入力してね！");
+
+  const { error } = await sb.auth.updateUser({
+    data: { display_name: dn }
+  });
+
+  if (error) {
+    alert("保存失敗: " + error.message);
+    return;
+  }
+
+        // 2) ★プロフィールと同じ思想：必ず最新を取り直す（他端末更新/反映遅延に強い）
+        try { await sb.auth.refreshSession(); } catch (e) { log("refreshSession warn", e); }
+
+        const { data: u, error: uErr } = await sb.auth.getUser();
+        if (uErr) log("getUser error", uErr);
+
+        authUser = u?.user || authUser;
+
+        // 3) UI反映（右上＋入力欄）
+        input.value = (authUser.user_metadata?.display_name || "").trim();
+        updateTopRightUser();
+        setStatus("表示名を保存しました！", true);
+    }
+
+
+
+/* =================== HTMLエスケープ / Avatar =================== */
 function escapeHtml(s){
   return String(s)
     .replaceAll("&","&amp;")
@@ -753,1054 +674,64 @@ function escapeHtml(s){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
-
-function escapeAttr(s){
-  return escapeHtml(s).replaceAll("`","&#096;");
-}
+function escapeAttr(s){ return escapeHtml(s).replaceAll('`','&#096;'); }
 function getInitial(s){
-  const t = String(s || "").trim();
-  if (!t) return "?";
-  return Array.from(t)[0] || "?";
+  const t = String(s||'').trim();
+  if(!t) return '?';
+  return Array.from(t)[0] || '?';
 }
 function normalizeAvatarUrl(url, ver){
-  const u = String(url||"").trim();
-  if (!u) return "";
-  const v = String(ver||"").trim();
+  const u = String(url||'').trim();
+  if (!u) return '';
+  const v = String(ver||'').trim();
   if (!v) return u;
-  return u + (u.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(v);
+  return u + (u.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(v);
 }
-function avatarHtml(url, label, size="", ver=""){
-  const cls = size ? `avatar ${size}` : "avatar";
-  const fbCls = size ? `avatarFallback ${size}` : "avatarFallback";
+function avatarHtml(url, label, ver){
   const u = normalizeAvatarUrl(url, ver);
-  if (u){
-    return `<img class="${cls}" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
-  }
-  return `<div class="${fbCls}">${escapeHtml(getInitial(label))}</div>`;
+  if (u) return `<img class="avatarSm" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
+  return `<span class="avatarSmFb">${escapeHtml(getInitial(label))}</span>`;
 }
-
-
-/* =================== ナビ =================== */
-function goLobby(){
-  location.href = "./lobby.html";
-}
-function goProfile(){
-  const rn = encodeURIComponent(room || "");
-  location.href = "./profile.html?back=room&room=" + rn + "&_r=" + Date.now();
-}
-async function doLogout(){
-  await sb.auth.signOut();
-  location.href = "./login.html";
-}
-function leaveRoom(){
-  goLobby();
-}
-
-/* =================== 表示更新 =================== */
-function setReady(ok, sub){
-  const dot = document.getElementById("readyDot");
-  const subEl = document.getElementById("readySub");
-  const badge = document.getElementById("readyBadge");
-
-  if(ok){
-    dot.classList.add("ok"); dot.classList.remove("ng");
-    badge.className = "badge good";
-    badge.textContent = "Ready";
-  }else{
-    dot.classList.add("ng"); dot.classList.remove("ok");
-    badge.className = "badge bad";
-    badge.textContent = "NG";
-  }
-  subEl.textContent = sub || "";
-}
-
-function updateTop(){
-  const pill = document.getElementById("userPill");
-  const dn = (authUser?.user_metadata?.display_name || "").trim();
-  const em = (authUser?.email || "").trim();
-  const shown = dn ? dn : (em ? em : "未ログイン");
-
-  const av = (authUser?.user_metadata?.avatar_url || "").trim();
-  const avVer = (authUser?.user_metadata?.avatar_ver || "").toString();
-  pill.innerHTML = `${avatarHtml(av, shown, "", avVer)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
-}
-
-async function reloadName(){
-  // authUser は requireLoginOrRedirect() で最新を取り直している想定
-  const dn = (authUser?.user_metadata?.display_name || "").trim();
-  const em = (authUser?.email || "").trim();
-  name = dn || em || "名無しさん";
-
-  // ★他端末でも反映させるため：必ず user_metadata.avatar_url を使う
-  const av = (authUser?.user_metadata?.avatar_url || "").trim();
-  const ver = (authUser?.user_metadata?.avatar_ver || "").toString();
-  myAvatarUrl = normalizeAvatarUrl(av, ver);
-
-  // 入力欄などがある場合はここで反映してOK（今はトップ表示で使うだけ）
-}
-
-/* =================== ログイン必須 =================== */
-async function requireLoginOrRedirect(){
-  const { data: ses, error: sesErr } = await sb.auth.getSession();
-  if (sesErr) log("getSession error", sesErr);
-
-  const sessionUser = ses?.session?.user || null;
-  if (!sessionUser){
-    location.href = "./login.html";
-    return false;
-  }
-
-  // ★重要：他端末の更新を拾うため、まずトークンを更新してから user を取得
-  try{ await sb.auth.refreshSession(); }catch(e){ log('refreshSession warn', e); }
-
-  // ★追加：サーバーから最新userを取り直す
-  const { data: u, error: uErr } = await sb.auth.getUser();
-  if (uErr) log("getUser error", uErr);
-
-  authUser = u?.user || sessionUser;
-  return true;
-}
-
-
-
-/* =========================================================
-   チャット（messages）
-   ========================================================= */
-async function startMessagesRealtime(){
-  if (messagesChannel) return;
-
-  messagesChannel = sb
-    .channel("messages-ch")
-    .on("postgres_changes", { event:"*", schema:"public", table:"messages_v2" }, async (payload)=>{
-      const nr = payload.new || {};
-      const or = payload.old || {};
-      const rid = nr.room_id || or.room_id;
-      if (rid === room) await loadMessages();
-    })
-    .subscribe();
-}
-
-function fmtTime(iso){
-  try{
-    const d = new Date(iso);
-    const hh = String(d.getHours()).padStart(2,"0");
-    const mm = String(d.getMinutes()).padStart(2,"0");
-    return `${hh}:${mm}`;
-  }catch{
-    return "";
-  }
-}
-
-async function loadMessages(){
-  const { data, error } = await sb
-    .from("messages_v2")
-    .select("id, room_id, name, avatar_url, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by")
-    .eq("room_id", room)
-    .order("created_at", { ascending:true })
-    .limit(200);
-
-  if (error){ log("loadMessages error", error); return; }
-
-  const box = document.getElementById("chat");
-  box.innerHTML = "";
-
-  (data || []).forEach(m=>{
-    const wrap = document.createElement("div");
-
-    const head = document.createElement("div");
-    head.className = "msgHead";
-
-    const left = document.createElement("div");
-    left.style.display = "flex";
-    left.style.alignItems = "center";
-    left.style.gap = "8px";
-    left.innerHTML = `${avatarHtml(m.avatar_url, (m.name || ""), "sm")} <span class="nameText">${escapeHtml(m.name || "")}</span>`;
-
-
-    // 右側（時刻 + 削除ボタン）
-    const actions = document.createElement("div");
-    actions.className = "msgActions";
-
-    const meta = document.createElement("div");
-    meta.className = "msgMeta";
-    meta.textContent = fmtTime(m.created_at);
-
-    actions.appendChild(meta);
-
-    // ✅ 自分が送ったメッセージだけゴミ箱を表示（本人だけ消せる）
-    if (m.user_id && m.user_id === myUid() && !m.deleted){
-      const del = document.createElement("button");
-      del.className = "trashBtn";
-      del.type = "button";
-      del.title = "自分のメッセージを削除";
-      del.textContent = "🗑️";
-      del.onclick = async ()=>{
-        await deleteMessage(m);
-      };
-      actions.appendChild(del);
-    }
-
-    head.appendChild(left);
-    head.appendChild(actions);
-    wrap.appendChild(head);
-
-    const bodyText = (m.message || "").trim();
-    const isImagePlaceholder = (bodyText === IMAGE_PLACEHOLDER);
-    const hasImage = !!m.image_url;
-
-    if (m.deleted){
-      // ✅ 削除済み：本文や画像は表示しない（サーバーには残す）
-      if (!isImagePlaceholder){
-        const delMsg = document.createElement("div");
-        delMsg.className = "msgExpired";
-        delMsg.textContent = "🗑️ メッセージは削除されました";
-        wrap.appendChild(delMsg);
-      }
-
-      if (hasImage || isImagePlaceholder){
-        const delImg = document.createElement("div");
-        delImg.className = "msgExpired";
-        delImg.textContent = "🗑️ 画像は削除されました";
-        wrap.appendChild(delImg);
-      }
-    }else{
-      // ✅ 通常表示
-      if (bodyText && !isImagePlaceholder){
-        const body = document.createElement("div");
-        body.className = "msgBody";
-        body.textContent = bodyText;
-        wrap.appendChild(body);
-      }
-
-      if (hasImage){
-  const img = document.createElement("img");
-  img.className = "msgImg";
-  img.src = m.image_url;
-  img.loading = "lazy";
-  img.alt = "image";
-
-  // ★サーバ側（Storage）から消された/URL切れ等 → 表示を差し替える
-  img.onerror = async () => {
-  // 1) 画像表示を差し替え（UI）
-  try { img.remove(); } catch {}
-
-  const gone = document.createElement("div");
-  gone.className = "msgExpired";
-  gone.textContent = "🗑️ 画像はサーバー側から削除されました";
-  wrap.appendChild(gone);
-
-  // 2) ★DBも「削除扱い」にする（全員の画面を統一）
-  //    ※ 二重更新を防ぐ：すでにdeletedなら何もしない
-  try{
-    if (!m.deleted && m.id){
-      const { error } = await sb
-        .from("messages_v2")
-        .update({
-          deleted: true,
-          deleted_at: new Date().toISOString(),
-          deleted_by: "system" // 文字列でもOK（列が text の場合）
-        })
-        .eq("id", m.id);
-
-      if (error) log("auto delete(update) error", error);
-    }
-  }catch(e){
-    log("auto delete exception", e);
-  }
-};
-
-
-
-      // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
-      if (isImagePlaceholder && !hasImage){
-        const ex = document.createElement("div");
-        ex.className = "msgExpired";
-        ex.textContent = "🗑️ 画像は期限切れで削除されました";
-        wrap.appendChild(ex);
-      }
-    }
-
-    box.appendChild(wrap);
-  });
-
-  box.scrollTop = box.scrollHeight;
-}
-
-async function sendMsg(){
-  const v = document.getElementById("msg").value.trim();
-  if (!v) return;
-  document.getElementById("msg").value = "";
-
-  const { error } = await sb.from("messages_v2").insert({
-    room_id: room,
-    name,
-    avatar_url: myAvatarUrl,
-    message: v,
-    image_url: null,
-    user_id: myUid()
-  });
-
-  if (error){ alert("送信失敗: " + error.message); }
-}
-
-/* ===== 画像送信 ===== */
-async function sendImage(){
-  try{
-    const fileInput = document.getElementById("imgFile");
-    const file = fileInput.files?.[0];
-    if (!file){
-      alert("画像ファイルを選んでね！");
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES){
-      alert("画像が大きすぎるよ（最大5MB）");
-      return;
-    }
-
-    // 画像だけ送る場合もOK：msg本文は空でOK（画像行は別insert）
-    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-    const roomKey = safeKey(room);
-    const path = `${roomKey}/${myUid()}/${Date.now()}_${safeName}`;
-
-
-    setUploadHint("アップロード中…");
-
-    const { error: upErr } = await sb
-      .storage
-      .from(IMAGE_BUCKET)
-      .upload(path, file, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: file.type || "image/*"
-      });
-
-    if (upErr) throw upErr;
-
-    const { data: pub } = sb.storage.from(IMAGE_BUCKET).getPublicUrl(path);
-    const imageUrl = pub?.publicUrl;
-    if (!imageUrl) throw new Error("publicUrl が取得できなかった…");
-
-    const { error: insErr } = await sb.from("messages_v2").insert({
-      room_id: room,
-      name,
-      avatar_url: myAvatarUrl,
-      message: IMAGE_PLACEHOLDER,
-      image_url: imageUrl,
-      user_id: myUid()
-    });
-
-    if (insErr) throw insErr;
-
-    // UIリセット
-    fileInput.value = "";
-    document.getElementById("imgName").textContent = "未選択";
-    setUploadHint("※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）");
-
-    await loadMessages();
-  }catch(e){
-    log("sendImage error", e);
-    alert("画像送信に失敗: " + (e?.message || e));
-    setUploadHint("※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）");
-  }
-}
-
-/* =========================================================
-   🗑️ 自分の投稿だけ削除（本文 + 画像）
-   - deletedフラグで「削除されました」表示にする
-   ========================================================= */
-async function deleteMessage(m){
-  try{
-    if (!m?.id) return;
-
-    const uid = myUid();
-    console.log("[delete] uid=", uid, "m.id=", m.id, "m.user_id=", m.user_id);
-
-    if (!uid){
-      alert("ログインが切れてるっぽい！ログインし直してね");
-      location.href = "./login.html";
-      return;
-    }
-    if ((m.user_id || "") !== uid) return;
-
-    const payload = {
-      deleted: true,
-      deleted_at: new Date().toISOString(),
-      deleted_by: uid
-    };
-    console.log("[delete] payload=", payload);
-
-    const { data, error } = await sb
-      .from("messages_v2")
-      .update(payload)
-      .eq("id", m.id)
-      .eq("user_id", uid)
-      .select("id, deleted, deleted_at, deleted_by");
-
-    console.log("[delete] data=", data);
-    if (error){
-      console.log("[delete] error(full)=", error);
-      throw error;
-    }
-
-    await loadMessages();
-  }catch(e){
-    console.log("[delete] catch=", e);
-    alert("削除に失敗: " + (e?.message || e));
-  }
-}
-
-/* =========================================================
-   ルーム内「通話中の人」表示（call_participants から読む）
-   ========================================================= */
-async function loadActiveCallUsers(){
-  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
-
-  const { data, error } = await sb
-    .from("call_participants")
-    .select("user_id, name, avatar_url, updated_at")
-    .eq("room_id", room)
-    .gte("updated_at", cutoff)
-    .order("updated_at", { ascending:false });
-
-  const box = document.getElementById("activeCallUsersList");
-  box.innerHTML = "";
-
-  if (error){
-    log("loadActiveCallUsers error", error);
-    box.innerHTML = "<div class='hint' style='color:#ff6b6b;'>通話中メンバー取得失敗</div>";
-    return;
-  }
-
-  const list = (data || []).map(x=>({
-    user_id: x.user_id,
-    name: (x.name || x.user_id || "").toString(),
-    avatar_url: (x.avatar_url || "").toString()
-  }));
-
-  if (list.length === 0){
-    box.innerHTML = "<div class='hint'>今は誰も通話してないよ</div>";
-    return;
-  }
-
-  const seen = new Set();
-  const uniq = [];
-  for (const p of list){
-    const k = p.user_id || p.name;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    uniq.push(p);
-  }
-
-  for (const p of uniq){
-    const row = document.createElement("div");
-    row.className = "listItem";
-    row.innerHTML = `
-      <div class="name">🎧 ${avatarHtml(p.avatar_url, p.name, "sm")} <span class="nameText">${escapeHtml(p.name)}</span></div>
-      <div class="sub"><span class="badge good">通話中</span></div>
-    `;
-    box.appendChild(row);
-  }
-}
-
-/* ===== call_participants realtime（部屋の通話中一覧） ===== */
-async function startCallParticipantsRealtime(){
-  if (callUsersChannel) return;
-
-  callUsersChannel = sb
-    .channel("call-users-ch")
-    .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async (payload)=>{
-      const nr = payload.new || {};
-      const or = payload.old || {};
-      const rid = nr.room_id || or.room_id;
-      if (rid === room) await loadActiveCallUsers();
-    })
-    .subscribe();
-}
-
-/* =========================================================
-   通話（Supabase Realtime Broadcast）
-   ========================================================= */
-async function startCallChannel(){
-  if (callChannel) return;
-
-  callChannel = sb.channel(`call-${room}`, {
-    config: {
-      broadcast: { self: false },
-      presence: { key: myUid() }
-    }
-  });
-
-  callChannel
-    .on("broadcast", { event:"signal" }, async ({ payload })=>{
-      await onSignal(payload);
-    })
-    .on("presence", { event:"sync" }, ()=>{
-      onPresenceSync();
-    })
-    .on("presence", { event:"join" }, ({ key, newPresences })=>{
-      onPresenceJoin(key, newPresences);
-    })
-    .on("presence", { event:"leave" }, ({ key, leftPresences })=>{
-      onPresenceLeave(key, leftPresences);
-    });
-
-  const { error } = await callChannel.subscribe(async (status)=>{
-    log("call channel status:", status);
-    if (status === "SUBSCRIBED"){
-      await callChannel.track({
-        user_id: myUid(),
-        name,
-        avatar_url: myAvatarUrl,
-        muted: micMuted,
-        at: new Date().toISOString()
-      });
-      await refreshPresenceList();
-    }
-  });
-
-  if (error) log("callChannel subscribe error", error);
-}
-
-function getSendStream(){
-  return processedStream || localStream;
-}
-
-function attachTracksToPC(peerId){
-  const pc = pcs.get(peerId);
-  const sendStream = getSendStream();
-  if (!pc || !sendStream) return;
-
-  const senders = pc.getSenders ? pc.getSenders() : [];
-  const hasAudioSender = senders.some(s => s.track && s.track.kind === "audio");
-
-  if (!hasAudioSender){
-    for (const t of sendStream.getTracks()){
-      pc.addTrack(t, sendStream);
-    }
-  }else{
-    for (const t of sendStream.getTracks()){
-      const sender = senders.find(s => s.track && s.track.kind === t.kind);
-      if (sender && sender.track !== t){
-        try{ sender.replaceTrack(t); }catch{}
-      }
-    }
-  }
-}
-
-function attachTracksToAllPCs(){
-  for (const [peerId] of pcs){
-    attachTracksToPC(peerId);
-  }
-}
-
-function ensureAudioEl(peerId){
-  const id = "audio-" + peerId;
-  let el = document.getElementById(id);
-  if (el) return el;
-
-  const wrap = document.createElement("div");
-  wrap.className = "audioWrap";
-  wrap.id = "audioWrap-" + peerId;
-
-  const titleRow = document.createElement("div");
-  titleRow.className = "audioTitle";
-  titleRow.innerHTML = `<span id="audioTitle-${peerId}">🔊 相手: ${peerId}</span> <span class="badge" id="muteBadge-${peerId}">mute?</span>`;
-
-  el = document.createElement("audio");
-  el.id = id;
-  el.autoplay = true;
-  el.playsInline = true;
-  el.controls = true;
-
-  const v = peerVolume.get(peerId) ?? 1.0;
-  el.volume = v;
-
-  const ctl = document.createElement("div");
-  ctl.className = "audioCtl";
-
-  const labelText = document.createElement("div");
-  labelText.className = "lbl";
-  labelText.textContent = "相手の音量";
-
-  const label = document.createElement("div");
-  label.className = "val";
-  label.textContent = String(Math.round(v * 100));
-
-  const range = document.createElement("input");
-  range.type = "range";
-  range.min = "1";
-  range.max = "100";
-  range.value = String(Math.round(v * 100));
-  range.oninput = ()=>{
-    const n = Math.max(1, Math.min(100, Number(range.value)));
-    const vv = n / 100;
-    peerVolume.set(peerId, vv);
-    label.textContent = String(n);
-    el.volume = vv;
-  };
-
-  ctl.appendChild(labelText);
-  ctl.appendChild(label);
-  ctl.appendChild(range);
-
-  wrap.appendChild(titleRow);
-  wrap.appendChild(el);
-  wrap.appendChild(ctl);
-
-  document.getElementById("audios").appendChild(wrap);
-  refreshAudioTitles();
-
-  return el;
-}
-
-function refreshAudioTitles(){
-  const st = callChannel?.presenceState?.() || {};
-  for (const [peerId] of pcs){
-    const pres = st[peerId]?.[0];
-    const nm = pres?.name || peerId;
-    const t = document.getElementById("audioTitle-" + peerId);
-    if (t) t.textContent = `🔊 相手: ${nm}`;
-
-    const badge = document.getElementById("muteBadge-" + peerId);
-    const muted = mutedMap.get(peerId);
-    if (badge){
-      badge.textContent = muted ? "MUTE" : "ON";
-      badge.className = "badge " + (muted ? "bad" : "good");
-    }
-  }
-}
-
-async function ensurePC(peerId){
-  if (peerId === myUid()) return;
-  if (pcs.has(peerId)) return;
-
-  const pc = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-  });
-
-  pcs.set(peerId, pc);
-
-  pc.onicecandidate = async (ev)=>{
-    if (ev.candidate) await sendSignal(peerId, { kind:"ice", candidate: ev.candidate });
-  };
-  pc.onconnectionstatechange = ()=> log("pc state", peerId, pc.connectionState);
-  pc.oniceconnectionstatechange = ()=> log("ice state", peerId, pc.iceConnectionState);
-
-  pc.ontrack = (ev)=>{
-    const el = ensureAudioEl(peerId);
-    el.srcObject = ev.streams[0];
-  };
-
-  const sendStream = getSendStream();
-  if (sendStream){
-    for (const t of sendStream.getTracks()){
-      pc.addTrack(t, sendStream);
-    }
-  }
-}
-
-async function maybeMakeOffer(peerId){
-  const pc = pcs.get(peerId);
-  if (!pc) return;
-
-  if (!shouldCreateOffer(peerId)) return;
-  if (makingOffer.get(peerId)) return;
-  if (pc.signalingState !== "stable") return;
-
-  try{
-    makingOffer.set(peerId, true);
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    await sendSignal(peerId, { kind:"sdp", sdp: pc.localDescription });
-  }catch(e){
-    log("maybeMakeOffer error", peerId, e);
-  }finally{
-    makingOffer.set(peerId, false);
-  }
-}
-
-function closePC(peerId){
-  const pc = pcs.get(peerId);
-  if (!pc) return;
-  try { pc.close(); } catch {}
-  pcs.delete(peerId);
-
-  const wrap = document.getElementById("audioWrap-" + peerId);
-  if (wrap) wrap.remove();
-}
-
-async function sendSignal(to, data){
-  if (!callChannel) return;
-  await callChannel.send({
-    type: "broadcast",
-    event: "signal",
-    payload: {
-      from: myUid(),
-      to,
-      data
-    }
-  });
-}
-
-async function onSignal(payload){
-  const from = payload?.from;
-  const to = payload?.to;
-  const data = payload?.data;
-  if (!from || !data) return;
-  if (to && to !== myUid()) return;
-
-  if (data.kind === "hello"){
-    await ensurePC(from);
-    if (String(myUid()) < String(from)){
-      await maybeMakeOffer(from);
-    }
-    return;
-  }
-
-  await ensurePC(from);
-  const pc = pcs.get(from);
-  if (!pc) return;
-
-  if (data.kind === "sdp"){
-    const desc = data.sdp;
-    if (!desc) return;
-
-    if (desc.type === "offer"){
-      try{
-        if (pc.signalingState !== "stable"){
-          try{ await pc.setLocalDescription({ type: "rollback" }); }catch{}
-        }
-        await pc.setRemoteDescription(desc);
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        await sendSignal(from, { kind:"sdp", sdp: pc.localDescription });
-      }catch(e){
-        log("handle offer error", e);
-      }
-      return;
-    }
-
-    if (desc.type === "answer"){
-      if (pc.signalingState !== "have-local-offer"){
-        log("ignore answer (wrong state)", from, pc.signalingState);
-        return;
-      }
-      try{
-        await pc.setRemoteDescription(desc);
-      }catch(e){
-        log("setRemoteDescription(answer) error", e);
-      }
-      return;
-    }
-  }
-
-  if (data.kind === "ice"){
-    try{
-      await pc.addIceCandidate(data.candidate);
-    }catch(e){
-      log("addIceCandidate error", e);
-    }
-    return;
-  }
-
-  if (data.kind === "mute"){
-    mutedMap.set(from, !!data.muted);
-    refreshAudioTitles();
-    return;
-  }
-}
-
-/* ===== call_participants（alive） ===== */
-async function upsertCallParticipant(){
-  const { error } = await sb.from("call_participants").upsert({
-    room_id: room,
-    user_id: myUid(),
-    name,
-    avatar_url: myAvatarUrl,
-    updated_at: new Date().toISOString()
-  }, { onConflict: "room_id,user_id" });
-
-  if (error) log("upsertCallParticipant error", error);
-}
-
-function startHeartbeat(){
-  stopHeartbeat();
-  heartbeatTimer = setInterval(async ()=>{
-    await upsertCallParticipant();
-  }, Math.max(5000, (CALL_ALIVE_SEC * 1000) / 3));
-}
-function stopHeartbeat(){
-  if (heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
-}
-
-function buildProcessedMicStreamIfNeeded(){
-  if (!localStream) return;
-  if (processedStream && micGainNode && audioCtx) return;
-
-  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-  micSource = audioCtx.createMediaStreamSource(localStream);
-  micGainNode = audioCtx.createGain();
-  micGainNode.gain.value = myMicGain;
-
-  const dest = audioCtx.createMediaStreamDestination();
-  micSource.connect(micGainNode);
-  micGainNode.connect(dest);
-
-  processedStream = dest.stream;
-}
-
-function applyMicGain(){
-  const v = Math.max(0.01, Math.min(1.0, myMicGain));
-  if (micGainNode) micGainNode.gain.value = v;
-}
-
-async function joinCall(){
-  document.getElementById("callState").textContent = "準備中…";
-
-  await startCallChannel();
-
-  if (!localStream){
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-  }
-
-  buildProcessedMicStreamIfNeeded();
-  applyMicGain();
-  if (audioCtx && audioCtx.state === "suspended") {
-    await audioCtx.resume();
-  }
-
-  attachTracksToAllPCs();
-
-  if (callChannel){
-    await callChannel.track({
-      user_id: myUid(),
-      name,
-      muted: micMuted,
-      at: new Date().toISOString()
-    });
-  }
-
-  const state = callChannel.presenceState() || {};
-  for (const peerId of Object.keys(state)){
-    if (peerId === myUid()) continue;
-
-    await sendSignal(peerId, { kind: "hello" });
-    await ensurePC(peerId);
-    await maybeMakeOffer(peerId);
-  }
-
-  document.getElementById("callState").textContent = "通話に参加中";
-  setReady(true, "通話準備OK");
-  startHeartbeat();
-}
-
-async function leaveCall(){
-  try{
-    await sb
-      .from("call_participants")
-      .delete()
-      .eq("room_id", room)
-      .eq("user_id", myUid());
-  }catch(e){
-    log("call_participants delete error", e);
-  }
-
-  stopHeartbeat();
-
-  for (const [peerId] of pcs){
-    closePC(peerId);
-  }
-  pcs.clear();
-
-  if (localStream){
-    for (const t of localStream.getTracks()){
-      try{ t.stop(); }catch{}
-    }
-    localStream = null;
-  }
-  processedStream = null;
-  micSource = null;
-  micGainNode = null;
-
-  if (callChannel){
-    try{ await callChannel.untrack(); }catch{}
-    try{ await callChannel.unsubscribe(); }catch{}
-    callChannel = null;
-  }
-
-  document.getElementById("callState").textContent = "未接続（必要なら通話に参加を押してね）";
-  setReady(true, "待機中");
-  document.getElementById("audios").innerHTML = "";
-  document.getElementById("callUsersList").innerHTML = "<div class='hint'>未接続</div>";
-}
-
-async function toggleMute(){
-  micMuted = !micMuted;
-
-  // ボタン表示（ボタン無い場合でも落ちない）
-  const btn = document.getElementById("muteBtn");
-  if (btn) btn.textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
-
-  // ★ミュートは stop() じゃなく enabled 切替だけ
-  try{
-    if (localStream){
-      for (const t of localStream.getAudioTracks()){
-        t.enabled = !micMuted;
-      }
-    }
-  }catch(e){
-    log("toggleMute: localStream fail", e);
-  }
-
-  // presence更新（失敗しても通話を止めない）
-  try{
-    if (callChannel){
-      await callChannel.track({
-        user_id: myUid(),
-        name,
-        muted: micMuted,
-        at: new Date().toISOString()
-      });
-    }
-  }catch(e){
-    log("toggleMute: presence track warn", e);
-  }
-
-  // 相手のUI更新（失敗しても通話を止めない）
-  try{
-    for (const [peerId] of pcs){
-      await sendSignal(peerId, { kind:"mute", muted: micMuted });
-    }
-  }catch(e){
-    log("toggleMute: sendSignal warn", e);
-  }
-}
-
-function onPresenceSync(){
-  refreshPresenceList();
-  refreshAudioTitles();
-}
-function onPresenceJoin(key, presences){
-  refreshPresenceList();
-  refreshAudioTitles();
-}
-function onPresenceLeave(key, presences){
-  closePC(key);
-  refreshPresenceList();
-}
-
-async function refreshPresenceList(){
-  const box = document.getElementById("callUsersList");
-  if (!callChannel){
-    box.innerHTML = "<div class='hint'>未接続</div>";
-    return;
-  }
-  const st = callChannel.presenceState();
-  const ids = Object.keys(st || {});
-  box.innerHTML = "";
-
-  if (ids.length === 0){
-    box.innerHTML = "<div class='hint'>未接続</div>";
-    return;
-  }
-
-  for (const id of ids){
-    const p = st[id]?.[0] || {};
-    const nm = p.name || id;
-    const muted = !!p.muted;
-
-    const row = document.createElement("div");
-    row.className = "listItem";
-    row.innerHTML = `
-      <div class="name">${muted ? "🔇" : "🎤"} ${avatarHtml(p.avatar_url, nm, "sm")} <span class="nameText">${escapeHtml(nm)}</span></div>
-      <div class="sub"><span class="badge ${muted ? "bad" : "good"}">${muted ? "ミュート" : "発話OK"}</span></div>
-    `;
-    box.appendChild(row);
-
-    mutedMap.set(id, muted);
-  }
-  refreshAudioTitles();
-}
-
-/* ===== UI events ===== */
-document.getElementById("imgFile").addEventListener("change", ()=>{
-  const f = document.getElementById("imgFile").files?.[0];
-  document.getElementById("imgName").textContent = f ? f.name : "未選択";
-});
-
-document.getElementById("micGain").addEventListener("input", (ev)=>{
-  const n = Math.max(1, Math.min(100, Number(ev.target.value)));
-  document.getElementById("micGainLabel").textContent = String(n);
-  myMicGain = n / 100;
-  applyMicGain();
-});
 
 /* =================== 起動 =================== */
-(async ()=>{
-  if (!(await requireLoginOrRedirect())) return;
-  await reloadName();
-  updateTop();
+(async () => {
+  // URL/Hash にセッションが含まれるケースを拾う（安全のため）
+  try {
+    const url = new URL(location.href);
+    const hasAuthParams =
+      url.searchParams.has("code") ||
+      url.searchParams.has("type") ||
+      url.searchParams.has("access_token") ||
+      url.searchParams.has("refresh_token") ||
+      (location.hash && (location.hash.includes("access_token=") || location.hash.includes("refresh_token=")));
 
-  room = getRoomFromUrl();
-  if (!room){
-    alert("部屋が指定されてないよ！");
-    goLobby();
-    return;
+    if (hasAuthParams) {
+      const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
+      if (error) log("getSessionFromUrl error", error);
+      if (data?.session?.user) log("OAuth session OK", data.session.user.email);
+      history.replaceState({}, document.title, "./lobby.html");
+    }
+  } catch (e) {
+    log("init session url exception", e);
   }
 
-  document.getElementById("roomName").value = room;
-  document.getElementById("roomChip").textContent = room;
-  document.getElementById("subTitle").textContent = "Room: " + room;
+  if (!(await requireLoginOrRedirect())) return;
 
-
-  await loadMessages();
-  await startMessagesRealtime();
-
-  await loadActiveCallUsers();
+  await loadRooms();
+  await startRealtime();
   await startCallParticipantsRealtime();
 
-  setReady(true, "待機中");
+  sb.auth.onAuthStateChange(async () => {
+    const ok = await refreshAuth();
+    if (!ok) { goLogin(); return; }
+    await loadRooms();
+  });
 
-  sb.auth.onAuthStateChange(async (event, session)=> {
-  const sessionUser = session?.user || null;
-  if (!sessionUser){
-    authUser = null;
-    updateTop();
-    location.href = "./login.html";
-    return;
-  }
-
-  // ★最新 user を取り直す
-  const { data: u, error: uErr } = await sb.auth.getUser();
-  if (uErr) log("getUser error", uErr);
-
-  authUser = u?.user || sessionUser;
-
-  await reloadName();  // reloadName が authUser.user_metadata を使う想定
-  updateTop();
-});
-
-
-  log("ready room=", room);
+  log("ready");
 })();
-
-function safeKey(s){
-  // Storageのキーに使える文字だけにする（英数字 _ -）
-  let t = String(s || "").trim();
-  t = t.replace(/[^a-zA-Z0-9_-]+/g, "_");
-  t = t.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
-  return t || "room";
-}
-
 </script>
+
 </body>
 </html>
-
-
-
-
-
-
-
 
 
