@@ -1025,11 +1025,22 @@ async function sendMsg(){
   if (error){ alert("送信失敗: " + error.message); }
 }
 
-/* ===== 画像送信 ===== */
+/* ===== 画像送信（エラーで止まらない版） ===== */
 async function sendImage(){
+  const btn = document.getElementById("sendImgBtn");
+  const fileInput = document.getElementById("imgFile");
+  const oldHint = document.getElementById("uploadHint")?.textContent || "";
+
+  // 何があっても UI を戻すための関数
+  const restoreUI = ()=>{
+    try{ if (btn) btn.disabled = false; }catch{}
+    try{ setUploadHint(oldHint || "※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）"); }catch{}
+  };
+
   try{
-    const fileInput = document.getElementById("imgFile");
-    const file = fileInput.files?.[0];
+    if (btn) btn.disabled = true;
+
+    const file = fileInput?.files?.[0];
     if (!file){
       alert("画像ファイルを選んでね！");
       return;
@@ -1038,21 +1049,38 @@ async function sendImage(){
       alert("画像が大きすぎるよ（最大5MB）");
       return;
     }
+    if (!room || !myUid()){
+      alert("部屋 or ログイン情報が見つからないよ。ログインし直してね！");
+      return;
+    }
 
-    // 画像だけ送る場合もOK：msg本文は空でOK（画像行は別insert）
-    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+    // ★衝突しない ID を作る（crypto.randomUUID が無い環境も考慮）
+    let uidPart = "";
+    try{
+      uidPart = (crypto?.randomUUID?.() || "");
+    }catch{}
+    if (!uidPart){
+      uidPart = "u" + Date.now() + "_" + Math.random().toString(16).slice(2);
+    }
+
+    const safeName = String(file.name || "image")
+      .replace(/[^\w.\-]+/g, "_")
+      .slice(0, 80);
+
     const roomKey = safeKey(room);
-    const path = `${roomKey}/${myUid()}/${Date.now()}_${safeName}`;
 
+    // ★絶対に被らないパス
+    const path = `${roomKey}/${myUid()}/${uidPart}_${safeName}`;
 
     setUploadHint("アップロード中…");
 
+    // ★コケないために upsert:true（ここが重要）
     const { error: upErr } = await sb
       .storage
       .from(IMAGE_BUCKET)
       .upload(path, file, {
-        cacheControl: "3600",
-        upsert: false,
+        cacheControl: "60",     // 1分（長すぎるキャッシュ事故を避ける）
+        upsert: true,           // ★衝突しても上書き
         contentType: file.type || "image/*"
       });
 
@@ -1062,6 +1090,7 @@ async function sendImage(){
     const imageUrl = pub?.publicUrl;
     if (!imageUrl) throw new Error("publicUrl が取得できなかった…");
 
+    // DBに保存（画像だけ投稿）
     const { error: insErr } = await sb.from("messages_v2").insert({
       room_id: room,
       name,
@@ -1073,18 +1102,29 @@ async function sendImage(){
 
     if (insErr) throw insErr;
 
-    // UIリセット
-    fileInput.value = "";
-    document.getElementById("imgName").textContent = "未選択";
+    // 成功：UIリセット
+    try{ fileInput.value = ""; }catch{}
+    try{ document.getElementById("imgName").textContent = "未選択"; }catch{}
     setUploadHint("※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）");
 
-    await loadMessages();
+    // 表示更新（失敗しても止めない）
+    try{ await loadMessages(); }catch{}
   }catch(e){
-    log("sendImage error", e);
-    alert("画像送信に失敗: " + (e?.message || e));
-    setUploadHint("※ 画像は Storage（public）にアップ→URLをチャットに保存するよ（5MBまで）");
+    // ★絶対に落とさない：ログ＋メッセージだけ
+    log("sendImage error FULL", e);
+
+    // よくある statusCode を出すと原因特定しやすい
+    const msg =
+      (e?.message ? e.message : String(e)) +
+      (e?.statusCode ? ` (statusCode: ${e.statusCode})` : "") +
+      (e?.status ? ` (status: ${e.status})` : "");
+
+    alert("画像送信に失敗: " + msg);
+  }finally{
+    restoreUI();
   }
 }
+
 
 /* =========================================================
    🗑️ 自分の投稿だけ削除（本文 + 画像）
