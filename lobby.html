@@ -36,7 +36,6 @@
 
     h2{ margin:0; }
 
-    /* ===== Top ===== */
     .topbar{
       display:flex;
       justify-content:space-between;
@@ -118,7 +117,6 @@
       border-color:rgba(255,107,107,.4);
     }
 
-    /* ===== Cards ===== */
     .card{
       background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
       border:1px solid var(--line);
@@ -152,7 +150,6 @@
       align-items:center;
     }
 
-    /* ===== Room list ===== */
     #roomsBox{
       display:flex;
       flex-direction:column;
@@ -223,7 +220,7 @@
       border:1px solid var(--line);
       border-radius:14px;
       padding:10px;
-      max-height:200px;
+      max-height:220px;
       overflow:auto;
       white-space:pre-wrap;
     }
@@ -237,10 +234,9 @@
 <div class="topbar">
   <h2>🎧 ゆるるチャット – ロビー</h2>
   <div class="userBox">
-    <!-- アイコンは userPill の中に1個だけ出す（ここにimgは置かない） -->
     <button class="userPill" id="userNamePill" type="button" onclick="goProfile()">未ログイン</button>
     <span class="userText" id="userMailText"></span>
-    <button class="btnPrimary" type="button" onclick="log('create clicked'); createRoom();">作成</button>
+    <button class="btnPrimary" id="createTopBtn" type="button" onclick="log('create clicked (top)'); createRoom();">作成</button>
     <button class="btnDanger" onclick="signOut()" id="signOutBtn" style="display:none;">ログアウト</button>
   </div>
 </div>
@@ -249,8 +245,7 @@
   <div class="sectionTitle">🏠 ルーム</div>
   <div class="row">
     <input id="room" placeholder="部屋名（例: test）" />
-    <button class="btnPrimary" type="button" onclick="log('create clicked (card)'); createRoom();">作成</button>
-
+    <button class="btnPrimary" id="createCardBtn" type="button" onclick="log('create clicked (card)'); createRoom();">作成</button>
     <button type="button" onclick="enterRoom()">入室</button>
     <button type="button" onclick="loadRooms()">更新</button>
   </div>
@@ -258,7 +253,7 @@
   <div class="sectionTitle" style="margin-top:14px;">📋 部屋一覧</div>
   <div id="roomsBox"></div>
 
-  <details>
+  <details open>
     <summary>🔧 デバッグログ</summary>
     <div id="log"></div>
   </details>
@@ -268,12 +263,9 @@
 
 <script>
 /* =================== Supabase 設定 =================== */
-    const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
-/* ★ここは anon public key を入れてね（日本語/全角/改行が混ざると fetch が死ぬ） */
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
-
-/* ★重要：login.html と同じ auth 設定で createClient（ロビーで「切れる」を防ぐ） */
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
   (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
@@ -309,6 +301,15 @@ function setStatus(text, ok=true){
   el.innerHTML = `<span class="${ok?'ok':'ng'}">${escapeHtml(text)}</span>`;
 }
 
+/* =================== タイムアウト付き await =================== */
+function withTimeout(promise, label, ms=8000){
+  let t;
+  const timeout = new Promise((_, rej)=>{
+    t = setTimeout(()=>rej(new Error(`TIMEOUT: ${label} (${ms}ms)`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(()=>clearTimeout(t));
+}
+
 /* =================== 移動 =================== */
 function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
 function goRoom(roomName){
@@ -320,9 +321,7 @@ function goProfile(){
 
 /* =================== 右上ユーザー表示 =================== */
 function setTopRightButtons(isLoggedIn){
-  const goBtn = document.getElementById("goLoginBtn");
   const soBtn = document.getElementById("signOutBtn");
-  if (goBtn) goBtn.style.display = isLoggedIn ? "none" : "";
   if (soBtn) soBtn.style.display = isLoggedIn ? "" : "none";
 }
 
@@ -331,82 +330,99 @@ function updateTopRightUser(){
   const mail = document.getElementById("userMailText");
   if (!pill) return;
 
-if (!authUser){
-  pill.textContent = "未ログイン";
-  if (mail) mail.textContent = "";
-
-  // ★ここ重要：セッションが残ってるならログアウトは出す
-  sb.auth.getSession().then(({data})=>{
-    const hasSession = !!data?.session;
-    setTopRightButtons(hasSession); // セッションある→ログアウト出す / ない→ログイン出す
-  }).catch(()=>{
-    setTopRightButtons(false);
-  });
-
-  return;
-}
-
+  if (!authUser){
+    pill.textContent = "未ログイン";
+    if (mail) mail.textContent = "";
+    sb.auth.getSession().then(({data})=>{
+      const hasSession = !!data?.session;
+      setTopRightButtons(hasSession);
+    }).catch(()=>{
+      setTopRightButtons(false);
+    });
+    return;
+  }
 
   const dn = (authUser.user_metadata?.display_name || "").trim();
   const em = (authUser.email || "").trim();
   const shown = dn || em || "ログイン中";
 
-
   const avm = getPreferredAvatar();
-
   pill.innerHTML = `
-  ${avatarHtml(avm.url || "", shown, avm.ver || "")}
-  <span>${escapeHtml(shown)}</span>
-`;
-
-
+    ${avatarHtml(avm.url || "", shown, avm.ver || "")}
+    <span>${escapeHtml(shown)}</span>
+  `;
   if (mail) mail.textContent = em ? `(${em})` : "";
   setTopRightButtons(true);
 }
 
-/* =================== セッション復元 =================== */
+/* =================== セッション復元（single-flight + timeout） =================== */
+let refreshAuthInFlight = null;
+
 async function refreshAuth(){
-  const { data: ses, error: sesErr } = await sb.auth.getSession();
-  if (sesErr) log("getSession error", sesErr);
+  if (refreshAuthInFlight) return refreshAuthInFlight;
 
-  const sessionUser = ses?.session?.user || null;
-  if (!sessionUser){
-    authUser = null;
+  refreshAuthInFlight = (async ()=>{
+    log("refreshAuth: start");
+
+    // 1) getSession
+    log("refreshAuth: before getSession");
+    const { data: ses, error: sesErr } = await withTimeout(sb.auth.getSession(), "sb.auth.getSession", 8000);
+    log("refreshAuth: after getSession");
+    if (sesErr) log("getSession error", sesErr);
+
+    const sessionUser = ses?.session?.user || null;
+    if (!sessionUser){
+      authUser = null;
+      updateTopRightUser();
+      log("refreshAuth: no sessionUser -> false");
+      return false;
+    }
+
+    // 2) refreshSession（ここが詰まりやすい）
+    try {
+      log("refreshAuth: before refreshSession");
+      await withTimeout(sb.auth.refreshSession(), "sb.auth.refreshSession", 8000);
+      log("refreshAuth: after refreshSession");
+    } catch (e) {
+      log("refreshSession warn", String(e?.message || e));
+      // ここで落とさず続行（getUserで拾えることがある）
+    }
+
+    // 3) getUser
+    log("refreshAuth: before getUser");
+    const { data: u, error: uErr } = await withTimeout(sb.auth.getUser(), "sb.auth.getUser", 8000);
+    log("refreshAuth: after getUser");
+    if (uErr) log("getUser error", uErr);
+
+    authUser = u?.user || sessionUser;
     updateTopRightUser();
-    return false;
-  }
+    log("refreshAuth: ok user=", authUser?.id || "???");
+    return true;
+  })().finally(()=>{
+    refreshAuthInFlight = null;
+  });
 
-  // ★他端末更新を拾う：refresh → getUser
-  try { await sb.auth.refreshSession(); } catch (e) { log("refreshSession warn", e); }
-
-  const { data: u, error: uErr } = await sb.auth.getUser();
-  if (uErr) log("getUser error", uErr);
-
-  authUser = u?.user || sessionUser;
-  updateTopRightUser();
-
-  return true;
+  return refreshAuthInFlight;
 }
 
 async function requireLoginOrRedirect(){
-  // OAuth直後対策：数回待つ
   for (let i = 0; i < 3; i++){
-    const ok = await refreshAuth();
-    if (ok) return true;
+    try{
+      const ok = await refreshAuth();
+      if (ok) return true;
+    }catch(e){
+      log("requireLoginOrRedirect refreshAuth err", String(e?.message || e));
+    }
     await new Promise(r => setTimeout(r, 300));
   }
-
-  // それでもダメなら「壊れたセッション」と判断
   clearSupabaseLocalStorage();
   goLogin();
   return false;
 }
 
-
 /* =================== ログアウト =================== */
 function clearSupabaseLocalStorage(){
   try{
-    // Supabase v2 の保存キーを全部消す（これで“確実に”ローカルログアウト）
     for (const k of Object.keys(localStorage)){
       if (k.startsWith("sb-") || k.includes("supabase")) localStorage.removeItem(k);
     }
@@ -418,24 +434,18 @@ function clearSupabaseLocalStorage(){
   }
 }
 
-    async function signOut() {
-        const btn = document.getElementById("signOutBtn");
-        if (btn) btn.disabled = true;
+async function signOut() {
+  const btn = document.getElementById("signOutBtn");
+  if (btn) btn.disabled = true;
 
-        try {
-            // 先に realtime を止める（エラーで止まるのを防ぐ）
-            try { await sb.removeAllChannels?.(); } catch (e) { log("removeAllChannels warn", e); }
-
-            // 1) ローカル削除（最重要）
-            clearSupabaseLocalStorage();
-
-            // 2) サーバ signOut（失敗してもOK）
-            try { await sb.auth.signOut({ scope: "local" }); } catch (e) { log("signOut warn", e); }
-        } finally {
-            // ★何が起きてもここで必ずログインへ
-            location.replace("./login.html?_r=" + Date.now());
-        }
-    }
+  try {
+    try { await sb.removeAllChannels?.(); } catch (e) { log("removeAllChannels warn", e); }
+    clearSupabaseLocalStorage();
+    try { await sb.auth.signOut({ scope: "local" }); } catch (e) { log("signOut warn", e); }
+  } finally {
+    location.replace("./login.html?_r=" + Date.now());
+  }
+}
 
 /* =================== Realtime =================== */
 async function startRealtime(){
@@ -466,39 +476,41 @@ const CALL_ALIVE_SEC = 30;
 async function isRoomInCall(roomName){
   const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
 
-  const { data, error } = await sb
-    .from("call_participants")
-    .select("user_id")
-    .eq("room_id", roomName)
-    .gte("updated_at", cutoff)
-    .limit(1);
+  const { data, error } = await withTimeout(
+    sb.from("call_participants")
+      .select("user_id")
+      .eq("room_id", roomName)
+      .gte("updated_at", cutoff)
+      .limit(1),
+    "call_participants select",
+    8000
+  );
 
   if (error){
     log("isRoomInCall error", error);
-
-    // ★ここ重要：判定不能なら “通話中” 扱いにせず、削除ボタンは押せるようにする
-    // ただし、押した時にもう一回チェックしてダメなら止める、でOK
     return false;
   }
   return (data || []).length > 0;
 }
 
-/* =================== ロビーで「各部屋の通話中メンバー」をまとめて取得 =================== */
 async function fetchActiveCallUsersByRoom(){
   const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
 
-  const { data, error } = await sb
-    .from("call_participants")
-    .select("room_id, name, user_id, updated_at")
-    .gte("updated_at", cutoff)
-    .order("updated_at", { ascending:false });
+  const { data, error } = await withTimeout(
+    sb.from("call_participants")
+      .select("room_id, name, user_id, updated_at")
+      .gte("updated_at", cutoff)
+      .order("updated_at", { ascending:false }),
+    "call_participants list",
+    8000
+  );
 
   if (error){
     log("fetchActiveCallUsersByRoom error", error);
     return new Map();
   }
 
-  const map = new Map(); // room_id -> [{name,user_id}]
+  const map = new Map();
   for (const row of (data || [])){
     const rid = row.room_id;
     if (!rid) continue;
@@ -509,7 +521,6 @@ async function fetchActiveCallUsersByRoom(){
     });
   }
 
-  // 重複除去
   for (const [rid, arr] of map.entries()){
     const seen = new Set();
     const out = [];
@@ -529,10 +540,13 @@ async function fetchActiveCallUsersByRoom(){
 async function loadRooms(){
   if (!authUser) return;
 
-  const { data, error } = await sb
-    .from("rooms")
-    .select("room_name, created_at, owner_id")
-    .order("created_at", { ascending:true });
+  const { data, error } = await withTimeout(
+    sb.from("rooms")
+      .select("room_name, created_at, owner_id")
+      .order("created_at", { ascending:true }),
+    "rooms select",
+    8000
+  );
 
   if (error){
     log("loadRooms error", error);
@@ -590,46 +604,46 @@ async function loadRooms(){
     }
 
     del.onclick = async () => {
-  try {
-    // ① まずログイン情報を確実に取得
-    const ok = await refreshAuth();
-    if (!ok || !authUser) {
-      alert("ログインが切れてるよ。もう一回ログインしてね！");
-      goLogin();
-      return;
-    }
+      try {
+        log("delete: start", rn);
 
-    // ② 通話中かチェック
-    const nowInCall = await isRoomInCall(rn);
-    if (nowInCall) {
-      alert("この部屋は通話中なので削除できません。");
-      await loadRooms();
-      return;
-    }
+        const ok = await refreshAuth();
+        if (!ok || !authUser) {
+          alert("ログインが切れてるよ。もう一回ログインしてね！");
+          goLogin();
+          return;
+        }
 
-    // ③ 本当に消すか確認
-    if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
+        const nowInCall = await isRoomInCall(rn);
+        if (nowInCall) {
+          alert("この部屋は通話中なので削除できません。");
+          await loadRooms();
+          return;
+        }
 
-    // ④ 削除実行
-    const { error } = await sb
-      .from("rooms")
-      .delete()
-      .eq("room_name", rn);
+        if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
 
-    if (error) {
-      alert("削除失敗: " + error.message);
-      return;
-    }
+        const { error } = await withTimeout(
+          sb.from("rooms").delete().eq("room_name", rn),
+          "rooms delete",
+          8000
+        );
 
-    // ⑤ 再読み込み
-    await loadRooms();
+        if (error) {
+          alert("削除失敗: " + error.message);
+          log("delete error", error);
+          return;
+        }
 
-  } catch (e) {
-    console.error(e);
-    alert("削除処理でエラー: " + (e?.message || e));
-  }
-};
+        await loadRooms();
+        log("delete: ok", rn);
 
+      } catch (e) {
+        console.error(e);
+        log("delete: exception", String(e?.message || e));
+        alert("削除処理でエラー: " + (e?.message || e));
+      }
+    };
 
     row.appendChild(btn);
     row.appendChild(del);
@@ -640,21 +654,21 @@ async function loadRooms(){
 }
 
 /* =================== 部屋作成 / 入室 =================== */
+function setCreateButtonsDisabled(disabled){
+  const t = document.getElementById("createTopBtn");
+  const c = document.getElementById("createCardBtn");
+  if (t) t.disabled = disabled;
+  if (c) c.disabled = disabled;
+}
+
 async function createRoom(){
-  log("=== createRoom start ===");
-
+  setCreateButtonsDisabled(true);
   try{
-    // 0) セッション
-    const ses = await sb.auth.getSession();
-    log("getSession:", ses?.data?.session ? {
-      role: ses.data.session.user?.role,
-      uid: ses.data.session.user?.id,
-      email: ses.data.session.user?.email
-    } : "NO SESSION", "sesErr:", ses?.error || null);
+    log("=== createRoom start ===");
 
-    // 1) authUser 復元
+    log("createRoom: refreshAuth...");
     const ok = await refreshAuth();
-    log("refreshAuth:", ok, "authUser:", authUser ? { id: authUser.id, email: authUser.email } : null);
+    log("createRoom: refreshAuth done ->", ok);
 
     if (!ok || !authUser){
       alert("ログインが切れてるよ。もう一回ログインしてね！");
@@ -662,98 +676,58 @@ async function createRoom(){
       return;
     }
 
-    // 2) 部屋名
     const rn = document.getElementById("room").value.trim();
-    log("room input:", rn);
-    if (!rn){
-      alert("部屋名を入れてね！");
-      return;
-    }
+    log("createRoom: rn=", rn);
+    if (!rn) return alert("部屋名を入れてね！");
 
-    // 3) exists チェック
-    const q1 = await sb.from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
-    log("exists check:", q1);
+    log("createRoom: check exists...");
+    const { data: exists, error: e1 } = await withTimeout(
+      sb.from("rooms").select("room_name").eq("room_name", rn).maybeSingle(),
+      "rooms exists check",
+      8000
+    );
+    log("createRoom: exists result", { exists: !!exists, error: e1 ? e1.message : null });
 
-    if (q1.error){
-      alert("確認失敗(詳細):\n" + JSON.stringify(q1.error, null, 2));
-      return;
-    }
-    if (q1.data){
-      alert("その部屋はもうあるよ！");
-      return;
-    }
+    if (e1) return alert("確認失敗: " + e1.message);
+    if (exists) return alert("その部屋はもうあるよ！");
 
-    // 4) INSERT
-    const payload = { room_name: rn, owner_id: authUser.id };
-    log("insert payload:", payload);
+    log("createRoom: insert...");
+    const { error } = await withTimeout(
+      sb.from("rooms").insert({ room_name: rn, owner_id: authUser.id }),
+      "rooms insert",
+      8000
+    );
+    log("createRoom: insert done", error ? error.message : "OK");
 
-    const q2 = await sb.from("rooms").insert(payload).select().maybeSingle();
-    log("insert result:", q2);
+    if (error) return alert("作成失敗: " + error.message);
 
-    if (q2.error){
-      alert("作成失敗(詳細):\n" + JSON.stringify(q2.error, null, 2));
-      return;
-    }
-
-    alert("部屋作成OK！");
     await loadRooms();
+    log("=== createRoom ok ===");
 
   }catch(e){
-    log("createRoom exception:", e?.stack || e);
-    alert("作成で例外:\n" + (e?.stack || e?.message || e));
-  }finally{
-    log("=== createRoom end ===");
+    console.error(e);
+    log("createRoom exception", String(e?.message || e));
+    alert("作成で落ちた: " + (e?.message || e));
+  } finally {
+    setCreateButtonsDisabled(false);
   }
 }
-
 
 async function enterRoom(){
   const rn = document.getElementById("room").value.trim();
   if (!rn) return alert("部屋名を入れてね！");
 
-  const { data: exists, error } = await sb
-    .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
+  const { data: exists, error } = await withTimeout(
+    sb.from("rooms").select("room_name").eq("room_name", rn).maybeSingle(),
+    "rooms enter exists",
+    8000
+  );
 
   if (error) return alert("確認失敗: " + error.message);
   if (!exists) return alert("その部屋はまだないよ。先に部屋作成してね！");
 
   goRoom(rn);
 }
-
-    /* =================== 表示名保存 =================== */
-async function saveDisplayName() {
-  if (!authUser) return alert("ログインしてね！");
-
-  const input = document.getElementById("displayName");
-  if (!input) return;
-
-  const dn = input.value.trim();
-  if (!dn) return alert("表示名を入力してね！");
-
-  const { error } = await sb.auth.updateUser({
-    data: { display_name: dn }
-  });
-
-  if (error) {
-    alert("保存失敗: " + error.message);
-    return;
-  }
-
-        // 2) ★プロフィールと同じ思想：必ず最新を取り直す（他端末更新/反映遅延に強い）
-        try { await sb.auth.refreshSession(); } catch (e) { log("refreshSession warn", e); }
-
-        const { data: u, error: uErr } = await sb.auth.getUser();
-        if (uErr) log("getUser error", uErr);
-
-        authUser = u?.user || authUser;
-
-        // 3) UI反映（右上＋入力欄）
-        input.value = (authUser.user_metadata?.display_name || "").trim();
-        updateTopRightUser();
-        setStatus("表示名を保存しました！", true);
-    }
-
-
 
 /* =================== HTMLエスケープ / Avatar =================== */
 function escapeHtml(s){
@@ -782,7 +756,6 @@ function avatarHtml(url, label, ver){
   if (u) return `<img class="avatarSm" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
   return `<span class="avatarSmFb">${escapeHtml(getInitial(label))}</span>`;
 }
-
 function getPreferredAvatar(){
   const um = authUser?.user_metadata || {};
   const hasCustom = !!String(um.custom_avatar_url || "").trim();
@@ -794,7 +767,6 @@ function getPreferredAvatar(){
 
 /* =================== 起動 =================== */
 (async () => {
-  // URL/Hash にセッションが含まれるケースを拾う（安全のため）
   try {
     const url = new URL(location.href);
     const hasAuthParams =
@@ -809,7 +781,6 @@ function getPreferredAvatar(){
       if (error) log("getSessionFromUrl error", error);
       if (data?.session?.user) log("OAuth session OK", data.session.user.email);
       history.replaceState({}, document.title, "./lobby.html?_r=" + Date.now());
-
     }
   } catch (e) {
     log("init session url exception", e);
@@ -822,9 +793,13 @@ function getPreferredAvatar(){
   await startCallParticipantsRealtime();
 
   sb.auth.onAuthStateChange(async () => {
-    const ok = await refreshAuth();
-    if (!ok) { goLogin(); return; }
-    await loadRooms();
+    try{
+      const ok = await refreshAuth();
+      if (!ok) { goLogin(); return; }
+      await loadRooms();
+    }catch(e){
+      log("onAuthStateChange err", String(e?.message || e));
+    }
   });
 
   log("ready");
@@ -833,10 +808,3 @@ function getPreferredAvatar(){
 
 </body>
 </html>
-
-
-
-
-
-
-
