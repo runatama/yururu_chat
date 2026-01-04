@@ -441,12 +441,6 @@ function clearSupabaseLocalStorage(){
         }
     }
 
-
-  // 3) どんな状態でもログインへ
-  location.replace("./login.html?_r=" + Date.now());
-}
-
-
 /* =================== Realtime =================== */
 async function startRealtime(){
   if (roomsChannel) return;
