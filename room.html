@@ -979,19 +979,35 @@ async function loadMessages(){
   img.alt = "image";
 
   // ★サーバ側（Storage）から消された/URL切れ等 → 表示を差し替える
-  img.onerror = () => {
-    // 画像要素を消す
-    try { img.remove(); } catch {}
+  img.onerror = async () => {
+  // 1) 画像表示を差し替え（UI）
+  try { img.remove(); } catch {}
 
-    // 代わりの表示
-    const gone = document.createElement("div");
-    gone.className = "msgExpired";
-    gone.textContent = "🗑️ 画像はサーバー側から削除されました";
-    wrap.appendChild(gone);
-  };
+  const gone = document.createElement("div");
+  gone.className = "msgExpired";
+  gone.textContent = "🗑️ 画像はサーバー側から削除されました";
+  wrap.appendChild(gone);
 
-  wrap.appendChild(img);
-}
+  // 2) ★DBも「削除扱い」にする（全員の画面を統一）
+  //    ※ 二重更新を防ぐ：すでにdeletedなら何もしない
+  try{
+    if (!m.deleted && m.id){
+      const { error } = await sb
+        .from("messages_v2")
+        .update({
+          deleted: true,
+          deleted_at: new Date().toISOString(),
+          deleted_by: "system" // 文字列でもOK（列が text の場合）
+        })
+        .eq("id", m.id);
+
+      if (error) log("auto delete(update) error", error);
+    }
+  }catch(e){
+    log("auto delete exception", e);
+  }
+};
+
 
 
       // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
@@ -1778,6 +1794,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
