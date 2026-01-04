@@ -350,8 +350,11 @@ if (!authUser){
   const em = (authUser.email || "").trim();
   const shown = dn || em || "ログイン中";
 
+
+  const avm = getPreferredAvatar();
+
   pill.innerHTML = `
-    ${avatarHtml(authUser.user_metadata?.avatar_url || "", shown, authUser.user_metadata?.avatar_ver || "")}
+    ${avatarHtml(avm.url || \"\", shown, avm.ver || \"\")}
     <span>${escapeHtml(shown)}</span>
   `;
 
@@ -691,6 +694,15 @@ function avatarHtml(url, label, ver){
   const u = normalizeAvatarUrl(url, ver);
   if (u) return `<img class="avatarSm" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
   return `<span class="avatarSmFb">${escapeHtml(getInitial(label))}</span>`;
+}
+
+function getPreferredAvatar(){
+  const um = authUser?.user_metadata || {};
+  const hasCustom = !!String(um.custom_avatar_url || "").trim();
+  const url = hasCustom ? String(um.custom_avatar_url || "").trim() : String(um.avatar_url || "").trim();
+  const verRaw = hasCustom ? um.custom_avatar_ver : um.avatar_ver;
+  const ver = String(verRaw ?? "").trim();
+  return { url, ver };
 }
 
 /* =================== 起動 =================== */
