@@ -894,7 +894,7 @@ function fmtTime(iso){
 async function loadMessages(){
   const { data, error } = await sb
     .from("messages_v2")
-    .select("id, room_id, name, avatar_url, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by, image_deleted, image_deleted_at, image_deleted_reason")
+    .select("id, room_id, name, avatar_url, message, image_url, image_path, image_purge_at, image_purged, created_at, user_id, deleted, deleted_at, deleted_by, image_deleted, image_deleted_at, image_deleted_reason")
     .eq("room_id", room)
     .order("created_at", { ascending:true })
     .limit(200);
@@ -1097,6 +1097,7 @@ async function sendImage(){
       avatar_url: myAvatarUrl,
       message: IMAGE_PLACEHOLDER,
       image_url: imageUrl,
+      image_path: path,
       user_id: myUid()
     });
 
@@ -1147,7 +1148,10 @@ async function deleteMessage(m){
     const payload = {
       deleted: true,
       deleted_at: new Date().toISOString(),
-      deleted_by: uid
+      deleted_by: uid,
+      // ★画像があるメッセージだけ「3日後にStorageから消す」予約を入れる
+      image_purge_at: (m.image_path ? new Date(Date.now() + 3*24*60*60*1000).toISOString() : null),
+      image_purged: false
     };
     console.log("[delete] payload=", payload);
 
