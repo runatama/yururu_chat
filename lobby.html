@@ -354,9 +354,10 @@ if (!authUser){
   const avm = getPreferredAvatar();
 
   pill.innerHTML = `
-    ${avatarHtml(avm.url || \"\", shown, avm.ver || \"\")}
-    <span>${escapeHtml(shown)}</span>
-  `;
+  ${avatarHtml(avm.url || "", shown, avm.ver || "")}
+  <span>${escapeHtml(shown)}</span>
+`;
+
 
   if (mail) mail.textContent = em ? `(${em})` : "";
   setTopRightButtons(true);
@@ -745,6 +746,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
