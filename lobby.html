@@ -641,7 +641,6 @@ async function loadRooms(){
 /* =================== 部屋作成 / 入室 =================== */
 async function createRoom(){
   try{
-    // ★これを最初に必ず入れる（authUser を確実に復元）
     const ok = await refreshAuth();
     if (!ok || !authUser){
       alert("ログインが切れてるよ。もう一回ログインしてね！");
@@ -652,23 +651,49 @@ async function createRoom(){
     const rn = document.getElementById("room").value.trim();
     if (!rn) return alert("部屋名を入れてね！");
 
+    // ★追加：今の認証状態をログに出す
+    const ses = await sb.auth.getSession();
+    log("session role:", ses?.data?.session?.user?.role, "uid:", ses?.data?.session?.user?.id);
+
+    // ① existsチェック（ここが落ちてる可能性がある）
     const { data: exists, error: e1 } = await sb
-      .from("rooms").select("room_name").eq("room_name", rn).maybeSingle();
-    if (e1) return alert("確認失敗: " + e1.message);
+      .from("rooms")
+      .select("room_name")
+      .eq("room_name", rn)
+      .maybeSingle();
+
+    if (e1){
+      log("exists check error(full):", e1);
+      alert("確認失敗(詳細):\n" + JSON.stringify(e1, null, 2));
+      return;
+    }
     if (exists) return alert("その部屋はもうあるよ！");
 
-    const { error } = await sb
+    // ② insert（ここが落ちてる可能性がある）
+    const payload = { room_name: rn, owner_id: authUser.id };
+    log("insert payload:", payload);
+
+    const { data: ins, error: e2 } = await sb
       .from("rooms")
-      .insert({ room_name: rn, owner_id: authUser.id });
+      .insert(payload)
+      .select()
+      .maybeSingle();
 
-    if (error) return alert("作成失敗: " + error.message);
+    if (e2){
+      log("insert error(full):", e2);
+      alert("作成失敗(詳細):\n" + JSON.stringify(e2, null, 2));
+      return;
+    }
 
+    log("insert ok:", ins);
     await loadRooms();
+
   }catch(e){
-    console.error(e);
-    alert("作成で落ちた: " + (e?.message || e));
+    log("createRoom exception:", e);
+    alert("作成で落ちた(詳細):\n" + (e?.stack || e?.message || e));
   }
 }
+
 
 
 async function enterRoom(){
@@ -796,6 +821,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
