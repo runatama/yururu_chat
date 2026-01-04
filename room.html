@@ -776,6 +776,15 @@ function avatarHtml(url, label, size="", ver=""){
   if (u){
     return `<img class="${cls}" src="${escapeAttr(u)}" alt="avatar" loading="lazy" />`;
   }
+
+function getPreferredAvatarMeta(){
+  const um = authUser?.user_metadata || {};
+  const hasCustom = !!String(um.custom_avatar_url || "").trim();
+  const url = hasCustom ? String(um.custom_avatar_url || "").trim() : String(um.avatar_url || "").trim();
+  const verRaw = hasCustom ? um.custom_avatar_ver : um.avatar_ver;
+  const ver = String(verRaw ?? "").trim();
+  return { url, ver };
+}
   return `<div class="${fbCls}">${escapeHtml(getInitial(label))}</div>`;
 }
 
@@ -820,9 +829,8 @@ function updateTop(){
   const em = (authUser?.email || "").trim();
   const shown = dn ? dn : (em ? em : "未ログイン");
 
-  const av = (authUser?.user_metadata?.avatar_url || "").trim();
-  const avVer = (authUser?.user_metadata?.avatar_ver || "").toString();
-  pill.innerHTML = `${avatarHtml(av, shown, "", avVer)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
+  const avm = getPreferredAvatarMeta();
+  pill.innerHTML = `${avatarHtml(avm.url, shown, "", avm.ver)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
 }
 
 async function reloadName(){
@@ -831,10 +839,9 @@ async function reloadName(){
   const em = (authUser?.email || "").trim();
   name = dn || em || "名無しさん";
 
-  // ★他端末でも反映させるため：必ず user_metadata.avatar_url を使う
-  const av = (authUser?.user_metadata?.avatar_url || "").trim();
-  const ver = (authUser?.user_metadata?.avatar_ver || "").toString();
-  myAvatarUrl = normalizeAvatarUrl(av, ver);
+  // ★Googleログイン対策：custom_avatar_url があればそれを優先
+  const avm = getPreferredAvatarMeta();
+  myAvatarUrl = normalizeAvatarUrl(avm.url, avm.ver);
 
   // 入力欄などがある場合はここで反映してOK（今はトップ表示で使うだけ）
 }
