@@ -208,6 +208,18 @@ function getBackUrl(){
 }
 
 /* ================= auth ================= */
+
+  async function signOut(){
+  try{
+    await sb.auth.signOut();
+  }catch(e){
+    console.error(e);
+  }
+
+  // ログアウト後はログイン画面へ
+  location.replace("./login.html");
+}
+  
 async function requireLogin(){
   // 1) セッション確認
   const { data: ses } = await sb.auth.getSession();
