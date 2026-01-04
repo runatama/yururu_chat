@@ -894,7 +894,7 @@ function fmtTime(iso){
 async function loadMessages(){
   const { data, error } = await sb
     .from("messages_v2")
-    .select("id, room_id, name, avatar_url, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by")
+    .select("id, room_id, name, avatar_url, message, image_url, created_at, user_id, deleted, deleted_at, deleted_by, image_deleted, image_deleted_at, image_deleted_reason")
     .eq("room_id", room)
     .order("created_at", { ascending:true })
     .limit(200);
@@ -1817,6 +1817,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
