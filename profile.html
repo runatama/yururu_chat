@@ -296,31 +296,40 @@ async function saveDisplayName(){
 
 async function uploadAvatar(){
   const file = document.getElementById("avatarFile").files[0];
-  if (!file) return setStatus("画像を選んでね",false);
-  if (file.size > MAX_AVATAR_BYTES) return setStatus("2MB以下にしてね",false);
+  if (!file) return setStatus("画像を選んでね", false);
+  if (file.size > MAX_AVATAR_BYTES) return setStatus("2MB以下にしてね", false);
 
-  const path = `${authUser.id}/${Date.now()}_${file.name.replace(/[^\w.-]+/g,"_")}`;
+  const safeName = file.name.replace(/[^\w.-]+/g, "_");
+  const path = `${authUser.id}/${Date.now()}_${safeName}`;
+
   setStatus("アップロード中…");
 
-  const { error:upErr } = await sb.storage
+  const { error: upErr } = await sb.storage
     .from(AVATAR_BUCKET)
-    .upload(path, file, { upsert:false });
+    .upload(path, file, {
+      upsert: false,
+      cacheControl: "0"   // ✅ 追加：キャッシュさせない（戻る問題の決定打）
+    });
 
-  if (upErr) return setStatus(upErr.message,false);
+  if (upErr) return setStatus(upErr.message, false);
 
   const { data } = sb.storage.from(AVATAR_BUCKET).getPublicUrl(path);
   const url = data.publicUrl;
 
-  const { data:ud, error } = await sb.auth.updateUser({
-    data:{
+  const now = Date.now();
+  const { data: ud, error } = await sb.auth.updateUser({
+    data: {
       avatar_url: url,
-      avatar_ver: Date.now()   // ★ここが最重要
+      avatar_ver: now  // ★ここが最重要（URLに ?v= が付く）
     }
   });
-  if (error) return setStatus(error.message,false);
+  if (error) return setStatus(error.message, false);
 
-  authUser = ud.user;
-  document.getElementById("avatarFile").value="";
+  // ✅ 念押し：サーバーから最新の user_metadata を取り直す（端末差のバグ潰し）
+  const { data: uu } = await sb.auth.getUser();
+  authUser = uu?.user || ud.user;
+
+  document.getElementById("avatarFile").value = "";
   refreshUI();
   setStatus("画像を更新しました！");
 }
