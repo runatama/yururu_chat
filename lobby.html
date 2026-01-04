@@ -278,10 +278,10 @@
 
 <script>
 /* =================== Supabase 設定 =================== */
-const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+    const SUPABASE_URL = "https://derziqsrhfdojoxdbuno.supabase.co";
 
 /* ★ここは anon public key を入れてね（日本語/全角/改行が混ざると fetch が死ぬ） */
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlcnppcXNyaGZkb2pveGRidW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxOTM3NzAsImV4cCI6MjA4Mjc2OTc3MH0.vCCmPgmPjRc_a7_CqBx9j7_c5sTDbihYJ9PdKmmPM1E";
 
 /* ★重要：login.html と同じ auth 設定で createClient（ロビーで「切れる」を防ぐ） */
 const sb = supabase.createClient(
@@ -304,18 +304,13 @@ let callParticipantsChannel = null;
 
 /* =================== ログ =================== */
 function log(...args){
-  const s = args
-    .map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2)))
-    .join(" ");
+  const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
   console.log("[lobby]", ...args);
   const el = document.getElementById("log");
   if (!el) return;
   el.textContent += s + "\n";
   el.scrollTop = el.scrollHeight;
 }
-window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
-window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
-
 window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
 window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
 
@@ -427,22 +422,25 @@ function clearSupabaseLocalStorage(){
   }
 }
 
-// ★ rooms と同じ思想：ネットワークに失敗しても必ずログアウト扱いにする
-async function signOut(){
-  // ボタン連打対策
-  const btn = document.getElementById("signOutBtn");
-  if (btn) btn.disabled = true;
+    async function signOut() {
+        const btn = document.getElementById("signOutBtn");
+        if (btn) btn.disabled = true;
 
-  // 1) まずローカルを消す（最重要）
-  clearSupabaseLocalStorage();
+        try {
+            // 先に realtime を止める（エラーで止まるのを防ぐ）
+            try { await sb.removeAllChannels?.(); } catch (e) { log("removeAllChannels warn", e); }
 
-  // 2) 可能ならサーバにも signOut（失敗しても無視）
-  try{
-    // scope:"local" が不安定なら外してOK。rooms が成功してるならこれでもOK。
-    await sb.auth.signOut(); 
-  }catch(e){
-    console.warn("signOut warn", e);
-  }
+            // 1) ローカル削除（最重要）
+            clearSupabaseLocalStorage();
+
+            // 2) サーバ signOut（失敗してもOK）
+            try { await sb.auth.signOut({ scope: "local" }); } catch (e) { log("signOut warn", e); }
+        } finally {
+            // ★何が起きてもここで必ずログインへ
+            location.replace("./login.html?_r=" + Date.now());
+        }
+    }
+
 
   // 3) どんな状態でもログインへ
   location.replace("./login.html?_r=" + Date.now());
@@ -653,29 +651,41 @@ async function enterRoom(){
   goRoom(rn);
 }
 
-/* =================== 表示名保存 =================== */
-async function saveDisplayName() {
-  if (!authUser) return alert("ログインしてね！");
+    /* =================== 表示名保存 =================== */
+    async function saveDisplayName() {
+        if (!authUser) return alert("ログインしてね！");
 
-  const input = document.getElementById("displayName");
-  if (!input) return;
+        const input = document.getElementById("displayName");
+        if (!input) return;
 
-  const dn = input.value.trim();
-  if (!dn) return alert("表示名を入力してね！");
+        const dn = input.value.trim();
+        if (!dn) return alert("表示名を入力してね！");
 
-  const { data, error } = await sb.auth.updateUser({
-    data: { display_name: dn }
-  });
+        // 1) まず保存
+        const { error } = await sb.auth.updateUser({
+            data: { display_name: dn }
+        });
 
-  if (error) {
-    alert("保存失敗: " + error.message);
-    return;
-  }
+        if (error) {
+            alert("保存失敗: " + error.message);
+            return;
+        }
 
-  if (data?.user) authUser = data.user;
-  updateTopRightUser();
-  setStatus("表示名を保存しました！", true);
-}
+        // 2) ★プロフィールと同じ思想：必ず最新を取り直す（他端末更新/反映遅延に強い）
+        try { await sb.auth.refreshSession(); } catch (e) { log("refreshSession warn", e); }
+
+        const { data: u, error: uErr } = await sb.auth.getUser();
+        if (uErr) log("getUser error", uErr);
+
+        authUser = u?.user || authUser;
+
+        // 3) UI反映（右上＋入力欄）
+        input.value = (authUser.user_metadata?.display_name || "").trim();
+        updateTopRightUser();
+        setStatus("表示名を保存しました！", true);
+    }
+
+
 
 /* =================== HTMLエスケープ / Avatar =================== */
 function escapeHtml(s){
@@ -748,5 +758,4 @@ function avatarHtml(url, label, ver){
 
 </body>
 </html>
-
 
