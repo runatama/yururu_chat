@@ -132,16 +132,19 @@
       display:flex;
       align-items:center;
       gap:8px;
+      justify-content:space-between;
     }
 
-    input{
+    input, textarea{
       padding:12px;
       border-radius:14px;
       border:1px solid var(--line);
       background:rgba(0,0,0,.25);
       color:var(--text);
       width:100%;
+      outline:none;
     }
+    textarea{ min-height: 88px; resize: vertical; }
 
     .row{
       display:flex;
@@ -150,6 +153,7 @@
       align-items:center;
     }
 
+    /* ===== Rooms ===== */
     #roomsBox{
       display:flex;
       flex-direction:column;
@@ -195,6 +199,105 @@
       background:rgba(255,255,255,.08);
     }
 
+    /* ===== Tabs ===== */
+    .tabs{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .tabBtn{
+      padding:8px 12px;
+      border-radius:999px;
+      font-size:12px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+    }
+    .tabBtn.active{
+      background:linear-gradient(135deg, rgba(110,231,255,.22), rgba(167,139,250,.20));
+      border-color: rgba(255,255,255,.22);
+    }
+
+    /* ===== Feed ===== */
+    #feedBox{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      margin-top:10px;
+    }
+    .postCard{
+      padding:14px;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+    }
+    .postHead{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:8px;
+    }
+    .postName{
+      font-weight:900;
+      font-size:13px;
+      line-height:1.2;
+    }
+    .postTime{
+      color:var(--muted);
+      font-size:11px;
+      margin-top:2px;
+    }
+    .postBody{
+      white-space:pre-wrap;
+      line-height:1.5;
+      font-size:13px;
+      margin: 8px 0 10px;
+    }
+    .postActions{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .miniBtn{
+      padding:8px 10px;
+      border-radius:12px;
+      font-size:12px;
+      background:rgba(255,255,255,.06);
+    }
+    .miniBtn.liked{
+      background:rgba(110,231,255,.18);
+      border-color:rgba(110,231,255,.35);
+    }
+    .commentArea{
+      margin-top:10px;
+      padding-top:10px;
+      border-top:1px dashed rgba(255,255,255,.16);
+      display:none;
+    }
+    .commentArea.open{ display:block; }
+
+    .commentRow{
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      padding:10px 0;
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    .commentRow:last-child{ border-bottom:none; }
+    .commentBody{
+      flex:1;
+      min-width: 0;
+    }
+    .commentMeta{
+      display:flex;
+      align-items:baseline;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .commentName{ font-weight:900; font-size:12px; }
+    .commentTime{ color:var(--muted); font-size:11px; }
+    .commentText{ white-space:pre-wrap; font-size:12px; margin-top:4px; line-height:1.45; }
+
     #status{
       margin-top:10px;
       font-size:12px;
@@ -217,6 +320,7 @@
     }
 
     .row > button{ white-space:nowrap; }
+    .hide{ display:none !important; }
   </style>
 </head>
 
@@ -232,16 +336,40 @@
 </div>
 
 <div class="card">
-  <div class="sectionTitle">🏠 ルーム</div>
-  <div class="row">
-    <input id="room" placeholder="部屋名（例: test）" />
-    <button class="btnPrimary" id="createCardBtn" type="button" onclick="log('create clicked (card)'); createRoom();">作成</button>
-    <button type="button" onclick="enterRoom()">入室</button>
-    <button type="button" onclick="loadRooms()">更新</button>
+  <div class="sectionTitle">
+    <span id="modeTitle">🏠 ルーム</span>
+    <div class="tabs">
+      <button class="tabBtn" id="tabRooms" type="button" onclick="setViewMode('rooms')">ルーム</button>
+      <button class="tabBtn" id="tabFeed" type="button" onclick="setViewMode('feed')">つぶやき</button>
+    </div>
   </div>
 
-  <div class="sectionTitle" style="margin-top:14px;">📋 部屋一覧</div>
-  <div id="roomsBox"></div>
+  <!-- ===== Rooms Panel ===== -->
+  <div id="roomsPanel">
+    <div class="row">
+      <input id="room" placeholder="部屋名（例: test）" />
+      <button class="btnPrimary" id="createCardBtn" type="button" onclick="log('create clicked (card)'); createRoom();">作成</button>
+      <button type="button" onclick="enterRoom()">入室</button>
+      <button type="button" onclick="loadRooms()">更新</button>
+    </div>
+
+    <div class="sectionTitle" style="margin-top:14px; justify-content:flex-start;">📋 部屋一覧</div>
+    <div id="roomsBox"></div>
+  </div>
+
+  <!-- ===== Feed Panel ===== -->
+  <div id="feedPanel" class="hide">
+    <div class="row">
+      <textarea id="postText" placeholder="いまどうしてる？（つぶやき）"></textarea>
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <button class="btnPrimary" type="button" onclick="createPost()">つぶやく</button>
+      <button type="button" onclick="loadFeed()">更新</button>
+    </div>
+
+    <div class="sectionTitle" style="margin-top:14px; justify-content:flex-start;">🗯️ みんなのつぶやき</div>
+    <div id="feedBox"></div>
+  </div>
 
   <details open>
     <summary>🔧 デバッグログ</summary>
@@ -253,8 +381,8 @@
 
 <script>
 /* =================== Supabase 設定 =================== */
-    const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
@@ -273,6 +401,11 @@ const sb = supabase.createClient(
 let authUser = null;
 let roomsChannel = null;
 let callParticipantsChannel = null;
+let postsChannel = null;
+let likesChannel = null;
+let commentsChannel = null;
+
+let viewMode = "rooms"; // rooms | feed
 
 /* =================== ログ =================== */
 function log(...args){
@@ -303,7 +436,6 @@ function withTimeout(promise, label, ms=8000){
 /* =================== 移動 =================== */
 function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
 function goRoom(roomObj){
-  // roomObj: { id, room_name }
   const rn = (roomObj?.room_name || "").trim();
   const rid = roomObj?.id || "";
   if (!rn) return;
@@ -362,7 +494,6 @@ async function refreshAuth(){
   refreshAuthInFlight = (async ()=>{
     log("refreshAuth: start");
 
-    // 1) getSession（これが取れればまずOK）
     log("refreshAuth: before getSession");
     const { data: ses, error: sesErr } = await withTimeout(sb.auth.getSession(), "sb.auth.getSession", 8000);
     log("refreshAuth: after getSession");
@@ -378,8 +509,6 @@ async function refreshAuth(){
       return false;
     }
 
-    // ★重要：refreshSession は呼ばない（ここが詰まってた）
-    // 2) getUser（アクセストークンが生きてれば通る）
     try{
       log("refreshAuth: before getUser");
       const { data: u, error: uErr } = await withTimeout(sb.auth.getUser(), "sb.auth.getUser", 8000);
@@ -387,8 +516,6 @@ async function refreshAuth(){
 
       if (uErr){
         log("getUser error", uErr);
-
-        // token切れ/無効ならログインに戻す
         authUser = null;
         updateTopRightUser();
         return false;
@@ -401,7 +528,6 @@ async function refreshAuth(){
 
     }catch(e){
       log("getUser exception", String(e?.message || e));
-      // 例外時も sessionUser で続行（最低限動かす）
       authUser = sessionUser;
       updateTopRightUser();
       log("refreshAuth: ok (sessionUser fallback) user=", authUser?.id || "???");
@@ -413,7 +539,6 @@ async function refreshAuth(){
 
   return refreshAuthInFlight;
 }
-
 
 async function requireLoginOrRedirect(){
   for (let i = 0; i < 3; i++){
@@ -457,6 +582,35 @@ async function signOut() {
   }
 }
 
+/* =================== 表示モード（ルーム/つぶやき） =================== */
+function setViewMode(mode){
+  const m = (mode === "feed") ? "feed" : "rooms";
+  viewMode = m;
+  try{ localStorage.setItem("lobby_view_mode", viewMode); }catch(e){}
+
+  const roomsPanel = document.getElementById("roomsPanel");
+  const feedPanel = document.getElementById("feedPanel");
+  const tabRooms = document.getElementById("tabRooms");
+  const tabFeed  = document.getElementById("tabFeed");
+  const title = document.getElementById("modeTitle");
+
+  if (m === "rooms"){
+    roomsPanel.classList.remove("hide");
+    feedPanel.classList.add("hide");
+    tabRooms.classList.add("active");
+    tabFeed.classList.remove("active");
+    title.textContent = "🏠 ルーム";
+    loadRooms().catch(()=>{});
+  }else{
+    feedPanel.classList.remove("hide");
+    roomsPanel.classList.add("hide");
+    tabFeed.classList.add("active");
+    tabRooms.classList.remove("active");
+    title.textContent = "🗯️ つぶやき";
+    loadFeed().catch(()=>{});
+  }
+}
+
 /* =================== Realtime =================== */
 async function startRealtime(){
   if (roomsChannel) return;
@@ -464,7 +618,7 @@ async function startRealtime(){
   roomsChannel = sb
     .channel("rooms-ch")
     .on("postgres_changes", { event:"*", schema:"public", table:"rooms" }, async () => {
-      await loadRooms();
+      if (viewMode === "rooms") await loadRooms();
     })
     .subscribe();
 }
@@ -475,33 +629,44 @@ async function startCallParticipantsRealtime(){
   callParticipantsChannel = sb
     .channel("call-participants-ch")
     .on("postgres_changes", { event:"*", schema:"public", table:"call_participants" }, async () => {
-      await loadRooms();
+      if (viewMode === "rooms") await loadRooms();
+    })
+    .subscribe();
+}
+
+let feedReloadTimer = null;
+function scheduleFeedReload(ms=600){
+  if (feedReloadTimer) clearTimeout(feedReloadTimer);
+  feedReloadTimer = setTimeout(()=>loadFeed().catch(()=>{}), ms);
+}
+
+async function startFeedRealtime(){
+  if (postsChannel) return;
+
+  postsChannel = sb
+    .channel("posts-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"posts" }, () => {
+      if (viewMode === "feed") scheduleFeedReload(400);
+    })
+    .subscribe();
+
+  likesChannel = sb
+    .channel("likes-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"post_likes" }, () => {
+      if (viewMode === "feed") scheduleFeedReload(400);
+    })
+    .subscribe();
+
+  commentsChannel = sb
+    .channel("comments-ch")
+    .on("postgres_changes", { event:"*", schema:"public", table:"post_comments" }, () => {
+      if (viewMode === "feed") scheduleFeedReload(600);
     })
     .subscribe();
 }
 
 /* =================== 通話中かどうか判定 =================== */
 const CALL_ALIVE_SEC = 30;
-
-async function isRoomInCall(roomName){
-  const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
-
-  const { data, error } = await withTimeout(
-    sb.from("call_participants")
-      .select("user_id")
-      .eq("room_id", roomName)
-      .gte("updated_at", cutoff)
-      .limit(1),
-    "call_participants select",
-    8000
-  );
-
-  if (error){
-    log("isRoomInCall error", error);
-    return false;
-  }
-  return (data || []).length > 0;
-}
 
 async function fetchActiveCallUsersByRoom(){
   const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
@@ -548,7 +713,6 @@ async function fetchActiveCallUsersByRoom(){
 
 /* =================== 部屋一覧読み込み =================== */
 async function loadRooms(){
-  // authUser がまだ入ってなくても、ここで確実に取り直す
   const ok = await refreshAuth();
   if (!ok || !authUser){
     setStatus("ログインが切れてるよ。もう一回ログインしてね！", false);
@@ -612,13 +776,6 @@ async function loadRooms(){
 }
 
 /* =================== 部屋作成 / 入室 =================== */
-function setCreateButtonsDisabled(disabled){
-  const t = document.getElementById("createTopBtn");
-  const c = document.getElementById("createCardBtn");
-  if (t) t.disabled = disabled;
-  if (c) c.disabled = disabled;
-}
-
 async function createRoom(){
   log("=== createRoom start ===");
 
@@ -638,8 +795,6 @@ async function createRoom(){
 
     if (!rn) return alert("部屋名を入れてね！");
 
-    // ① exists
-    log("createRoom: exists check...");
     const q1 = await withTimeout(
       sb.from("rooms").select("id").eq("room_name", rn).maybeSingle(),
       "rooms exists",
@@ -654,7 +809,6 @@ async function createRoom(){
 
     if (q1.data){
       alert("その部屋はもうあるよ！");
-      // 既存の部屋へ入る（最新行を取る）
       const { data: r2, error: e2 } = await withTimeout(
         sb.from("rooms").select("id, room_name, created_at").eq("room_name", rn).order("created_at", { ascending:false }).limit(1).maybeSingle(),
         "rooms select latest",
@@ -664,8 +818,6 @@ async function createRoom(){
       return;
     }
 
-    // ② insert
-    log("createRoom: insert...");
     const q2 = await withTimeout(
       sb.from("rooms").insert({ room_name: rn, owner_id: authUser.id }).select("id, room_name, created_at, owner_id").maybeSingle(),
       "rooms insert",
@@ -681,8 +833,6 @@ async function createRoom(){
     alert("部屋作成OK！");
     await loadRooms();
     log("=== createRoom ok ===");
-
-    // ③ 作成した部屋に入る
     goRoom(q2.data);
 
   }catch(e){
@@ -727,6 +877,365 @@ async function enterRoom(){
   }
 
   goRoom(r);
+}
+
+/* =================== つぶやき =================== */
+function formatTime(iso){
+  try{
+    const d = new Date(iso);
+    const pad = (n)=> String(n).padStart(2,"0");
+    return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }catch(e){
+    return "";
+  }
+}
+
+async function createPost(){
+  const ok = await refreshAuth();
+  if (!ok || !authUser){
+    alert("ログインが切れてるよ。もう一回ログインしてね！");
+    goLogin();
+    return;
+  }
+
+  const ta = document.getElementById("postText");
+  const text = (ta?.value || "").trim();
+  if (!text) return alert("つぶやきを入力してね！");
+  if (text.length > 400) return alert("つぶやきが長すぎるよ（400文字まで）");
+
+  const dn = (authUser.user_metadata?.display_name || authUser.email || "名無し").toString();
+  const avm = getPreferredAvatar();
+
+  const { error } = await withTimeout(
+    sb.from("posts").insert({
+      user_id: authUser.id,
+      display_name: dn,
+      avatar_url: avm.url || "",
+      avatar_ver: avm.ver || "",
+      content: text
+    }),
+    "posts insert",
+    8000
+  );
+
+  if (error){
+    log("createPost error", error);
+    alert("投稿失敗: " + error.message);
+    return;
+  }
+
+  ta.value = "";
+  await loadFeed();
+  setStatus("つぶやいた！", true);
+}
+
+async function loadFeed(){
+  const ok = await refreshAuth();
+  if (!ok || !authUser){
+    setStatus("ログインが切れてるよ。もう一回ログインしてね！", false);
+    return;
+  }
+
+  const { data: posts, error } = await withTimeout(
+    sb.from("posts")
+      .select("id, user_id, display_name, avatar_url, avatar_ver, content, created_at")
+      .order("created_at", { ascending:false })
+      .limit(50),
+    "posts select",
+    8000
+  );
+
+  if (error){
+    log("loadFeed posts error", error);
+    setStatus("つぶやき取得失敗: " + error.message, false);
+    return;
+  }
+
+  const ids = (posts || []).map(p=>p.id);
+
+  // like数・自分がlikeしてるか
+  let likeCountByPost = new Map();
+  let likedSet = new Set();
+  if (ids.length > 0){
+    const { data: likes, error: lerr } = await withTimeout(
+      sb.from("post_likes").select("post_id, user_id").in("post_id", ids),
+      "likes select",
+      8000
+    );
+    if (!lerr){
+      for (const r of (likes || [])){
+        likeCountByPost.set(r.post_id, (likeCountByPost.get(r.post_id)||0) + 1);
+        if (r.user_id === authUser.id) likedSet.add(r.post_id);
+      }
+    }else{
+      log("likes select error", lerr);
+    }
+  }
+
+  // comment数
+  let commentCountByPost = new Map();
+  if (ids.length > 0){
+    const { data: com, error: cerr } = await withTimeout(
+      sb.from("post_comments").select("post_id").in("post_id", ids),
+      "comments count select",
+      8000
+    );
+    if (!cerr){
+      for (const r of (com || [])){
+        commentCountByPost.set(r.post_id, (commentCountByPost.get(r.post_id)||0) + 1);
+      }
+    }else{
+      log("comments select error", cerr);
+    }
+  }
+
+  const box = document.getElementById("feedBox");
+  box.innerHTML = "";
+
+  if (!posts || posts.length === 0){
+    box.innerHTML = "<div style='color:var(--muted);font-size:12px;'>まだつぶやきがないよ（最初の投稿してみよ！）</div>";
+    setStatus("つぶやきなし", true);
+    return;
+  }
+
+  for (const p of posts){
+    const card = document.createElement("div");
+    card.className = "postCard";
+
+    const head = document.createElement("div");
+    head.className = "postHead";
+
+    const name = (p.display_name || "名無し").toString();
+    const av = avatarHtml(p.avatar_url || "", name, p.avatar_ver || "");
+
+    head.innerHTML = `
+      ${av}
+      <div style="min-width:0;">
+        <div class="postName">${escapeHtml(name)}</div>
+        <div class="postTime">${escapeHtml(formatTime(p.created_at))}</div>
+      </div>
+    `;
+
+    const body = document.createElement("div");
+    body.className = "postBody";
+    body.textContent = (p.content || "").toString();
+
+    const actions = document.createElement("div");
+    actions.className = "postActions";
+
+    const likeBtn = document.createElement("button");
+    likeBtn.type = "button";
+    likeBtn.className = "miniBtn" + (likedSet.has(p.id) ? " liked" : "");
+    const likeCount = likeCountByPost.get(p.id) || 0;
+    likeBtn.textContent = `👍 いいね ${likeCount}`;
+    likeBtn.onclick = () => toggleLike(p.id);
+
+    const cBtn = document.createElement("button");
+    cBtn.type = "button";
+    cBtn.className = "miniBtn";
+    const cc = commentCountByPost.get(p.id) || 0;
+    cBtn.textContent = `💬 コメント ${cc}`;
+    cBtn.onclick = () => toggleComments(p.id);
+
+    actions.appendChild(likeBtn);
+    actions.appendChild(cBtn);
+
+    // コメント領域
+    const commentArea = document.createElement("div");
+    commentArea.className = "commentArea";
+    commentArea.id = "commentArea-" + p.id;
+
+    commentArea.innerHTML = `
+      <div id="commentList-${p.id}" style="margin-bottom:10px;"></div>
+      <div class="row">
+        <textarea id="commentText-${p.id}" placeholder="コメントを書く（200文字まで）" style="min-height:70px;"></textarea>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btnPrimary" type="button" onclick="createComment('${p.id}')">コメントする</button>
+        <button type="button" onclick="loadComments('${p.id}')">更新</button>
+      </div>
+    `;
+
+    card.appendChild(head);
+    card.appendChild(body);
+    card.appendChild(actions);
+    card.appendChild(commentArea);
+
+    box.appendChild(card);
+  }
+
+  setStatus(`つぶやきOK（${posts.length}件）`, true);
+}
+
+async function toggleLike(postId){
+  const ok = await refreshAuth();
+  if (!ok || !authUser){
+    alert("ログインが切れてるよ。もう一回ログインしてね！");
+    goLogin();
+    return;
+  }
+
+  // すでにいいね済み？
+  const { data: exist, error: e1 } = await withTimeout(
+    sb.from("post_likes").select("post_id").eq("post_id", postId).eq("user_id", authUser.id).maybeSingle(),
+    "like exists",
+    8000
+  );
+  if (e1){
+    log("like exists error", e1);
+    alert("いいね確認失敗: " + e1.message);
+    return;
+  }
+
+  if (exist){
+    const { error: delErr } = await withTimeout(
+      sb.from("post_likes").delete().eq("post_id", postId).eq("user_id", authUser.id),
+      "like delete",
+      8000
+    );
+    if (delErr){
+      log("like delete error", delErr);
+      alert("いいね解除失敗: " + delErr.message);
+      return;
+    }
+  }else{
+    const { error: insErr } = await withTimeout(
+      sb.from("post_likes").insert({ post_id: postId, user_id: authUser.id }),
+      "like insert",
+      8000
+    );
+    if (insErr){
+      log("like insert error", insErr);
+      alert("いいね失敗: " + insErr.message);
+      return;
+    }
+  }
+
+  await loadFeed();
+}
+
+function toggleComments(postId){
+  const area = document.getElementById("commentArea-" + postId);
+  if (!area) return;
+  const willOpen = !area.classList.contains("open");
+  if (willOpen){
+    area.classList.add("open");
+    loadComments(postId).catch(()=>{});
+  }else{
+    area.classList.remove("open");
+  }
+}
+
+async function loadComments(postId){
+  const ok = await refreshAuth();
+  if (!ok || !authUser) return;
+
+  const { data, error } = await withTimeout(
+    sb.from("post_comments")
+      .select("id, post_id, user_id, display_name, avatar_url, avatar_ver, content, created_at")
+      .eq("post_id", postId)
+      .order("created_at", { ascending:true })
+      .limit(60),
+    "comments select",
+    8000
+  );
+
+  if (error){
+    log("loadComments error", error);
+    return;
+  }
+
+  const list = document.getElementById("commentList-" + postId);
+  if (!list) return;
+
+  list.innerHTML = "";
+  if (!data || data.length === 0){
+    list.innerHTML = "<div style='color:var(--muted);font-size:12px;'>まだコメントがないよ</div>";
+    return;
+  }
+
+  for (const c of data){
+    const row = document.createElement("div");
+    row.className = "commentRow";
+
+    const name = (c.display_name || "名無し").toString();
+    const av = avatarHtml(c.avatar_url || "", name, c.avatar_ver || "");
+
+    const canDelete = (c.user_id === authUser.id);
+
+    row.innerHTML = `
+      ${av}
+      <div class="commentBody">
+        <div class="commentMeta">
+          <span class="commentName">${escapeHtml(name)}</span>
+          <span class="commentTime">${escapeHtml(formatTime(c.created_at))}</span>
+          ${canDelete ? `<button class="miniBtn" type="button" onclick="deleteComment('${c.id}','${postId}')">削除</button>` : ""}
+        </div>
+        <div class="commentText">${escapeHtml((c.content||"").toString())}</div>
+      </div>
+    `;
+    list.appendChild(row);
+  }
+}
+
+async function createComment(postId){
+  const ok = await refreshAuth();
+  if (!ok || !authUser){
+    alert("ログインが切れてるよ。もう一回ログインしてね！");
+    goLogin();
+    return;
+  }
+
+  const ta = document.getElementById("commentText-" + postId);
+  const text = (ta?.value || "").trim();
+  if (!text) return alert("コメントを入力してね！");
+  if (text.length > 200) return alert("コメントが長すぎるよ（200文字まで）");
+
+  const dn = (authUser.user_metadata?.display_name || authUser.email || "名無し").toString();
+  const avm = getPreferredAvatar();
+
+  const { error } = await withTimeout(
+    sb.from("post_comments").insert({
+      post_id: postId,
+      user_id: authUser.id,
+      display_name: dn,
+      avatar_url: avm.url || "",
+      avatar_ver: avm.ver || "",
+      content: text
+    }),
+    "comment insert",
+    8000
+  );
+
+  if (error){
+    log("createComment error", error);
+    alert("コメント失敗: " + error.message);
+    return;
+  }
+
+  ta.value = "";
+  await loadComments(postId);
+  await loadFeed(); // コメント数更新
+}
+
+async function deleteComment(commentId, postId){
+  const ok = await refreshAuth();
+  if (!ok || !authUser) return;
+
+  const { error } = await withTimeout(
+    sb.from("post_comments").delete().eq("id", commentId).eq("user_id", authUser.id),
+    "comment delete",
+    8000
+  );
+
+  if (error){
+    log("deleteComment error", error);
+    alert("削除失敗: " + error.message);
+    return;
+  }
+
+  await loadComments(postId);
+  await loadFeed();
 }
 
 /* =================== HTMLエスケープ / Avatar =================== */
@@ -788,15 +1297,29 @@ function getPreferredAvatar(){
 
   if (!(await requireLoginOrRedirect())) return;
 
-  await loadRooms();
+  // 前回の表示モード復元
+  try{
+    const saved = localStorage.getItem("lobby_view_mode");
+    if (saved === "feed" || saved === "rooms") viewMode = saved;
+  }catch(e){}
+
+  // Realtime起動
   await startRealtime();
   await startCallParticipantsRealtime();
+  await startFeedRealtime();
+
+  // 初期表示
+  setViewMode(viewMode);
 
   sb.auth.onAuthStateChange(async () => {
     try{
       const ok = await refreshAuth();
       if (!ok) { goLogin(); return; }
-      await loadRooms();
+
+      // 表示モードに応じて更新
+      if (viewMode === "rooms") await loadRooms();
+      else await loadFeed();
+
     }catch(e){
       log("onAuthStateChange err", String(e?.message || e));
     }
@@ -808,8 +1331,3 @@ function getPreferredAvatar(){
 
 </body>
 </html>
-
-
-
-
-
