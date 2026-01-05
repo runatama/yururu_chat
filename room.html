@@ -2260,8 +2260,6 @@ async function startRoomEventsWatch(){
   window.__roomEventsLastAt = new Date().toISOString();
 
   function handleRoomEvent(ev){
-    // 自分が運営なら kick/ban/forceback を無効化
-    if (isAdminUserId(myUid())) return;
     if (!ev) return;
     if (ev.room_id !== roomId) return;
 
@@ -2369,16 +2367,11 @@ function getAdminReason(){
   return (document.getElementById("adminReason")?.value || "").trim().slice(0, 200);
 }
 
-async async function kickUser(){
+async function kickUser(){
   if (!isOwner) return alert("枠主だけ！");
   const target = getAdminTargetUid();
   if (!target) return alert("対象ユーザーIDが不正だよ！");
-  if (isAdminUserId(target)) {
-    alert("運営は Kick / Ban の対象にできません。");
-    return;
-  }
   const reason = getAdminReason();
-
 
   // kick 履歴（任意）
   {
@@ -2410,16 +2403,11 @@ async async function kickUser(){
   alert("Kick しました。");
 }
 
-async async function banUser(){
+async function banUser(){
   if (!isOwner) return alert("枠主だけ！");
   const target = getAdminTargetUid();
   if (!target) return alert("対象ユーザーIDが不正だよ！");
-  if (isAdminUserId(target)) {
-    alert("運営は Kick / Ban の対象にできません。");
-    return;
-  }
   const reason = getAdminReason();
-
 
   const { error: berr } = await sb.from("room_bans").insert({
     room_id: roomId,
@@ -2732,22 +2720,19 @@ async function resolveRoomRow(urlRoom, urlRoomId){
   return byName || null;
 }
 
-function safeKey(str){
-  return String(str || "")
-    .trim()
-    .replace(/[^\w\-]/g, "_")
-    .slice(0, 64);
+function safeKey(s){
+  // Storageのキーに使える文字だけにする（英数字 _ -）
+  let t = String(s || "").trim();
+  t = t.replace(/[^a-zA-Z0-9_-]+/g, "_");
+  t = t.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+  return t || "room";
 }
-
 
 
 
 </script>
 </body>
 </html>
-
-
-
 
 
 
