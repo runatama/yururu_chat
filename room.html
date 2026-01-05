@@ -2368,6 +2368,13 @@ function getAdminReason(){
 }
 
 async function kickUser(){
+  const targetUid = document.getElementById("adminTargetUid").value.trim();
+  if (!targetUid) return;
+  // 🚫 運営はKick不可
+  if (isAdminUserId(targetUid)){
+    alert("運営ユーザーは Kick できません");
+    return;
+  }
   if (!isOwner) return alert("枠主だけ！");
   const target = getAdminTargetUid();
   if (!target) return alert("対象ユーザーIDが不正だよ！");
@@ -2404,6 +2411,13 @@ async function kickUser(){
 }
 
 async function banUser(){
+  const targetUid = document.getElementById("adminTargetUid").value.trim();
+  if (!targetUid) return;
+  // 🚫 運営はBan不可
+  if (isAdminUserId(targetUid)){
+    alert("運営ユーザーは Ban できません");
+    return;
+  }async function banUser(){
   if (!isOwner) return alert("枠主だけ！");
   const target = getAdminTargetUid();
   if (!target) return alert("対象ユーザーIDが不正だよ！");
@@ -2733,6 +2747,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
