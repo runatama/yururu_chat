@@ -946,7 +946,7 @@ async function loadFeed(){
   // 投稿を取得（最新50件）
   const { data: posts, error: perr } = await withTimeout(
     sb.from("posts")
-      .select("id, user_id, display_name, avatar_url, avatar_ver, content, created_at, updated_at")
+      .select("id, user_id, display_name, avatar_url, avatar_ver, content, created_at")
       .order("created_at", { ascending:false })
       .limit(50),
     "posts select",
@@ -1065,7 +1065,7 @@ async function loadFeed(){
         <textarea id="commentText-${p.id}" placeholder="コメントを書く（200文字まで）" style="min-height:70px;"></textarea>
       </div>
       <div class="row" style="margin-top:8px;">
-        <button class="btnPrimary miniBtn" type="button" onclick="createComment('${p.id}', null)">コメントする</button>
+        <button class="btnPrimary" type="button" onclick="createComment('${p.id}', null)">コメントする</button>
         <button class="miniBtn" type="button" onclick="loadComments('${p.id}')">更新</button>
       </div>
     `;
@@ -1231,7 +1231,7 @@ async function loadComments(postId){
 
   const { data, error } = await withTimeout(
     sb.from("post_comments")
-      .select("id, post_id, parent_comment_id, user_id, display_name, avatar_url, avatar_ver, content, created_at, updated_at")
+      .select("id, post_id, parent_comment_id, user_id, display_name, avatar_url, avatar_ver, content, created_at")
       .eq("post_id", postId)
       .order("created_at", { ascending:true })
       .limit(200),
