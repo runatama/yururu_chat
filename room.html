@@ -1996,7 +1996,10 @@ async function saveRoomName(){
     roomNameSaveLock = true;
 
     const el = document.getElementById("roomName");
-    if (!el) return;
+    if (!el){
+      alert("roomName input が見つからないよ");
+      return;
+    }
 
     const newName = (el.value || "").trim();
     if (!newName){
@@ -2010,12 +2013,20 @@ async function saveRoomName(){
       return;
     }
 
-    // ★ owner_id も条件に入れて、クライアント側でも「枠主以外」は更新できないようにする
-    const { error } = await sb
+    const uid = myUid();
+    if (!uid){
+      alert("ログイン情報（uid）が取れないよ。再ログインしてね！");
+      return;
+    }
+
+    // 更新が成功したかを data で確認できるように select する
+    const { data, error } = await sb
       .from("rooms")
-      .update({ room_name: newName, updated_at: new Date().toISOString() })
+      .update({ room_name: newName })
       .eq("id", roomId)
-      .eq("owner_id", myUid());
+      .eq("owner_id", uid)
+      .select("id, room_name, owner_id")
+      .maybeSingle();
 
     if (error){
       log("saveRoomName error", error);
@@ -2024,8 +2035,15 @@ async function saveRoomName(){
       return;
     }
 
-    // UI 即時反映（他の人は rooms realtime で反映）
-    applyRoomInfoRow({ id: roomId, room_name: newName, owner_id: roomOwnerId });
+    // ★ここが重要：0件更新（条件不一致 / RLS）を検出
+    if (!data){
+      alert("更新できなかったよ（オーナー判定/権限/RLS/roomId不一致の可能性）。");
+      el.value = room || "";
+      return;
+    }
+
+    // UI 即時反映
+    applyRoomInfoRow({ id: data.id, room_name: data.room_name, owner_id: data.owner_id });
     alert("部屋名を変更したよ！");
   }catch(e){
     log("saveRoomName exception", e);
@@ -2034,6 +2052,7 @@ async function saveRoomName(){
     roomNameSaveLock = false;
   }
 }
+
 
 function resetRoomNameInput(){
   const el = document.getElementById("roomName");
@@ -2685,6 +2704,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
