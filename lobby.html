@@ -600,7 +600,7 @@ async function loadRooms(){
     btn.className = "roomBtn";
     btn.textContent = rn;
     btn.onclick = () => document.getElementById("room").value = rn;
-    btn.ondblclick = () => goRoom(rn);
+    btn.ondblclick = () => goRoom(r);
 
     const users = activeMap.get(rn) || [];
     if (users.length > 0){
@@ -901,6 +901,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
