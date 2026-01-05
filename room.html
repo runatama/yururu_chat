@@ -636,7 +636,18 @@
             <div class="list" id="activeCallUsersList">
               <div class="hint">今は誰も通話してないよ</div>
             </div>
+          
+          <div class="card" style="background:transparent;border:none;box-shadow:none;">
+            <div class="cardHeader" style="border:1px solid rgba(255,255,255,.08); border-radius:18px; margin-bottom:10px;">
+              <b>👥 この部屋にいる人（入室してる人）</b>
+              <span class="chip">room_members</span>
+            </div>
+            <div class="list" id="roomMembersList">
+              <div class="hint">読み込み中…</div>
+            </div>
+            <div class="hint" style="margin-top:6px;">※ ここは「通話に参加してない人」も含むよ。枠主は名前を押すとKick/Banの対象に入る。</div>
           </div>
+</div>
 
           <details>
             <summary>🔧 デバッグログ</summary>
@@ -737,6 +748,9 @@ let messagesChannel = null;
 
 /* ===== call_participants 監視（通話中一覧をリアルタイム更新） ===== */
 let callUsersChannel = null;
+
+/* ===== room_members 監視（部屋にいる人一覧） ===== */
+let roomMembersChannel = null;
 
 /* ===== 通話 ===== */
 let callChannel = null;
@@ -2108,8 +2122,16 @@ let roomMemberTimer = null;
 
 async function startRoomMemberHeartbeat(){
   await upsertRoomMember();
+  await loadRoomMembersForUI();
+  if (isOwner) await loadRoomMembersForAdmin();
+
   if (roomMemberTimer) clearInterval(roomMemberTimer);
-  roomMemberTimer = setInterval(()=>{ upsertRoomMember(); if (isOwner) loadRoomMembersForAdmin(); }, 20000);
+  roomMemberTimer = setInterval(()=>{
+    upsertRoomMember();
+    loadRoomMembersForUI();
+    if (isOwner) loadRoomMembersForAdmin();
+  }, 20000);
+
   window.addEventListener("beforeunload", ()=>{ deleteRoomMember(); });
 }
 
@@ -2127,6 +2149,79 @@ async function loadRoomMembersForAdmin(){
   (data || []).forEach(u=>upsertRecentUser(u.user_id, u.name, u.avatar_url));
   renderAdminUsers();
 }
+
+async function loadRoomMembersForUI(){
+  const box = document.getElementById("roomMembersList");
+  if (!box) return;
+  if (!roomId){
+    box.innerHTML = `<div class="hint">部屋情報がまだ準備中…</div>`;
+    return;
+  }
+
+  const cutoff = new Date(Date.now() - 1000*60*2).toISOString(); // 2分以内をオンライン扱い
+  const { data, error } = await sb.from("room_members")
+    .select("user_id, name, avatar_url, updated_at")
+    .eq("room_id", roomId)
+    .gte("updated_at", cutoff)
+    .order("updated_at", { ascending:false });
+
+  if (error){
+    log("loadRoomMembersForUI error", error);
+    box.innerHTML = `<div class="hint">取得失敗: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+
+  const arr = (data || []);
+  if (arr.length === 0){
+    box.innerHTML = `<div class="hint">今は誰もいないよ（または更新待ち）</div>`;
+    return;
+  }
+
+  box.innerHTML = "";
+  for (const u of arr){
+    const uid = u.user_id;
+    const dn = (u.name || uid || "unknown").toString();
+    const av = (u.avatar_url || "").toString();
+
+    const item = document.createElement("div");
+    item.className = "listItem";
+    item.style.cursor = isOwner ? "pointer" : "default";
+    item.title = isOwner ? "クリックでKick/Banの対象に入る" : "";
+
+    item.innerHTML = `
+      ${avatarHtml(av, dn)}
+      <div class="listMain">
+        <div class="listTitle">${escapeHtml(dn)}</div>
+        <div class="listSub">${escapeHtml(uid)}</div>
+      </div>
+      ${isOwner ? `<span class="chip">選択</span>` : ``}
+    `;
+
+    if (isOwner){
+      item.onclick = ()=>{
+        const t = document.getElementById("adminTargetUid");
+        if (t) t.value = uid || "";
+        setStatus(`対象を選択: ${dn}`, true);
+      };
+    }
+
+    box.appendChild(item);
+  }
+}
+
+async function startRoomMembersRealtime(){
+  if (!roomId) return;
+  if (roomMembersChannel) return;
+
+  roomMembersChannel = sb
+    .channel("room-members-" + roomId)
+    .on("postgres_changes",
+      { event:"*", schema:"public", table:"room_members", filter:`room_id=eq.${roomId}` },
+      async ()=>{ await loadRoomMembersForUI(); if (isOwner) await loadRoomMembersForAdmin(); }
+    )
+    .subscribe();
+}
+
 
 /* =================== 起動 =================== */
 (async ()=>{
@@ -2174,7 +2269,9 @@ async function loadRoomMembersForAdmin(){
   await startRoomDeleteWatch();
   await startRoomEventsWatch();
   await startRoomMemberHeartbeat();
-  await loadRoomMembersForAdmin();
+  await startRoomMembersRealtime();
+  await loadRoomMembersForUI();
+  if (isOwner) await loadRoomMembersForAdmin();
 document.getElementById("subTitle").textContent = "Room: " + room;
 
 
