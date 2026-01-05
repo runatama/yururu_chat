@@ -447,6 +447,10 @@ function setStatus(text, ok=true){
   const el = document.getElementById("status");
   el.innerHTML = `<span class="${ok?'ok':'ng'}">${escapeHtml(text)}</span>`;
 }
+// ===== 運営判定（IDベース・安全）=====
+function isAdmin(user){
+  return user?.app_metadata?.is_admin === true;
+}
 
 /* =================== タイムアウト付き await =================== */
 function withTimeout(promise, label, ms=8000){
@@ -1660,4 +1664,5 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
