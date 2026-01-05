@@ -253,8 +253,8 @@
 
 <script>
 /* =================== Supabase 設定 =================== */
-    const SUPABASE_URL = "https://derziqsrhfdojoxdbuno.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlcnppcXNyaGZkb2pveGRidW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxOTM3NzAsImV4cCI6MjA4Mjc2OTc3MH0.vCCmPgmPjRc_a7_CqBx9j7_c5sTDbihYJ9PdKmmPM1E";
+    const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
 const sb = supabase.createClient(
   SUPABASE_URL.trim(),
@@ -416,46 +416,16 @@ async function refreshAuth(){
 
 
 async function requireLoginOrRedirect(){
-  // OAuth/PKCE のリダイレクト直後は、セッション保存まで少しラグることがあるので待つ
-  const url = new URL(location.href);
-  const hasAuthParams =
-    url.searchParams.has("code") ||
-    url.searchParams.has("state") ||
-    url.searchParams.has("type") ||
-    url.searchParams.has("access_token") ||
-    url.searchParams.has("refresh_token") ||
-    (location.hash && (location.hash.includes("access_token=") || location.hash.includes("refresh_token=")));
-
-  const maxTries = hasAuthParams ? 30 : 3;   // 最大待機回数
-  const waitMs   = hasAuthParams ? 400 : 300;
-
-  if (hasAuthParams){
-    try{ setStatus("ログイン処理中…（セッション確定待ち）", true); }catch(_){}
-    log("requireLoginOrRedirect: auth params detected -> wait for session");
-  }
-
-  for (let i = 0; i < maxTries; i++){
+  for (let i = 0; i < 3; i++){
     try{
       const ok = await refreshAuth();
-      if (ok){
-        if (hasAuthParams){
-          try{ setStatus("", true); }catch(_){}
-        }
-        return true;
-      }
+      if (ok) return true;
     }catch(e){
       log("requireLoginOrRedirect refreshAuth err", String(e?.message || e));
     }
-    await new Promise(r => setTimeout(r, waitMs));
+    await new Promise(r => setTimeout(r, 300));
   }
-
-  // リダイレクト直後は storage クリアしない（コード交換中の可能性がある）
-  if (!hasAuthParams){
-    clearSupabaseLocalStorage();
-  } else {
-    log("requireLoginOrRedirect: still no session after waiting; NOT clearing storage (auth params case)");
-  }
-
+  clearSupabaseLocalStorage();
   goLogin();
   return false;
 }
@@ -513,13 +483,13 @@ async function startCallParticipantsRealtime(){
 /* =================== 通話中かどうか判定 =================== */
 const CALL_ALIVE_SEC = 30;
 
-async function isRoomInCall(roomId){
+async function isRoomInCall(roomName){
   const cutoff = new Date(Date.now() - CALL_ALIVE_SEC * 1000).toISOString();
 
   const { data, error } = await withTimeout(
     sb.from("call_participants")
       .select("user_id")
-      .eq("room_id", roomId)
+      .eq("room_id", roomName)
       .gte("updated_at", cutoff)
       .limit(1),
     "call_participants select",
@@ -623,7 +593,7 @@ async function loadRooms(){
     btn.onclick = () => document.getElementById("room").value = rn;
     btn.ondblclick = () => goRoom(r);
 
-    const users = activeMap.get(r.id) || [];
+    const users = activeMap.get(rn) || [];
     if (users.length > 0){
       const names = users.map(x=>x.name).filter(Boolean);
       const line = document.createElement("div");
