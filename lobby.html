@@ -372,12 +372,20 @@
 
   <!-- ===== Feed Panel ===== -->
   <div id="feedPanel" class="hide">
-    <div class="row">
-      <textarea id="postText" placeholder="いまどうしてる？（つぶやき）"></textarea>
-    </div>
-    <div class="row" style="margin-top:8px;">
-      <button class="btnPrimary" type="button" onclick="createPost()">つぶやく</button>
+
+    <div class="row" style="justify-content:flex-start;">
+      <button class="miniBtn" type="button" onclick="togglePostBox()">＋ つぶやく</button>
       <button type="button" onclick="loadFeed()">更新</button>
+    </div>
+
+    <div id="postBox" class="hide" style="margin-top:10px;">
+      <div class="row">
+        <textarea id="postText" placeholder="いまどうしてる？（つぶやき）"></textarea>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btnPrimary" type="button" onclick="createPost()">投稿</button>
+        <button class="miniBtn" type="button" onclick="togglePostBox(true)">キャンセル</button>
+      </div>
     </div>
 
     <div class="sectionTitle" style="margin-top:14px; justify-content:flex-start;">🗯️ みんなのつぶやき</div>
@@ -419,6 +427,9 @@ let likesChannel = null;
 let commentsChannel = null;
 
 let viewMode = "rooms"; // rooms | feed
+
+// loadFeed の多重実行ガード（並列で走ると同じ投稿が2回描画される）
+let loadFeedInFlight = null;
 
 /* =================== ログ =================== */
 function log(...args){
@@ -622,6 +633,16 @@ function setViewMode(mode){
     title.textContent = "🗯️ つぶやき";
     loadFeed().catch(()=>{});
   }
+}
+
+
+
+/* =================== つぶやき入力欄の開閉 =================== */
+function togglePostBox(forceClose=false){
+  const box = document.getElementById("postBox");
+  if (!box) return;
+  if (forceClose) { box.classList.add("hide"); return; }
+  box.classList.toggle("hide");
 }
 
 /* =================== Realtime =================== */
@@ -938,160 +959,181 @@ async function createPost(){
   }
 
   ta.value = "";
+  togglePostBox(true);
   await loadFeed();
   setStatus("つぶやいた！", true);
 }
 
 async function loadFeed(){
-  const ok = await refreshAuth();
-  if (!ok || !authUser) return;
+  // 2回同時に走ると、両方が描画して「同じ投稿が2回表示」になるのでガードする
+  if (loadFeedInFlight) return loadFeedInFlight;
 
-  // 表示領域
-  const box = document.getElementById("feedBox");
-  if (!box) return;
-  box.innerHTML = "";
+  loadFeedInFlight = (async ()=>{
 
-  // 投稿を取得（最新50件）
-  const { data: posts, error: perr } = await withTimeout(
-    sb.from("posts")
-      .select("id, user_id, display_name, avatar_url, avatar_ver, content, created_at")
-      .order("created_at", { ascending:false })
-      .limit(50),
-    "posts select",
-    8000
-  );
+    const ok = await refreshAuth();
+    if (!ok || !authUser) return;
 
-  if (perr){
-    log("posts select error", perr);
-    setStatus("つぶやき取得失敗: " + perr.message, false);
-    return;
-  }
+    // 表示領域
+    const box = document.getElementById("feedBox");
+    if (!box) return;
+    box.innerHTML = "";
 
-  if (!posts || posts.length === 0){
-    setStatus("つぶやきなし", true);
-    box.innerHTML = `<div class="muted">まだつぶやきがないよ</div>`;
-    return;
-  }
+    // 投稿を取得（最新50件）
+    const { data: posts, error: perr } = await withTimeout(
+      sb.from("posts")
+        .select("id, user_id, display_name, avatar_url, avatar_ver, content, created_at")
+        .order("created_at", { ascending:false })
+        .limit(50),
+      "posts select",
+      8000
+    );
 
-  // いいね数
-  const postIds = posts.map(p => p.id);
-  const { data: likes, error: lerr } = await withTimeout(
-    sb.from("post_likes")
-      .select("post_id, user_id")
-      .in("post_id", postIds)
-      .limit(5000),
-    "likes select",
-    8000
-  );
+    if (perr){
+      log("posts select error", perr);
+      setStatus("つぶやき取得失敗: " + perr.message, false);
+      return;
+    }
 
-  if (lerr){
-    log("likes select error", lerr);
-  }
+    if (!posts || posts.length === 0){
+      setStatus("つぶやきなし", true);
+      box.innerHTML = `<div class="muted">まだつぶやきがないよ</div>`;
+      return;
+    }
 
-  const likeCountByPost = new Map();
-  const likedByMe = new Set();
-  for (const r of (likes || [])){
-    likeCountByPost.set(r.post_id, (likeCountByPost.get(r.post_id) || 0) + 1);
-    if (r.user_id === authUser.id) likedByMe.add(r.post_id);
-  }
+    // いいね数
+    const postIds = posts.map(p => p.id);
+    const { data: likes, error: lerr } = await withTimeout(
+      sb.from("post_likes")
+        .select("post_id, user_id")
+        .in("post_id", postIds)
+        .limit(5000),
+      "likes select",
+      8000
+    );
 
-  // コメント数
-  const { data: commentCounts, error: cerr } = await withTimeout(
-    sb.from("post_comments")
-      .select("post_id, id")
-      .in("post_id", postIds)
-      .limit(5000),
-    "comments count select",
-    8000
-  );
+    if (lerr){
+      log("likes select error", lerr);
+    }
 
-  if (cerr){
-    log("comments count error", cerr);
-  }
+    const likeCountByPost = new Map();
+    const likedByMe = new Set();
+    for (const r of (likes || [])){
+      likeCountByPost.set(r.post_id, (likeCountByPost.get(r.post_id) || 0) + 1);
+      if (r.user_id === authUser.id) likedByMe.add(r.post_id);
+    }
 
-  const commentCountByPost = new Map();
-  for (const r of (commentCounts || [])){
-    commentCountByPost.set(r.post_id, (commentCountByPost.get(r.post_id) || 0) + 1);
-  }
+    // コメント数
+    const { data: commentCounts, error: cerr } = await withTimeout(
+      sb.from("post_comments")
+        .select("post_id, id")
+        .in("post_id", postIds)
+        .limit(5000),
+      "comments count select",
+      8000
+    );
 
-  for (const p of posts){
-    const card = document.createElement("div");
-    card.className = "card";
+    if (cerr){
+      log("comments count error", cerr);
+    }
 
-    const head = document.createElement("div");
-    head.className = "postHead";
+    const commentCountByPost = new Map();
+    for (const r of (commentCounts || [])){
+      commentCountByPost.set(r.post_id, (commentCountByPost.get(r.post_id) || 0) + 1);
+    }
 
-    const name = (p.display_name || "名無し").toString();
-    head.innerHTML = `
-      <div class="row" style="justify-content:space-between;align-items:center;">
-        <div class="row" style="gap:8px;align-items:center;">
-          ${avatarHtml(p.avatar_url || "", name, p.avatar_ver || "")}
-          <div>
-            <div style="font-weight:700;">${escapeHtml(name)}</div>
-            <div style="font-size:12px;color:var(--muted);">${escapeHtml(formatTime(p.created_at))}${(p.updated_at && String(p.updated_at) !== String(p.created_at)) ? "（編集済）" : ""}</div>
+    for (const p of posts){
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const head = document.createElement("div");
+      head.className = "postHead";
+
+      const name = (p.display_name || "名無し").toString();
+      head.innerHTML = `
+        <div class="row" style="justify-content:space-between;align-items:center;">
+          <div class="row" style="gap:8px;align-items:center;">
+            ${avatarHtml(p.avatar_url || "", name, p.avatar_ver || "")}
+            <div>
+              <div style="font-weight:700;">${escapeHtml(name)}</div>
+              <div style="font-size:12px;color:var(--muted);">${escapeHtml(formatTime(p.created_at))}${(p.updated_at && String(p.updated_at) !== String(p.created_at)) ? "（編集済）" : ""}</div>
+            </div>
           </div>
         </div>
-      </div>
-    `;
+      `;
 
-    const body = document.createElement("div");
-    body.className = "postBody";
-    body.innerHTML = `<div class="postText">${escapeHtml((p.content||"").toString())}</div>`;
+      const body = document.createElement("div");
+      body.className = "postBody";
+      body.innerHTML = `<div class="postText">${escapeHtml((p.content||"").toString())}</div>`;
 
-    const actions = document.createElement("div");
-    actions.className = "row";
-    actions.style.marginTop = "10px";
+      const actions = document.createElement("div");
+      actions.className = "row";
+      actions.style.marginTop = "10px";
 
-    const likeBtn = document.createElement("button");
-    likeBtn.type = "button";
-    likeBtn.className = "miniBtn";
-    const likeCount = likeCountByPost.get(p.id) || 0;
-    likeBtn.textContent = `👍 いいね ${likeCount}${likedByMe.has(p.id) ? "（済）" : ""}`;
-    likeBtn.onclick = () => toggleLike(p.id);
+      const likeBtn = document.createElement("button");
+      likeBtn.type = "button";
+      likeBtn.className = "miniBtn";
+      const likeCount = likeCountByPost.get(p.id) || 0;
+      likeBtn.textContent = `👍 いいね ${likeCount}${likedByMe.has(p.id) ? "（済）" : ""}`;
+      likeBtn.onclick = () => toggleLike(p.id);
 
-    const cBtn = document.createElement("button");
-    cBtn.type = "button";
-    cBtn.className = "miniBtn";
-    const cc = commentCountByPost.get(p.id) || 0;
-    cBtn.textContent = `💬 コメント ${cc}`;
-    cBtn.onclick = () => toggleComments(p.id);
+      const cBtn = document.createElement("button");
+      cBtn.type = "button";
+      cBtn.className = "miniBtn";
+      const cc = commentCountByPost.get(p.id) || 0;
+      cBtn.textContent = `💬 コメント ${cc}`;
+      cBtn.onclick = () => toggleComments(p.id);
 
-    actions.appendChild(likeBtn);
-    actions.appendChild(cBtn);
+      actions.appendChild(likeBtn);
+      actions.appendChild(cBtn);
 
-    // コメント領域
-    const commentArea = document.createElement("div");
-    commentArea.className = "commentArea";
-    commentArea.id = "commentArea-" + p.id;
-    commentArea.style.display = "none";
+    // 自分の投稿なら「削除」ボタンを表示
+    if (p.user_id === authUser.id){
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "miniBtn btnDanger";
+      delBtn.textContent = "🗑 削除";
+      delBtn.onclick = () => deletePost(p.id);
+      actions.appendChild(delBtn);
+    }
 
-    commentArea.innerHTML = `
-      <div id="commentList-${p.id}" style="margin-bottom:10px;"></div>
+      // コメント領域
+      const commentArea = document.createElement("div");
+      commentArea.className = "commentArea";
+      commentArea.id = "commentArea-" + p.id;
+      commentArea.style.display = "none";
 
-      <!-- ルートコメント入力 -->
-      <div class="row">
-        <textarea id="commentText-${p.id}" placeholder="コメントを書く（200文字まで）" style="min-height:70px;"></textarea>
-      </div>
-      <div class="row" style="margin-top:8px;">
-        <button id="commentSubmit-${p.id}" class="btnPrimary" type="button">コメントする</button>
-        <button id="commentRefresh-${p.id}" class="miniBtn" type="button">更新</button>
-      </div>
-    `;
+      commentArea.innerHTML = `
+        <div id="commentList-${p.id}" style="margin-bottom:10px;"></div>
 
-    // onclick を使わずにイベント登録（クリック2重送信/CSP事故対策）
-    const btnSubmit = commentArea.querySelector(`#commentSubmit-${p.id}`);
-    const btnRefresh = commentArea.querySelector(`#commentRefresh-${p.id}`);
-    if (btnSubmit) btnSubmit.addEventListener("click", ()=>createComment(p.id, null, btnSubmit));
-    if (btnRefresh) btnRefresh.addEventListener("click", ()=>loadComments(p.id));
-card.appendChild(head);
-    card.appendChild(body);
-    card.appendChild(actions);
-    card.appendChild(commentArea);
+        <!-- ルートコメント入力 -->
+        <div class="row">
+          <textarea id="commentText-${p.id}" placeholder="コメントを書く（200文字まで）" style="min-height:70px;"></textarea>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button id="commentSubmit-${p.id}" class="btnPrimary" type="button">コメントする</button>
+          <button id="commentRefresh-${p.id}" class="miniBtn" type="button">更新</button>
+        </div>
+      `;
 
-    box.appendChild(card);
-  }
+      // onclick を使わずにイベント登録（クリック2重送信/CSP事故対策）
+      const btnSubmit = commentArea.querySelector(`#commentSubmit-${p.id}`);
+      const btnRefresh = commentArea.querySelector(`#commentRefresh-${p.id}`);
+      if (btnSubmit) btnSubmit.addEventListener("click", ()=>createComment(p.id, null, btnSubmit));
+      if (btnRefresh) btnRefresh.addEventListener("click", ()=>loadComments(p.id));
+  card.appendChild(head);
+      card.appendChild(body);
+      card.appendChild(actions);
+      card.appendChild(commentArea);
 
-  setStatus(`つぶやきOK（${posts.length}件）`, true);
+      box.appendChild(card);
+    }
+
+    setStatus(`つぶやきOK（${posts.length}件）`, true);
+  })().finally(()=>{
+    loadFeedInFlight = null;
+  });
+
+  return loadFeedInFlight;
 }
 
 /* =================== いいね / コメント開閉 =================== */
@@ -1148,6 +1190,38 @@ async function toggleLike(postId){
   }
 
   await loadFeed();
+}
+
+
+/* =================== つぶやき削除（本人のみ） =================== */
+async function deletePost(postId){
+  const ok = await refreshAuth();
+  if (!ok || !authUser){
+    alert("ログインが切れてるよ。もう一回ログインしてね！");
+    goLogin();
+    return;
+  }
+
+  if (!confirm("このつぶやきを削除する？（表示は「削除されました」になるよ）")) return;
+
+  // 物理削除だと外部キー等で詰みやすいので、content を置換するソフト削除にする
+  const { error } = await withTimeout(
+    sb.from("posts")
+      .update({ content: "つぶやきは削除されました" })
+      .eq("id", postId)
+      .eq("user_id", authUser.id),
+    "post soft delete",
+    8000
+  );
+
+  if (error){
+    log("deletePost error", error);
+    alert("削除失敗: " + error.message);
+    return;
+  }
+
+  await loadFeed();
+  setStatus("つぶやきを削除した！", true);
 }
 
 function toggleComments(postId){
