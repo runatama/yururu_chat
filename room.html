@@ -2261,7 +2261,7 @@ async function startRoomEventsWatch(){
 
   function handleRoomEvent(ev){
     // 自分が運営なら kick/ban/forceback を無効化
-　　if (isAdminUserId(myUid())) return;
+    if (isAdminUserId(myUid())) return;
     if (!ev) return;
     if (ev.room_id !== roomId) return;
 
@@ -2369,16 +2369,16 @@ function getAdminReason(){
   return (document.getElementById("adminReason")?.value || "").trim().slice(0, 200);
 }
 
-async function kickUser(){
-  const target = (document.getElementById("adminTargetUid")?.value || "").trim();
-if (isAdminUserId(target)) {
-  alert("運営は Kick / Ban の対象にできません。");
-  return;
-}
+async async function kickUser(){
   if (!isOwner) return alert("枠主だけ！");
   const target = getAdminTargetUid();
   if (!target) return alert("対象ユーザーIDが不正だよ！");
+  if (isAdminUserId(target)) {
+    alert("運営は Kick / Ban の対象にできません。");
+    return;
+  }
   const reason = getAdminReason();
+
 
   // kick 履歴（任意）
   {
@@ -2410,16 +2410,16 @@ if (isAdminUserId(target)) {
   alert("Kick しました。");
 }
 
-async function banUser(){
-  const target = (document.getElementById("adminTargetUid")?.value || "").trim();
-if (isAdminUserId(target)) {
-  alert("運営は Kick / Ban の対象にできません。");
-  return;
-}
+async async function banUser(){
   if (!isOwner) return alert("枠主だけ！");
   const target = getAdminTargetUid();
   if (!target) return alert("対象ユーザーIDが不正だよ！");
+  if (isAdminUserId(target)) {
+    alert("運営は Kick / Ban の対象にできません。");
+    return;
+  }
   const reason = getAdminReason();
+
 
   const { error: berr } = await sb.from("room_bans").insert({
     room_id: roomId,
