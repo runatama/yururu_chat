@@ -534,6 +534,10 @@
           <div class="field">
             <label>部屋名</label>
             <input id="roomName" type="text" readonly />
+            <div class="row" id="roomRenameRow" style="margin-top:8px; display:none;">
+              <button class="btn" type="button" onclick="renameRoom()">✏️ 部屋名を変更</button>
+              <span class="hint" style="font-size:12px;">※枠主だけ変更できます</span>
+            </div>
           </div>
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn btnSmall" onclick="leaveRoom()">🚪 退室</button>
@@ -711,8 +715,8 @@
 
 <script>
 /* =================== Supabase 設定 =================== */
-const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+    const SUPABASE_URL = "https://derziqsrhfdojoxdbuno.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlcnppcXNyaGZkb2pveGRidW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxOTM3NzAsImV4cCI6MjA4Mjc2OTc3MH0.vCCmPgmPjRc_a7_CqBx9j7_c5sTDbihYJ9PdKmmPM1E";
 
 /* ★ログイン切れ対策：pkce/persistSession あり */
 const sb = supabase.createClient(
@@ -1378,7 +1382,7 @@ async function startCallChannels(){
   if (callPresenceChannel && callSignalChannel) return;
 
   // presence 専用
-  callPresenceChannel = sb.channel(`call-presence-${room}`, {
+  callPresenceChannel = sb.channel(`call-presence-${roomId}`, {
     config: { presence: { key: myUid() } }
   });
 
@@ -1388,7 +1392,7 @@ async function startCallChannels(){
     .on("presence", { event: "leave" }, ({ key, leftPresences })=> onPresenceLeave(key, leftPresences));
 
   // signal 専用（broadcast）
-  callSignalChannel = sb.channel(`call-signal-${room}`, {
+  callSignalChannel = sb.channel(`call-signal-${roomId}`, {
     config: { broadcast: { self: false } }
   });
 
@@ -1955,8 +1959,81 @@ function isValidUuid(v){
 function setOwnerUI(){
   const delBtn = document.getElementById("deleteRoomBtn");
   const adminCard = document.getElementById("adminCard");
+  const rnInput = document.getElementById("roomName");
+  const rnRow = document.getElementById("roomRenameRow");
+
   if (delBtn) delBtn.style.display = isOwner ? "" : "none";
   if (adminCard) adminCard.style.display = isOwner ? "" : "none";
+
+  // ✅ 枠主だけ部屋名変更を許可
+  if (rnInput) rnInput.readOnly = !isOwner;
+  if (rnRow) rnRow.style.display = isOwner ? "" : "none";
+}
+
+async function renameRoom(){
+  if (!isOwner){
+    alert("枠主（作成者）だけ部屋名を変更できます。");
+    return;
+  }
+  if (!roomId){
+    alert("部屋IDがまだ準備中だよ。少し待ってもう一回！");
+    return;
+  }
+
+  const input = document.getElementById("roomName");
+  const next = (input?.value || "").trim();
+  if (!next){
+    alert("部屋名を入力してね！");
+    return;
+  }
+
+  // 既に同名の別部屋があるかチェック（別 id ならNG）
+  const { data: exists, error: exErr } = await sb
+    .from("rooms")
+    .select("id")
+    .eq("room_name", next)
+    .neq("id", roomId)
+    .limit(1)
+    .maybeSingle();
+
+  if (exErr){
+    log("renameRoom exists check error", exErr);
+    alert("存在チェックに失敗:
+" + exErr.message);
+    return;
+  }
+  if (exists){
+    alert("その部屋名は既に使われています。別の名前にしてね！");
+    return;
+  }
+
+  const { data, error } = await sb
+    .from("rooms")
+    .update({ room_name: next })
+    .eq("id", roomId)
+    .select("id, room_name")
+    .maybeSingle();
+
+  if (error){
+    log("renameRoom update error", error);
+    alert("部屋名変更に失敗:
+" + error.message);
+    return;
+  }
+
+  // 表示更新
+  room = (data?.room_name || next).toString();
+  document.getElementById("roomChip").textContent = room;
+  document.getElementById("subTitle").textContent = "Room: " + room;
+
+  // URL も更新（room_id はそのまま。通話は room_id ベースなので壊れない）
+  const q = new URLSearchParams(location.search);
+  q.set("room", room);
+  q.set("room_id", roomId);
+  q.set("_r", Date.now());
+  history.replaceState({}, document.title, "./room.html?" + q.toString());
+
+  setStatus("部屋名を変更しました！", true);
 }
 
 function renderAdminUsers(){
