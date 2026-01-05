@@ -199,7 +199,14 @@
       background:rgba(255,255,255,.08);
     }
 
-    /* ===== Tabs ===== */
+    
+    .badge.admin{
+      border-color: rgba(110,231,255,.35);
+      background: linear-gradient(135deg, rgba(110,231,255,.22), rgba(167,139,250,.20));
+      color: var(--text);
+      font-weight: 900;
+    }
+/* ===== Tabs ===== */
     .tabs{
       display:flex;
       gap:8px;
@@ -449,9 +456,26 @@ function setStatus(text, ok=true){
 }
 // ===== 運営判定（IDベース・安全）=====
 function isAdmin(user){
-  return user?.app_metadata?.is_admin === true;
+  return user?.app_metadata?.is_admin === true || isAdminUserId(user?.id);
 }
 
+
+// ===== 運営（Admin）判定：名前ではなく user_id で判定する（なりすまし防止）=====
+// ここに「運営にしたいユーザーのUID」を入れてね（Supabase Auth の user.id）
+// 例: const ADMIN_UIDS = ["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"];
+const ADMIN_UIDS = [
+  // "PUT_ADMIN_UID_HERE"
+];
+
+function isAdminUserId(userId){
+  const uid = String(userId || "").trim();
+  if (!uid) return false;
+  return ADMIN_UIDS.includes(uid);
+}
+
+function adminBadgeHtmlByUserId(userId){
+  return isAdminUserId(userId) ? '<span class="badge admin">運営</span>' : '';
+}
 /* =================== タイムアウト付き await =================== */
 function withTimeout(promise, label, ms=8000){
   let t;
@@ -507,7 +531,7 @@ function updateTopRightUser(){
   const avm = getPreferredAvatar();
   pill.innerHTML = `
     ${avatarHtml(avm.url || "", shown, avm.ver || "")}
-    <span>${escapeHtml(shown)}</span>
+    <span>${escapeHtml(shown)}</span>${adminBadgeHtmlByUserId(authUser.id)}
   `;
   if (mail) mail.textContent = em ? `(${em})` : "";
   setTopRightButtons(true);
