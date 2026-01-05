@@ -537,6 +537,7 @@
           </div>
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn btnSmall" onclick="leaveRoom()">🚪 退室</button>
+              <button class="btn btnSmall danger" id="deleteRoomBtn" style="display:none;" onclick="deleteRoomNow()">🗑 部屋を削除</button>
           </div>
 
           <div style="margin-top:12px;" class="statusRow">
@@ -551,6 +552,46 @@
           </div>
         </div>
       </div>
+      <div class="card" id="adminCard" style="display:none;">
+        <div class="cardHeader">
+          <b>🛡️ 枠主ツール（Kick / Ban / 強制ロビー戻し）</b>
+          <span class="chip">Owner</span>
+        </div>
+        <div class="cardBody">
+          <div class="hint">※ この部屋の「今回の部屋(roomsの1行)」だけに効く。部屋を削除→同名で作り直しても前のBanは引き継がれない。</div>
+
+          <div class="divider"></div>
+
+          <div class="field">
+            <label>対象（今の部屋にいる/最近発言したユーザー）</label>
+            <div class="list" id="adminUsersList">
+              <div class="hint">読み込み中…</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="field">
+            <label>対象ユーザーID（手入力もOK）</label>
+            <input id="adminTargetUid" type="text" placeholder="uuid" />
+            <div class="hint">上のリストのユーザーを押すと自動で入る</div>
+          </div>
+
+          <div class="field">
+            <label>理由（相手に表示）</label>
+            <input id="adminReason" type="text" placeholder="例: 迷惑行為のため" />
+          </div>
+
+          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btnSmall btnAccent2" type="button" onclick="kickUser()">👢 Kick</button>
+            <button class="btn btnSmall danger" type="button" onclick="banUser()">⛔ Ban</button>
+            <button class="btn btnSmall danger" type="button" onclick="forceBackAll()">⚠ 全員ロビーへ戻す</button>
+          </div>
+
+          <div class="hint" style="margin-top:10px;">Kick/Ban はその瞬間ルームにいる人をロビーに戻す（理由付き）。Ban は再入室もブロック。</div>
+        </div>
+      </div>
+
 
       <div class="card">
         <div class="cardHeader">
@@ -686,6 +727,9 @@ const IMAGE_PLACEHOLDER = "[image]";
 /* ===== 状態 ===== */
 let authUser = null;
 let room = "";
+let roomId = "";
+let roomOwnerId = "";
+let isOwner = false;
 let name = "";
 let myAvatarUrl = "";
 
@@ -742,6 +786,11 @@ function setUploadHint(t){
 function getRoomFromUrl(){
   const p = new URLSearchParams(location.search);
   return (p.get("room") || "").trim();
+}
+
+function getRoomIdFromUrl(){
+  const p = new URLSearchParams(location.search);
+  return (p.get("room_id") || "").trim();
 }
 
 function myUid(){
@@ -807,6 +856,7 @@ async function doLogout(){
   location.href = "./login.html";
 }
 function leaveRoom(){
+  try{ deleteRoomMember(); }catch(e){}
   goLobby();
 }
 
@@ -862,8 +912,14 @@ async function requireLoginOrRedirect(){
     return false;
   }
 
-  // ★重要：他端末の更新を拾うため、まずトークンを更新してから user を取得
-  try{ await sb.auth.refreshSession(); }catch(e){ log('refreshSession warn', e); }
+  // ★重要：refreshSession は詰まることがあるので、失敗しても続行（ロビーと同じ方針）
+  try{
+    const t = Promise.race([
+      sb.auth.refreshSession(),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('refreshSession timeout')), 8000))
+    ]);
+    await t;
+  }catch(e){ log('refreshSession warn', e); }
 
   // ★追加：サーバーから最新userを取り直す
   const { data: u, error: uErr } = await sb.auth.getUser();
@@ -912,6 +968,10 @@ async function loadMessages(){
     .limit(200);
 
   if (error){ log("loadMessages error", error); return; }
+
+  // 枠主ツール用：最近のユーザー候補を更新
+  (data || []).forEach(mm=>{ if (mm.user_id) upsertRecentUser(mm.user_id, mm.name, mm.avatar_url); });
+  renderAdminUsers();
 
   const box = document.getElementById("chat");
   box.innerHTML = "";
@@ -1209,7 +1269,11 @@ async function loadActiveCallUsers(){
     return;
   }
 
-  const list = (data || []).map(x=>({
+  
+  // 枠主ツール用：通話参加者も候補に追加
+  (data || []).forEach(u=>{ if (u.user_id) upsertRecentUser(u.user_id, u.name, u.avatar_url); });
+  renderAdminUsers();
+const list = (data || []).map(x=>({
     user_id: x.user_id,
     name: (x.name || x.user_id || "").toString(),
     avatar_url: (x.avatar_url || "").toString()
@@ -1773,6 +1837,297 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
   applyMicGain();
 });
 
+
+/* =================== 枠主ツール（Kick / Ban / Room delete） =================== */
+
+let recentUsers = new Map(); // user_id -> { name, avatar_url, last_seen }
+
+function upsertRecentUser(uid, nm, av){
+  if (!uid) return;
+  const prev = recentUsers.get(uid) || {};
+  recentUsers.set(uid, {
+    user_id: uid,
+    name: (nm || prev.name || "").toString(),
+    avatar_url: (av || prev.avatar_url || "").toString(),
+    last_seen: Date.now()
+  });
+}
+
+function isValidUuid(v){
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test((v||"").trim());
+}
+
+function setOwnerUI(){
+  const delBtn = document.getElementById("deleteRoomBtn");
+  const adminCard = document.getElementById("adminCard");
+  if (delBtn) delBtn.style.display = isOwner ? "" : "none";
+  if (adminCard) adminCard.style.display = isOwner ? "" : "none";
+}
+
+function renderAdminUsers(){
+  const box = document.getElementById("adminUsersList");
+  if (!box) return;
+
+  // 自分以外を上に
+  const arr = Array.from(recentUsers.values())
+    .filter(u=>u.user_id && u.user_id !== myUid())
+    .sort((a,b)=>(b.last_seen||0)-(a.last_seen||0))
+    .slice(0, 40);
+
+  box.innerHTML = "";
+
+  if (arr.length === 0){
+    box.innerHTML = "<div class='hint'>まだ候補がないよ（通話参加/発言があると出る）</div>";
+    return;
+  }
+
+  for (const u of arr){
+    const it = document.createElement("div");
+    it.className = "listItem";
+
+    const left = document.createElement("div");
+    left.className = "name";
+    const shown = (u.name || "").trim() || u.user_id;
+    left.innerHTML = `${avatarInline(u.avatar_url || "", shown)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:210px;">${escapeHtml(shown)}</span>`;
+
+    const right = document.createElement("div");
+    right.className = "sub";
+    right.textContent = u.user_id.slice(0, 8) + "…";
+
+    it.appendChild(left);
+    it.appendChild(right);
+
+    it.onclick = ()=>{
+      document.getElementById("adminTargetUid").value = u.user_id;
+    };
+
+    box.appendChild(it);
+  }
+}
+
+function avatarInline(url, alt){
+  if (url){
+    return `<img class="avatar sm" src="${escapeHtml(url)}" alt="${escapeHtml(alt||'')}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex';" />` +
+           `<span class="avatarFallback sm" style="display:none;">${escapeHtml((alt||'?').slice(0,1).toUpperCase())}</span>`;
+  }
+  return `<span class="avatarFallback sm">${escapeHtml((alt||'?').slice(0,1).toUpperCase())}</span>`;
+}
+
+async function resolveRoomRow(){
+  // 優先: room_id パラメータ
+  const ridParam = getRoomIdFromUrl();
+  if (ridParam && isValidUuid(ridParam)){
+    const { data, error } = await sb.from("rooms").select("id, room_name, owner_id, created_at").eq("id", ridParam).maybeSingle();
+    if (!error && data) return data;
+  }
+
+  // fallback: room 名から最新の 1 行
+  const rn = room;
+  const { data, error } = await sb.from("rooms")
+    .select("id, room_name, owner_id, created_at")
+    .eq("room_name", rn)
+    .order("created_at", { ascending:false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
+async function checkBanned(){
+  if (!roomId) return;
+  const { data, error } = await sb.from("room_bans").select("reason, created_at").eq("room_id", roomId).eq("user_id", myUid()).maybeSingle();
+  if (error) {
+    log("checkBanned error", error);
+    return;
+  }
+  if (data){
+    alert("この部屋ではBANされています。\n理由: " + (data.reason || "なし"));
+    goLobby();
+  }
+}
+
+async function startRoomDeleteWatch(){
+  // rooms の delete を検知して強制ロビー戻し
+  sb.channel("rooms-watch")
+    .on("postgres_changes", { event:"DELETE", schema:"public", table:"rooms" }, (payload)=>{
+      const old = payload.old || {};
+      if (old.id && old.id === roomId){
+        alert("部屋が削除されました。ロビーへ戻ります。");
+        goLobby();
+      }
+    })
+    .subscribe();
+}
+
+async function startRoomEventsWatch(){
+  // room_events を監視（kick/ban/forceback/delete）
+  sb.channel("room-events-" + (roomId || ""))
+    .on("postgres_changes", { event:"INSERT", schema:"public", table:"room_events" }, (payload)=>{
+      const ev = payload.new || {};
+      if (ev.room_id !== roomId) return;
+
+      // 自分宛て or 全員
+      if (ev.target_user_id && ev.target_user_id !== myUid()) return;
+
+      const typ = (ev.type || "").toString();
+      const reason = (ev.reason || "").toString();
+
+      if (typ === "kicked"){
+        alert("Kick されました。\n理由: " + (reason || "なし"));
+        goLobby();
+      }else if (typ === "banned"){
+        alert("Ban されました。\n理由: " + (reason || "なし"));
+        goLobby();
+      }else if (typ === "force_back_all"){
+        alert("枠主によりロビーへ戻されました。\n理由: " + (reason || "なし"));
+        goLobby();
+      }else if (typ === "room_deleted"){
+        alert("部屋が削除されました。\n理由: " + (reason || "なし"));
+        goLobby();
+      }
+    })
+    .subscribe();
+}
+
+async function deleteRoomNow(){
+  if (!isOwner) return alert("枠主だけが削除できるよ！");
+  if (!roomId) return alert("roomId が取れてない…");
+  if (!confirm("この部屋を削除しますか？\n通話/メッセージ中でも全員ロビーに戻ります。")) return;
+
+  // 先にイベント（全員向け）を出す
+  try{
+    await sb.from("room_events").insert({
+      room_id: roomId,
+      target_user_id: null,
+      type: "room_deleted",
+      reason: "部屋が削除されました",
+      actor_user_id: myUid()
+    });
+  }catch(e){}
+
+  const { error } = await sb.from("rooms").delete().eq("id", roomId);
+  if (error){
+    alert("削除失敗: " + error.message);
+    log("deleteRoom error", error);
+    return;
+  }
+  alert("部屋を削除しました。");
+  goLobby();
+}
+
+function getAdminTargetUid(){
+  const uid = (document.getElementById("adminTargetUid")?.value || "").trim();
+  if (!isValidUuid(uid)) return "";
+  return uid;
+}
+function getAdminReason(){
+  return (document.getElementById("adminReason")?.value || "").trim().slice(0, 200);
+}
+
+async function kickUser(){
+  if (!isOwner) return alert("枠主だけ！");
+  const target = getAdminTargetUid();
+  if (!target) return alert("対象ユーザーIDが不正だよ！");
+  const reason = getAdminReason();
+
+  // kick 記録（任意：履歴）
+  await sb.from("room_kicks").insert({ room_id: roomId, user_id: target, reason: reason || null });
+
+  // 対象だけロビーへ
+  await sb.from("room_events").insert({
+    room_id: roomId,
+    target_user_id: target,
+    type: "kicked",
+    reason: reason || null,
+    actor_user_id: myUid()
+  });
+
+  alert("Kick しました。");
+}
+
+async function banUser(){
+  if (!isOwner) return alert("枠主だけ！");
+  const target = getAdminTargetUid();
+  if (!target) return alert("対象ユーザーIDが不正だよ！");
+  const reason = getAdminReason();
+
+  const { error } = await sb.from("room_bans").insert({ room_id: roomId, user_id: target, reason: reason || null });
+  if (error && !String(error.message||"").includes("duplicate")){
+    alert("BAN 失敗: " + error.message);
+    log("ban error", error);
+    return;
+  }
+
+  await sb.from("room_events").insert({
+    room_id: roomId,
+    target_user_id: target,
+    type: "banned",
+    reason: reason || null,
+    actor_user_id: myUid()
+  });
+
+  alert("Ban しました。");
+}
+
+async function forceBackAll(){
+  if (!isOwner) return alert("枠主だけ！");
+  const reason = getAdminReason();
+
+  await sb.from("room_events").insert({
+    room_id: roomId,
+    target_user_id: null,
+    type: "force_back_all",
+    reason: reason || "枠主によりロビーへ戻されました",
+    actor_user_id: myUid()
+  });
+
+  alert("全員をロビーに戻しました。");
+}
+
+
+async function upsertRoomMember(){
+  if (!roomId || !myUid()) return;
+  try{
+    await sb.from("room_members").upsert({
+      room_id: roomId,
+      user_id: myUid(),
+      name: name || null,
+      avatar_url: myAvatarUrl || null,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "room_id,user_id" });
+  }catch(e){ log("upsertRoomMember warn", e); }
+}
+
+async function deleteRoomMember(){
+  if (!roomId || !myUid()) return;
+  try{ await sb.from("room_members").delete().eq("room_id", roomId).eq("user_id", myUid()); }catch(e){}
+}
+
+let roomMemberTimer = null;
+
+async function startRoomMemberHeartbeat(){
+  await upsertRoomMember();
+  if (roomMemberTimer) clearInterval(roomMemberTimer);
+  roomMemberTimer = setInterval(()=>{ upsertRoomMember(); if (isOwner) loadRoomMembersForAdmin(); }, 20000);
+  window.addEventListener("beforeunload", ()=>{ deleteRoomMember(); });
+}
+
+async function loadRoomMembersForAdmin(){
+  if (!roomId) return;
+  const cutoff = new Date(Date.now() - 1000*60*2).toISOString(); // 2分以内をオンライン扱い
+  const { data, error } = await sb.from("room_members")
+    .select("user_id, name, avatar_url, updated_at")
+    .eq("room_id", roomId)
+    .gte("updated_at", cutoff)
+    .order("updated_at", { ascending:false });
+
+  if (error){ log("loadRoomMembersForAdmin error", error); return; }
+
+  (data || []).forEach(u=>upsertRecentUser(u.user_id, u.name, u.avatar_url));
+  renderAdminUsers();
+}
+
 /* =================== 起動 =================== */
 (async ()=>{
   if (!(await requireLoginOrRedirect())) return;
@@ -1786,9 +2141,41 @@ document.getElementById("micGain").addEventListener("input", (ev)=>{
     return;
   }
 
+  // rooms の「この回の部屋」を確定（id で管理）
+  let row = null;
+  try{
+    row = await resolveRoomRow();
+  }catch(e){
+    log("resolveRoomRow error", e);
+  }
+
+  if (!row){
+    alert("その部屋が見つからないよ！（すでに削除された可能性）");
+    goLobby();
+    return;
+  }
+
+  roomId = row.id;
+  roomOwnerId = row.owner_id || "";
+  isOwner = (roomOwnerId && roomOwnerId === myUid());
+
+  // 表示は room_name を優先
+  room = (row.room_name || room).toString();
+
   document.getElementById("roomName").value = room;
   document.getElementById("roomChip").textContent = room;
-  document.getElementById("subTitle").textContent = "Room: " + room;
+
+  setOwnerUI();
+
+  // BANチェック（この部屋のこの回だけ）
+  await checkBanned();
+
+  // 監視開始（部屋削除 / kick / ban / forceback）
+  await startRoomDeleteWatch();
+  await startRoomEventsWatch();
+  await startRoomMemberHeartbeat();
+  await loadRoomMembersForAdmin();
+document.getElementById("subTitle").textContent = "Room: " + room;
 
 
   await loadMessages();
