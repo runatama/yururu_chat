@@ -1428,12 +1428,9 @@ async function loadComments(postId){
         ${av}
         <div class="commentBody">
           <div class="commentMeta">
-  <span class="commentName">
-    ${escapeHtml(name)} ${adminBadgeHtmlByUserId(c.user_id)}
-  </span>
-  <span class="commentTime">${timeLabel}</span>
-</div>
-
+            <span class="commentName">${escapeHtml(name)}</span>
+            <span class="commentTime">${timeLabel}</span>
+          </div>
 
           ${bodyHtml}
 
@@ -1692,7 +1689,6 @@ function getPreferredAvatar(){
 
 </body>
 </html>
-
 
 
 
