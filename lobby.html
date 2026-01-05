@@ -557,12 +557,17 @@ async function fetchActiveCallUsersByRoom(){
 
 /* =================== 部屋一覧読み込み =================== */
 async function loadRooms(){
-  if (!authUser) return;
+  // authUser がまだ入ってなくても、ここで確実に取り直す
+  const ok = await refreshAuth();
+  if (!ok || !authUser){
+    setStatus("ログインが切れてるよ。もう一回ログインしてね！", false);
+    return;
+  }
 
   const { data, error } = await withTimeout(
     sb.from("rooms")
       .select("id, room_name, created_at, owner_id")
-      .order("created_at", { ascending:false }),
+      .order("created_at", { ascending:true }),
     "rooms select",
     8000
   );
@@ -573,10 +578,10 @@ async function loadRooms(){
     return;
   }
 
+  const activeMap = await fetchActiveCallUsersByRoom();
+
   const box = document.getElementById("roomsBox");
   box.innerHTML = "";
-
-  const activeMap = await getActiveCallMap();
 
   if (!data || data.length === 0){
     box.innerHTML = "<div style='color:var(--muted);font-size:12px;'>まだ部屋がないよ（部屋作成してね）</div>";
@@ -595,7 +600,7 @@ async function loadRooms(){
     btn.className = "roomBtn";
     btn.textContent = rn;
     btn.onclick = () => document.getElementById("room").value = rn;
-    btn.ondblclick = () => goRoom(r);
+    btn.ondblclick = () => goRoom(rn);
 
     const users = activeMap.get(rn) || [];
     if (users.length > 0){
@@ -613,11 +618,11 @@ async function loadRooms(){
     del.type = "button";
     del.className = "delBtn";
     del.textContent = "🗑";
-    del.title = "部屋を削除（枠主のみ）";
+    del.title = "枠主ならいつでも削除できます（通話/メッセージ中も全員ロビーへ）";
 
     del.onclick = async () => {
       try {
-        log("delete: start", rn, r.id);
+        log("delete: start", rn);
 
         const ok = await refreshAuth();
         if (!ok || !authUser) {
@@ -626,17 +631,58 @@ async function loadRooms(){
           return;
         }
 
-        if (!confirm(`部屋「${rn}」を削除しますか？\n（通話中/書き込み中でも強制終了します）`)) return;
+        // rooms を引いて room_id を確定（room_events に理由つきで流すため）
+        const { data: rr, error: rErr } = await withTimeout(
+          sb.from("rooms").select("id, owner_id").eq("room_name", rn).maybeSingle(),
+          "rooms get for delete",
+          8000
+        );
+        if (rErr){
+          alert("部屋情報取得に失敗: " + rErr.message);
+          log("delete get room error", rErr);
+          return;
+        }
+        if (!rr){
+          alert("その部屋は既に無いみたい！");
+          await loadRooms();
+          return;
+        }
 
-        const { error: delErr } = await withTimeout(
-          sb.from("rooms").delete().eq("id", r.id),
+        // 枠主チェック（RLSでも守られるけど、UIでも先に弾く）
+        if ((rr.owner_id || "") !== authUser.id){
+          alert("枠主だけが削除できるよ！");
+          return;
+        }
+
+        if (!confirm(`部屋「${rn}」を削除しますか？\n通話/メッセージ中でも全員ロビーに戻ります。`)) return;
+
+        // 先に全員向けイベント（理由つき）
+        try{
+          await withTimeout(
+            sb.from("room_events").insert({
+              room_id: rr.id,
+              target_user_id: null,
+              type: "room_deleted",
+              reason: "部屋が削除されました",
+              actor_user_id: authUser.id
+            }),
+            "room_events insert",
+            8000
+          );
+        }catch(e){
+          log("room_events insert warn", String(e?.message || e));
+        }
+
+        // 削除
+        const { error: dErr } = await withTimeout(
+          sb.from("rooms").delete().eq("id", rr.id),
           "rooms delete",
           8000
         );
 
-        if (delErr) {
-          alert("削除失敗: " + delErr.message);
-          log("delete error", delErr);
+        if (dErr) {
+          alert("削除失敗: " + dErr.message);
+          log("delete error", dErr);
           return;
         }
 
@@ -655,7 +701,7 @@ async function loadRooms(){
     box.appendChild(row);
   }
 
-  setStatus("部屋一覧OK", true);
+  setStatus(`部屋一覧OK（${data.length}件）`, true);
 }
 
 /* =================== 部屋作成 / 入室 =================== */
