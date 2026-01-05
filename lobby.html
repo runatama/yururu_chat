@@ -1065,12 +1065,17 @@ async function loadFeed(){
         <textarea id="commentText-${p.id}" placeholder="コメントを書く（200文字まで）" style="min-height:70px;"></textarea>
       </div>
       <div class="row" style="margin-top:8px;">
-        <button class="btnPrimary" type="button" onclick="createComment('${p.id}', null)">コメントする</button>
-        <button class="miniBtn" type="button" onclick="loadComments('${p.id}')">更新</button>
+        <button id="commentSubmit-${p.id}" class="btnPrimary" type="button">コメントする</button>
+        <button id="commentRefresh-${p.id}" class="miniBtn" type="button">更新</button>
       </div>
     `;
 
-    card.appendChild(head);
+    // inline onclick を使わずにイベント登録（CSP/スコープ事故対策）
+    const btnSubmit = commentArea.querySelector(`#commentSubmit-${p.id}`);
+    const btnRefresh = commentArea.querySelector(`#commentRefresh-${p.id}`);
+    if (btnSubmit) btnSubmit.addEventListener("click", ()=>createComment(p.id, null));
+    if (btnRefresh) btnRefresh.addEventListener("click", ()=>loadComments(p.id));
+card.appendChild(head);
     card.appendChild(body);
     card.appendChild(actions);
     card.appendChild(commentArea);
