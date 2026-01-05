@@ -2061,30 +2061,30 @@ async function startRoomEventsWatch(){
 }
 
 async function deleteRoomNow(){
-  if (!isOwner) return alert("枠主だけが削除できるよ！");
-  if (!roomId) return alert("roomId が取れてない…");
-  if (!confirm("この部屋を削除しますか？\n通話/メッセージ中でも全員ロビーに戻ります。")) return;
+  if (!confirm("本当に部屋を削除しますか？")) return;
 
-  // 先にイベント（全員向け）を出す
-  try{
-    const { error } = await sb.from("room_events").insert({
-      room_id: roomId,
-      target_user_id: null,
-      type: "room_deleted",
-      reason: "部屋が削除されました",
-      actor_user_id: myUid()
-    });
-  }catch(e){}
+  // 子テーブルを先に消す
+  await sb.from("messages_v3").delete().eq("room_id", roomId);
+  await sb.from("room_members").delete().eq("room_id", roomId);
+  await sb.from("call_participants").delete().eq("room_id", roomId);
 
-  const { error } = await sb.from("rooms").delete().eq("id", roomId);
+  // 最後に rooms
+  const { error } = await sb
+    .from("rooms")
+    .delete()
+    .eq("id", roomId)
+    .eq("owner_id", myUid());
+
   if (error){
-    alert("削除失敗: " + error.message);
-    log("deleteRoom error", error);
+    alert("部屋削除失敗: " + error.message);
+    console.error(error);
     return;
   }
-  alert("部屋を削除しました。");
-  goLobby();
+
+  alert("部屋を削除しました");
+  location.href = "./lobby.html";
 }
+
 
 function getAdminTargetUid(){
   const uid = (document.getElementById("adminTargetUid")?.value || "").trim();
@@ -2407,6 +2407,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
