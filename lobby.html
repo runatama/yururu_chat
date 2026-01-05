@@ -1287,6 +1287,7 @@ async function loadComments(postId){
       const name = (c.display_name || "名無し").toString();
       const av = avatarHtml(c.avatar_url || "", name, c.avatar_ver || "");
       const canOwner = (c.user_id === authUser.id);
+      const isDeleted = String(c.content||"").trim() === "コメントは削除されました";
 
       const timeLabel = escapeHtml(formatTime(c.created_at));
 
@@ -1302,10 +1303,10 @@ async function loadComments(postId){
             <button class="miniBtn" type="button" onclick="cancelEdit('${postId}')">キャンセル</button>
           </div>
         `
-        : `<div class="commentText">${escapeHtml((c.content||"").toString())}</div>`;
+        : `<div class="commentText" style="color:var(--muted);">${escapeHtml((c.content||"").toString())}</div>`;
 
       // 返信フォーム
-      const isReplying = (st.replyingToId === c.id);
+      const isReplying = (!isDeleted && st.replyingToId === c.id);
       const replyBox = isReplying
         ? `
           <div class="row" style="margin-top:8px;">
@@ -1330,7 +1331,7 @@ async function loadComments(postId){
 
           <div class="commentActions">
             <button class="miniBtn" type="button" onclick="startReply('${postId}','${c.id}')">返信</button>
-            ${canOwner ? `<button class="miniBtn" type="button" onclick="startEdit('${postId}','${c.id}')">編集</button>` : ""}
+            ${(canOwner && !isDeleted) ? `<button class="miniBtn" type="button" onclick="startEdit('${postId}','${c.id}')">編集</button>` : ""}
             ${canOwner ? `<button class="miniBtn" type="button" onclick="deleteComment('${c.id}','${postId}')">削除</button>` : ""}
           </div>
 
@@ -1348,6 +1349,7 @@ async function loadComments(postId){
 
 // parentCommentId を受け取れる
 async function createComment(postId, parentCommentId, btnEl){
+  const isReply = !!parentCommentId;
   const lockKey = `${postId}:${parentCommentId || "root"}`;
 
   try{
@@ -1358,12 +1360,11 @@ async function createComment(postId, parentCommentId, btnEl){
       return;
     }
 
-    // 二重送信防止
+    // 二重送信防止（UI + ロック）
     if (commentSendLock.get(lockKey)) return;
     commentSendLock.set(lockKey, true);
     if (btnEl) btnEl.disabled = true;
 
-    const isReply = !!parentCommentId;
     const ta = isReply
       ? document.getElementById(`replyText-${postId}-${parentCommentId}`)
       : document.getElementById(`commentText-${postId}`);
@@ -1371,6 +1372,39 @@ async function createComment(postId, parentCommentId, btnEl){
     const text = (ta?.value || "").trim();
     if (!text) return alert(isReply ? "返信を入力してね！" : "コメントを入力してね！");
     if (text.length > 200) return alert("コメントが長すぎるよ（200文字まで）");
+
+    // 追加の二重投稿ガード：
+    // 直近数秒以内に「同じ内容・同じ親・同じユーザー」のコメントがあれば、再insertしない
+    try{
+      const cutoffIso = new Date(Date.now() - 10 * 1000).toISOString(); // 10秒
+      const { data: dup, error: dupErr } = await withTimeout(
+        sb.from("post_comments")
+          .select("id, created_at, content, parent_comment_id")
+          .eq("post_id", postId)
+          .eq("user_id", authUser.id)
+          .gte("created_at", cutoffIso)
+          .order("created_at", { ascending:false })
+          .limit(5),
+        "comment dup check",
+        8000
+      );
+
+      if (!dupErr && dup && dup.length){
+        const same = dup.find(r => String(r.content||"").trim() === text && String(r.parent_comment_id||"") === String(parentCommentId||""));
+        if (same){
+          log("createComment: blocked duplicate", same);
+          if (ta) ta.value = "";
+          getPostState(postId).replyingToId = null;
+          await loadComments(postId);
+          await loadFeed();
+          setStatus(isReply ? "返信した！（重複送信を防止したよ）" : "コメントした！（重複送信を防止したよ）", true);
+          return;
+        }
+      }
+    }catch(e){
+      // dup check が落ちてもコメント投稿自体は続行
+      log("dup check warn", String(e?.message || e));
+    }
 
     const dn = (authUser.user_metadata?.display_name || authUser.email || "名無し").toString();
     const avm = getPreferredAvatar();
@@ -1406,8 +1440,8 @@ async function createComment(postId, parentCommentId, btnEl){
 
   }catch(e){
     log("createComment exception", e?.stack || String(e?.message || e));
-    alert("コメント処理で例外:\n" + (e?.stack || e?.message || e));
-
+    alert("コメント処理で例外:
+" + (e?.stack || e?.message || e));
   }finally{
     commentSendLock.delete(lockKey);
     if (btnEl) btnEl.disabled = false;
@@ -1421,32 +1455,40 @@ function createReply(postId, parentCommentId, btnEl){
   return createComment(postId, parentCommentId, btnEl);
 }
 
-// 削除（完全削除）
+// 削除（本人のみ実行可能 / 物理削除しないで「削除されました」にする）
 async function deleteComment(commentId, postId){
   const ok = await refreshAuth();
   if (!ok || !authUser) return;
 
-  if (!confirm("このコメントを削除する？（元に戻せないよ）")) return;
+  if (!confirm("このコメントを削除する？（表示は「削除されました」になるよ）")) return;
 
+  // 物理削除だと「返信がある」場合に外部キー制約で失敗することがあるので、
+  // content を置き換えて“ソフト削除”にする（RLSで本人のみ update できる想定）
   const { error } = await withTimeout(
     sb.from("post_comments")
-      .delete()
+      .update({ content: "コメントは削除されました" })
       .eq("id", commentId)
       .eq("user_id", authUser.id),
-    "comment delete",
+    "comment soft delete",
     8000
   );
 
   if (error){
     log("deleteComment error", error);
-    alert("削除失敗: " + error.message + "\n\n(返信がぶら下がっている場合、DB側で parent_comment_id の外部キーを ON DELETE CASCADE にする必要があるよ)");
+    alert("削除失敗: " + error.message);
     return;
   }
+
+  // 編集/返信UIを閉じる
+  const st = getPostState(postId);
+  if (st.editingId === commentId) st.editingId = null;
+  if (st.replyingToId === commentId) st.replyingToId = null;
 
   await loadComments(postId);
   await loadFeed();
   setStatus("コメントを削除した！", true);
 }
+
 
 
 
@@ -1543,6 +1585,5 @@ function getPreferredAvatar(){
 
 </body>
 </html>
-
 
 
