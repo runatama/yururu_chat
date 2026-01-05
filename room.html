@@ -752,6 +752,9 @@ let callUsersChannel = null;
 /* ===== room_members 監視（部屋にいる人一覧） ===== */
 let roomMembersChannel = null;
 
+/* ===== room_events 監視（kick/ban/forceback） ===== */
+let roomEventsChannel = null;
+
 /* ===== 通話 ===== */
 let callChannel = null;
 let localStream = null;
@@ -2015,7 +2018,7 @@ async function startRoomEventsWatch(){
 
   // --- Realtime（効くなら最速） ---
   try{
-    sb.channel("room-events-" + (roomId || ""))
+    roomEventsChannel = sb.channel("room-events-" + (roomId || ""))
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"room_events" }, (payload)=>{
         const ev = payload.new || {};
         handleRoomEvent(ev);
@@ -2104,30 +2107,28 @@ async function kickUser(){
       user_id: target,
       reason: reason || null
     });
-    if (kerr && !String(kerr.message||"").includes("duplicate")){
+    if (kerr && !String(kerr.message||"").toLowerCase().includes("duplicate")){
       log("kick record error", kerr);
     }
   }
 
-  // 対象だけロビーへ（これが本体）
-  {
-    const { error: eerr } = await sb.from("room_events").insert({
-      room_id: roomId,
-      target_user_id: target,
-      type: "kicked",
-      reason: reason || null,
-      actor_user_id: myUid()
-    });
-    if (eerr){
-      alert("Kick 失敗: " + eerr.message);
-      log("kick event error", eerr);
-      return;
-    }
+  // ★即時反映用イベント（ここが動かないと「読み込みしたら効く」状態になる）
+  const { error: eerr } = await sb.from("room_events").insert({
+    room_id: roomId,
+    target_user_id: target,
+    type: "kicked",
+    reason: reason || null,
+    actor_user_id: myUid()
+  });
+
+  if (eerr){
+    alert("Kick 失敗: " + eerr.message);
+    log("kick event error", eerr);
+    return;
   }
 
   alert("Kick しました。");
 }
-
 
 async function banUser(){
   if (!isOwner) return alert("枠主だけ！");
@@ -2135,13 +2136,20 @@ async function banUser(){
   if (!target) return alert("対象ユーザーIDが不正だよ！");
   const reason = getAdminReason();
 
-  const { error } = await sb.from("room_bans").insert({ room_id: roomId, user_id: target, reason: reason || null });
-  if (error && !String(error.message||"").includes("duplicate")){
-    alert("BAN 失敗: " + error.message);
-    log("ban error", error);
+  const { error: berr } = await sb.from("room_bans").insert({
+    room_id: roomId,
+    user_id: target,
+    reason: reason || null
+  });
+
+  // duplicate はOK（既にBAN済み）
+  if (berr && !String(berr.message||"").toLowerCase().includes("duplicate")){
+    alert("BAN 失敗: " + berr.message);
+    log("ban error", berr);
     return;
   }
 
+  // ★即時反映用イベント
   const { error: eerr } = await sb.from("room_events").insert({
     room_id: roomId,
     target_user_id: target,
@@ -2149,15 +2157,16 @@ async function banUser(){
     reason: reason || null,
     actor_user_id: myUid()
   });
+
   if (eerr){
-    alert("Ban 通知失敗: " + eerr.message);
+    // BANはDB的には入ってる可能性が高いので、再読み込みで効く
+    alert("BAN は登録できたかもだけど、即時通知イベントに失敗: " + eerr.message + "\n（対象が再読み込みするとBANが効きます）");
     log("ban event error", eerr);
-    // BAN自体（room_bansへの登録）はできてるので、ここでは止めない
+    return;
   }
 
   alert("Ban しました。");
 }
-
 
 async function forceBackAll(){
   if (!isOwner) return alert("枠主だけ！");
@@ -2179,8 +2188,6 @@ async function forceBackAll(){
 
   alert("全員をロビーに戻しました。");
 }
-
-
 
 async function upsertRoomMember(){
   if (!roomId || !myUid()) return;
