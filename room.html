@@ -956,7 +956,7 @@ async function startMessagesRealtime(){
 
   messagesChannel = sb
     .channel("messages-ch")
-    .on("postgres_changes", { event:"*", schema:"public", table:"messages_v2" }, async (payload)=>{
+    .on("postgres_changes", { event:"*", schema:"public", table:"messages_v3" }, async (payload)=>{
       const nr = payload.new || {};
       const or = payload.old || {};
       const rid = nr.room_id || or.room_id;
@@ -976,147 +976,136 @@ function fmtTime(iso){
   }
 }
 
-// loadMessages: messages_v3 を roomId で絞る
-const { data, error } = await sb
-  .from("messages_v3")
-  .select("id, room_id, name, avatar_url, message, image_url, image_path, created_at, user_id, deleted, deleted_at, deleted_by")
-  .eq("room_id", roomId)
-  .order("created_at", { ascending:true })
-  .limit(200);
-
-// sendMsg: room_id は roomId(uuid)
-const { error } = await sb.from("messages_v3").insert({
-  room_id: roomId,
-  name,
-  avatar_url: myAvatarUrl,
-  message: v,
-  image_url: null,
-  user_id: myUid()
-});
-
-// sendImageのinsertも room_id: roomId に変更
-
+async function loadMessages(){
+  if (!roomId) return;
+  const { data, error } = await sb
+    .from("messages_v3")
+    .select("id, room_id, name, avatar_url, message, image_url, image_path, created_at, user_id, deleted, deleted_at, deleted_by")
+    .eq("room_id", roomId)
+    .order("created_at", { ascending:true })
+    .limit(200);
 
   if (error){ log("loadMessages error", error); return; }
 
   // 枠主ツール用：最近のユーザー候補を更新
-  (data || []).forEach(mm=>{ if (mm.user_id) upsertRecentUser(mm.user_id, mm.name, mm.avatar_url); });
-  renderAdminUsers();
+    (data || []).forEach(mm=>{ if (mm.user_id) upsertRecentUser(mm.user_id, mm.name, mm.avatar_url); });
+    renderAdminUsers();
 
-  const box = document.getElementById("chat");
-  box.innerHTML = "";
+    const box = document.getElementById("chat");
+    box.innerHTML = "";
 
-  (data || []).forEach(m=>{
-    const wrap = document.createElement("div");
+    (data || []).forEach(m=>{
+      const wrap = document.createElement("div");
 
-    const head = document.createElement("div");
-    head.className = "msgHead";
+      const head = document.createElement("div");
+      head.className = "msgHead";
 
-    const left = document.createElement("div");
-    left.style.display = "flex";
-    left.style.alignItems = "center";
-    left.style.gap = "8px";
-    left.innerHTML = `${avatarHtml(m.avatar_url, (m.name || ""), "sm")} <span class="nameText">${escapeHtml(m.name || "")}</span>`;
+      const left = document.createElement("div");
+      left.style.display = "flex";
+      left.style.alignItems = "center";
+      left.style.gap = "8px";
+      left.innerHTML = `${avatarHtml(m.avatar_url, (m.name || ""), "sm")} <span class="nameText">${escapeHtml(m.name || "")}</span>`;
 
-    // 右側（時刻 + 削除ボタン）
-    const actions = document.createElement("div");
-    actions.className = "msgActions";
+      // 右側（時刻 + 削除ボタン）
+      const actions = document.createElement("div");
+      actions.className = "msgActions";
 
-    const meta = document.createElement("div");
-    meta.className = "msgMeta";
-    meta.textContent = fmtTime(m.created_at);
+      const meta = document.createElement("div");
+      meta.className = "msgMeta";
+      meta.textContent = fmtTime(m.created_at);
 
-    actions.appendChild(meta);
+      actions.appendChild(meta);
 
-    // ✅ 自分が送ったメッセージだけゴミ箱を表示（本人だけ消せる）
-    if (m.user_id && m.user_id === myUid() && !m.deleted){
-      const del = document.createElement("button");
-      del.className = "trashBtn";
-      del.type = "button";
-      del.title = "自分のメッセージを削除";
-      del.textContent = "🗑️";
-      del.onclick = async ()=>{
-        await deleteMessage(m);
-      };
-      actions.appendChild(del);
-    }
-
-    head.appendChild(left);
-    head.appendChild(actions);
-    wrap.appendChild(head);
-
-    const bodyText = (m.message || "").trim();
-    const isImagePlaceholder = (bodyText === IMAGE_PLACEHOLDER);
-    const hasImage = !!m.image_url;
-
-    if (m.deleted){
-      // ✅ 削除済み：本文や画像は表示しない（サーバーには残す）
-      if (!isImagePlaceholder){
-        const delMsg = document.createElement("div");
-        delMsg.className = "msgExpired";
-        delMsg.textContent = "🗑️ メッセージは削除されました";
-        wrap.appendChild(delMsg);
+      // ✅ 自分が送ったメッセージだけゴミ箱を表示（本人だけ消せる）
+      if (m.user_id && m.user_id === myUid() && !m.deleted){
+        const del = document.createElement("button");
+        del.className = "trashBtn";
+        del.type = "button";
+        del.title = "自分のメッセージを削除";
+        del.textContent = "🗑️";
+        del.onclick = async ()=>{
+          await deleteMessage(m);
+        };
+        actions.appendChild(del);
       }
 
-      if (hasImage || isImagePlaceholder){
-        const delImg = document.createElement("div");
-        delImg.className = "msgExpired";
-        delImg.textContent = "🗑️ 画像は削除されました";
-        wrap.appendChild(delImg);
+      head.appendChild(left);
+      head.appendChild(actions);
+      wrap.appendChild(head);
+
+      const bodyText = (m.message || "").trim();
+      const isImagePlaceholder = (bodyText === IMAGE_PLACEHOLDER);
+      const hasImage = !!m.image_url;
+
+      if (m.deleted){
+        // ✅ 削除済み：本文や画像は表示しない（サーバーには残す）
+        if (!isImagePlaceholder){
+          const delMsg = document.createElement("div");
+          delMsg.className = "msgExpired";
+          delMsg.textContent = "🗑️ メッセージは削除されました";
+          wrap.appendChild(delMsg);
+        }
+
+        if (hasImage || isImagePlaceholder){
+          const delImg = document.createElement("div");
+          delImg.className = "msgExpired";
+          delImg.textContent = "🗑️ 画像は削除されました";
+          wrap.appendChild(delImg);
+        }
+      }else{
+        // ✅ 通常表示
+        if (bodyText && !isImagePlaceholder){
+          const body = document.createElement("div");
+          body.className = "msgBody";
+          body.textContent = bodyText;
+          wrap.appendChild(body);
+        }
+
+        // ✅ 画像があるなら表示
+        // ✅ 画像があるなら表示
+  if (hasImage){
+    const img = document.createElement("img");
+    img.className = "msgImg";
+    img.src = m.image_url;
+    img.loading = "lazy";
+    img.alt = "image";
+
+    // ★追加：サーバー側で削除されてたら「削除されました」に置き換える
+    img.onerror = () => {
+      try { img.remove(); } catch {}
+      const delImg = document.createElement("div");
+      delImg.className = "msgExpired";
+      delImg.textContent = "🗑️ 画像はサーバー側から削除されました";
+      wrap.appendChild(delImg);
+    };
+
+    wrap.appendChild(img);
+  }
+
+
+        // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
+        if (isImagePlaceholder && !hasImage){
+          const ex = document.createElement("div");
+          ex.className = "msgExpired";
+          ex.textContent = "🗑️ 画像は期限切れで削除されました";
+          wrap.appendChild(ex);
+        }
       }
-    }else{
-      // ✅ 通常表示
-      if (bodyText && !isImagePlaceholder){
-        const body = document.createElement("div");
-        body.className = "msgBody";
-        body.textContent = bodyText;
-        wrap.appendChild(body);
-      }
 
-      // ✅ 画像があるなら表示
-      // ✅ 画像があるなら表示
-if (hasImage){
-  const img = document.createElement("img");
-  img.className = "msgImg";
-  img.src = m.image_url;
-  img.loading = "lazy";
-  img.alt = "image";
+      box.appendChild(wrap);
+    });
 
-  // ★追加：サーバー側で削除されてたら「削除されました」に置き換える
-  img.onerror = () => {
-    try { img.remove(); } catch {}
-    const delImg = document.createElement("div");
-    delImg.className = "msgExpired";
-    delImg.textContent = "🗑️ 画像はサーバー側から削除されました";
-    wrap.appendChild(delImg);
-  };
+    box.scrollTop = box.scrollHeight;
+  }
 
-  wrap.appendChild(img);
 }
-
-
-      // ✅ 期限切れで画像が消されたケース： [image] なのに image_url が無い
-      if (isImagePlaceholder && !hasImage){
-        const ex = document.createElement("div");
-        ex.className = "msgExpired";
-        ex.textContent = "🗑️ 画像は期限切れで削除されました";
-        wrap.appendChild(ex);
-      }
-    }
-
-    box.appendChild(wrap);
-  });
-
-  box.scrollTop = box.scrollHeight;
-}
-
 async function sendMsg(){
   const v = document.getElementById("msg").value.trim();
   if (!v) return;
   document.getElementById("msg").value = "";
 
-  const { error } = await sb.from("messages_v2").insert({
-    room_id: room,
+  const { error } = await sb.from("messages_v3").insert({
+    room_id: roomId,
     name,
     avatar_url: myAvatarUrl,
     message: v,
@@ -1193,8 +1182,8 @@ async function sendImage(){
     if (!imageUrl) throw new Error("publicUrl が取得できなかった…");
 
     // DBに保存（画像だけ投稿）
-    const { error: insErr } = await sb.from("messages_v2").insert({
-      room_id: room,
+    const { error: insErr } = await sb.from("messages_v3").insert({
+      room_id: roomId,
       name,
       avatar_url: myAvatarUrl,
       message: IMAGE_PLACEHOLDER,
@@ -1258,7 +1247,7 @@ async function deleteMessage(m){
     console.log("[delete] payload=", payload);
 
     const { data, error } = await sb
-      .from("messages_v2")
+      .from("messages_v3")
       .update(payload)
       .eq("id", m.id)
       .eq("user_id", uid)
@@ -1286,7 +1275,7 @@ async function loadActiveCallUsers(){
   const { data, error } = await sb
     .from("call_participants")
     .select("user_id, name, avatar_url, updated_at")
-    .eq("room_id", room)
+    .eq("room_id", roomId)
     .gte("updated_at", cutoff)
     .order("updated_at", { ascending:false });
 
@@ -1645,7 +1634,7 @@ async function onSignal(payload){
 /* ===== call_participants（alive） ===== */
 async function upsertCallParticipant(){
   const { error } = await sb.from("call_participants").upsert({
-    room_id: room,
+    room_id: roomId,
     user_id: myUid(),
     name,
     avatar_url: myAvatarUrl,
@@ -1731,7 +1720,7 @@ async function leaveCall(){
     await sb
       .from("call_participants")
       .delete()
-      .eq("room_id", room)
+      .eq("room_id", roomId)
       .eq("user_id", myUid());
   }catch(e){
     log("call_participants delete error", e);
