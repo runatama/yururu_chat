@@ -2633,10 +2633,46 @@ function safeKey(s){
   t = t.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
   return t || "room";
 }
+  (async () => {
+  log("room init start");
+
+  // ① ログイン確認
+  if (!(await requireLoginOrRedirect())) return;
+
+  // ② URL から room / room_id を取得
+  room = getRoomFromUrl();
+  roomId = getRoomIdFromUrl();
+
+  log("room init params", { room, roomId });
+
+  // ③ 不正チェック
+  if (!room || !roomId){
+    alert("部屋情報が不正です。ロビーに戻ります。");
+    location.replace("./lobby.html?_r=" + Date.now());
+    return;
+  }
+
+  // ④ 表示反映
+  document.getElementById("roomName").value = room;
+  document.getElementById("roomChip").textContent = room;
+
+  await reloadName();
+  updateTop();
+
+  // ⑤ 各種ロード開始
+  await loadMessages();
+  await startMessagesRealtime();
+  await startCallParticipantsRealtime();
+
+  setReady(true, "入室完了");
+  log("room init done");
+})();
+
 
 </script>
 </body>
 </html>
+
 
 
 
