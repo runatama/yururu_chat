@@ -1042,6 +1042,8 @@ async function loadFeed(){
     }
 
     for (const p of posts){
+      // 削除済みの投稿はUIに表示しない
+      if (String(p.content||"").trim() === "つぶやきは削除されました") continue;
       const card = document.createElement("div");
       card.className = "card";
 
@@ -1202,7 +1204,7 @@ async function deletePost(postId){
     return;
   }
 
-  if (!confirm("このつぶやきを削除する？（表示は「削除されました」になるよ）")) return;
+  if (!confirm("このつぶやきを削除する？（UIから消えるよ）")) return;
 
   // 物理削除だと外部キー等で詰みやすいので、content を置換するソフト削除にする
   const { error } = await withTimeout(
