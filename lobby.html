@@ -195,15 +195,6 @@
       background:rgba(255,255,255,.08);
     }
 
-    .delBtn{
-      width:44px;
-      padding:10px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.06);
-    }
-    .delBtn:hover{ background:rgba(255,107,107,.25); }
-
     #status{
       margin-top:10px;
       font-size:12px;
@@ -613,91 +604,7 @@ async function loadRooms(){
       btn.appendChild(line);
       btn.title = "通話中: " + names.join("、");
     }
-
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "delBtn";
-    del.textContent = "🗑";
-    del.title = "枠主ならいつでも削除できます（通話/メッセージ中も全員ロビーへ）";
-
-    del.onclick = async () => {
-      try {
-        log("delete: start", rn);
-
-        const ok = await refreshAuth();
-        if (!ok || !authUser) {
-          alert("ログインが切れてるよ。もう一回ログインしてね！");
-          goLogin();
-          return;
-        }
-
-        // rooms を引いて room_id を確定（room_events に理由つきで流すため）
-        const { data: rr, error: rErr } = await withTimeout(
-          sb.from("rooms").select("id, owner_id").eq("room_name", rn).maybeSingle(),
-          "rooms get for delete",
-          8000
-        );
-        if (rErr){
-          alert("部屋情報取得に失敗: " + rErr.message);
-          log("delete get room error", rErr);
-          return;
-        }
-        if (!rr){
-          alert("その部屋は既に無いみたい！");
-          await loadRooms();
-          return;
-        }
-
-        // 枠主チェック（RLSでも守られるけど、UIでも先に弾く）
-        if ((rr.owner_id || "") !== authUser.id){
-          alert("枠主だけが削除できるよ！");
-          return;
-        }
-
-        if (!confirm(`部屋「${rn}」を削除しますか？\n通話/メッセージ中でも全員ロビーに戻ります。`)) return;
-
-        // 先に全員向けイベント（理由つき）
-        try{
-          await withTimeout(
-            sb.from("room_events").insert({
-              room_id: rr.id,
-              target_user_id: null,
-              type: "room_deleted",
-              reason: "部屋が削除されました",
-              actor_user_id: authUser.id
-            }),
-            "room_events insert",
-            8000
-          );
-        }catch(e){
-          log("room_events insert warn", String(e?.message || e));
-        }
-
-        // 削除
-        const { error: dErr } = await withTimeout(
-          sb.from("rooms").delete().eq("id", rr.id),
-          "rooms delete",
-          8000
-        );
-
-        if (dErr) {
-          alert("削除失敗: " + dErr.message);
-          log("delete error", dErr);
-          return;
-        }
-
-        await loadRooms();
-        log("delete: ok", rn);
-
-      } catch (e) {
-        console.error(e);
-        log("delete: exception", String(e?.message || e));
-        alert("削除で例外:\n" + (e?.stack || e?.message || e));
-      }
-    };
-
     row.appendChild(btn);
-    row.appendChild(del);
     box.appendChild(row);
   }
 
