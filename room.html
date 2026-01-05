@@ -534,11 +534,13 @@
           <div class="field">
             <label>部屋名</label>
             <input id="roomName" type="text" readonly />
-            <div class="row" id="roomRenameRow" style="margin-top:8px; display:none;">
-              <button class="btn" type="button" onclick="renameRoom()">✏️ 部屋名を変更</button>
-              <span class="hint" style="font-size:12px;">※枠主だけ変更できます</span>
+          
+            <div class="row" id="roomNameEditRow" style="display:none; gap:10px; flex-wrap:wrap;">
+              <button class="btn btnSmall btnAccent2" type="button" id="saveRoomNameBtn" onclick="saveRoomName()">💾 部屋名を変更</button>
+              <button class="btn btnSmall" type="button" id="resetRoomNameBtn" onclick="resetRoomNameInput()">↩ 元に戻す</button>
             </div>
-          </div>
+            <div class="hint" id="roomNameHint">※ 部屋名は枠主（オーナー）だけ変更できます</div>
+</div>
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn btnSmall" onclick="leaveRoom()">🚪 退室</button>
               <button class="btn btnSmall danger" id="deleteRoomBtn" style="display:none;" onclick="deleteRoomNow()">🗑 部屋を削除</button>
@@ -758,6 +760,10 @@ let roomMembersChannel = null;
 
 /* ===== room_events 監視（kick/ban/forceback） ===== */
 let roomEventsChannel = null;
+
+/* ===== rooms 監視（部屋名など） ===== */
+let roomInfoChannel = null;
+let roomNameSaveLock = false; // 二重送信防止
 
 /* ===== 通話 ===== */
 // （通話の状態変数は下の「通話（安定版・完全版）」セクションで宣言しています）
@@ -1382,7 +1388,7 @@ async function startCallChannels(){
   if (callPresenceChannel && callSignalChannel) return;
 
   // presence 専用
-  callPresenceChannel = sb.channel(`call-presence-${roomId}`, {
+  callPresenceChannel = sb.channel(`call-presence-${room}`, {
     config: { presence: { key: myUid() } }
   });
 
@@ -1392,7 +1398,7 @@ async function startCallChannels(){
     .on("presence", { event: "leave" }, ({ key, leftPresences })=> onPresenceLeave(key, leftPresences));
 
   // signal 専用（broadcast）
-  callSignalChannel = sb.channel(`call-signal-${roomId}`, {
+  callSignalChannel = sb.channel(`call-signal-${room}`, {
     config: { broadcast: { self: false } }
   });
 
@@ -1959,82 +1965,139 @@ function isValidUuid(v){
 function setOwnerUI(){
   const delBtn = document.getElementById("deleteRoomBtn");
   const adminCard = document.getElementById("adminCard");
-  const rnInput = document.getElementById("roomName");
-  const rnRow = document.getElementById("roomRenameRow");
-
   if (delBtn) delBtn.style.display = isOwner ? "" : "none";
   if (adminCard) adminCard.style.display = isOwner ? "" : "none";
 
-  // ✅ 枠主だけ部屋名変更を許可
-  if (rnInput) rnInput.readOnly = !isOwner;
-  if (rnRow) rnRow.style.display = isOwner ? "" : "none";
+  // ★部屋名編集（枠主のみ）
+  const rn = document.getElementById("roomName");
+  const row = document.getElementById("roomNameEditRow");
+  const hint = document.getElementById("roomNameHint");
+
+  if (rn){
+    rn.readOnly = !isOwner;
+    rn.style.opacity = isOwner ? "1" : "0.85";
+  }
+  if (row) row.style.display = isOwner ? "flex" : "none";
+  if (hint) hint.style.display = isOwner ? "none" : "";
 }
 
-async function renameRoom(){
-  if (!isOwner){
-    alert("枠主（作成者）だけ部屋名を変更できます。");
-    return;
+
+async function saveRoomName(){
+  try{
+    if (!isOwner){
+      alert("枠主（オーナー）だけが部屋名を変更できるよ！");
+      return;
+    }
+    if (!roomId){
+      alert("roomId が無いので変更できないよ");
+      return;
+    }
+    if (roomNameSaveLock) return;
+    roomNameSaveLock = true;
+
+    const el = document.getElementById("roomName");
+    if (!el) return;
+
+    const newName = (el.value || "").trim();
+    if (!newName){
+      alert("部屋名を入力してね！");
+      el.value = room || "";
+      return;
+    }
+    if (newName.length > 60){
+      alert("部屋名が長すぎるよ（60文字まで）");
+      el.value = room || "";
+      return;
+    }
+
+    // ★ owner_id も条件に入れて、クライアント側でも「枠主以外」は更新できないようにする
+    const { error } = await sb
+      .from("rooms")
+      .update({ room_name: newName, updated_at: new Date().toISOString() })
+      .eq("id", roomId)
+      .eq("owner_id", myUid());
+
+    if (error){
+      log("saveRoomName error", error);
+      alert("部屋名の変更に失敗したよ: " + (error.message || ""));
+      el.value = room || "";
+      return;
+    }
+
+    // UI 即時反映（他の人は rooms realtime で反映）
+    applyRoomInfoRow({ id: roomId, room_name: newName, owner_id: roomOwnerId });
+    alert("部屋名を変更したよ！");
+  }catch(e){
+    log("saveRoomName exception", e);
+    alert("部屋名の変更でエラー: " + (e?.message || e));
+  }finally{
+    roomNameSaveLock = false;
   }
-  if (!roomId){
-    alert("部屋IDがまだ準備中だよ。少し待ってもう一回！");
-    return;
-  }
-
-  const input = document.getElementById("roomName");
-  const next = (input?.value || "").trim();
-  if (!next){
-    alert("部屋名を入力してね！");
-    return;
-  }
-
-  // 既に同名の別部屋があるかチェック（別 id ならNG）
-  const { data: exists, error: exErr } = await sb
-    .from("rooms")
-    .select("id")
-    .eq("room_name", next)
-    .neq("id", roomId)
-    .limit(1)
-    .maybeSingle();
-
-  if (exErr){
-    log("renameRoom exists check error", exErr);
-    alert("存在チェックに失敗:
-" + exErr.message);
-    return;
-  }
-  if (exists){
-    alert("その部屋名は既に使われています。別の名前にしてね！");
-    return;
-  }
-
-  const { data, error } = await sb
-    .from("rooms")
-    .update({ room_name: next })
-    .eq("id", roomId)
-    .select("id, room_name")
-    .maybeSingle();
-
-  if (error){
-    log("renameRoom update error", error);
-    alert("部屋名変更に失敗:
-" + error.message);
-    return;
-  }
-
-  // 表示更新
-  room = (data?.room_name || next).toString();
-  document.getElementById("roomChip").textContent = room;
-  document.getElementById("subTitle").textContent = "Room: " + room;
-
-  // URL も更新（room_id はそのまま。通話は room_id ベースなので壊れない）
-  const q = new URLSearchParams(location.search);
-  q.set("room", room);
-  q.set("room_id", roomId);
-  q.set("_r", Date.now());
-  history.replaceState({}, document.title, "./room.html?" + q.toString());
-
-  setStatus("部屋名を変更しました！", true);
 }
+
+function resetRoomNameInput(){
+  const el = document.getElementById("roomName");
+  if (el) el.value = room || "";
+}
+
+// Enter で保存（枠主のみ）
+document.addEventListener("keydown", (ev)=>{
+  try{
+    if (!isOwner) return;
+    const el = document.getElementById("roomName");
+    if (!el) return;
+    if (document.activeElement !== el) return;
+    if (ev.key === "Enter"){
+      ev.preventDefault();
+      saveRoomName();
+    }
+  }catch{}
+});
+
+function applyRoomInfoRow(row){
+  if (!row) return;
+
+  // owner_id が変わる可能性もあるので保持してUI更新
+  if (row.owner_id !== undefined && row.owner_id !== null){
+    roomOwnerId = String(row.owner_id || "");
+    isOwner = (roomOwnerId && roomOwnerId === myUid());
+  }
+
+  const newRoomName = (row.room_name || room || "").toString();
+  if (newRoomName){
+    room = newRoomName;
+    const rn = document.getElementById("roomName");
+    const chip = document.getElementById("roomChip");
+    const sub = document.getElementById("subTitle");
+    if (rn) rn.value = room;
+    if (chip) chip.textContent = room;
+    if (sub) sub.textContent = "Room: " + room;
+    document.title = "ゆるるチャット - Room (" + room + ")";
+  }
+  setOwnerUI();
+}
+
+/* ===== rooms realtime（部屋名などを全員にリアルタイム反映） ===== */
+async function startRoomInfoRealtime(){
+  if (roomInfoChannel) return;
+  roomInfoChannel = sb
+    .channel("room-info-" + (roomId || ""))
+    .on("postgres_changes", { event:"*", schema:"public", table:"rooms" }, (payload)=>{
+      const nr = payload.new || {};
+      const or = payload.old || {};
+      const id = nr.id || or.id;
+      if (!id || id !== roomId) return;
+
+      if (payload.eventType === "DELETE"){
+        alert("この部屋は削除されたよ。ロビーに戻るね！");
+        goLobby();
+        return;
+      }
+      applyRoomInfoRow(nr);
+    })
+    .subscribe();
+}
+
 
 function renderAdminUsers(){
   const box = document.getElementById("adminUsersList");
@@ -2522,6 +2585,7 @@ async function startRoomMembersRealtime(){
   await checkBanned();
 
   // 監視開始（部屋削除 / kick / ban / forceback）
+  await startRoomInfoRealtime();
   await startRoomDeleteWatch();
   await startRoomEventsWatch();
   await startRoomMemberHeartbeat();
