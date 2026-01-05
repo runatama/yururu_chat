@@ -2413,14 +2413,18 @@ async function kickUser(){
 async function banUser(){
   const targetUid = document.getElementById("adminTargetUid").value.trim();
   if (!targetUid) return;
+
   // 🚫 運営はBan不可
   if (isAdminUserId(targetUid)){
     alert("運営ユーザーは Ban できません");
     return;
-  }async function banUser(){
+  }
+
   if (!isOwner) return alert("枠主だけ！");
+
   const target = getAdminTargetUid();
   if (!target) return alert("対象ユーザーIDが不正だよ！");
+
   const reason = getAdminReason();
 
   const { error: berr } = await sb.from("room_bans").insert({
@@ -2429,14 +2433,13 @@ async function banUser(){
     reason: reason || null
   });
 
-  // duplicate はOK（既にBAN済み）
-  if (berr && !String(berr.message||"").toLowerCase().includes("duplicate")){
-    alert("BAN 失敗: " + berr.message);
+  if (berr){
+    alert("Ban 失敗: " + berr.message);
     log("ban error", berr);
     return;
   }
 
-  // ★即時反映用イベント
+  // ★即時反映用イベント（任意：kickと同じく入れておくと「即反映」しやすい）
   const { error: eerr } = await sb.from("room_events").insert({
     room_id: roomId,
     target_user_id: target,
@@ -2446,14 +2449,13 @@ async function banUser(){
   });
 
   if (eerr){
-    // BANはDB的には入ってる可能性が高いので、再読み込みで効く
-    alert("BAN は登録できたかもだけど、即時通知イベントに失敗: " + eerr.message + "\n（対象が再読み込みするとBANが効きます）");
+    // ban自体は成功してる可能性があるので、ここは warn 扱いでもOK
     log("ban event error", eerr);
-    return;
   }
 
   alert("Ban しました。");
 }
+
 
 async function forceBackAll(){
   if (!isOwner) return alert("枠主だけ！");
@@ -2747,6 +2749,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
