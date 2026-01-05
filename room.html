@@ -326,7 +326,14 @@
       background: rgba(255,255,255,.05);
       color:var(--muted);
     }
-    .badge.good{ border-color: rgba(53,208,167,.30); color: rgba(165,255,230,.95); background: rgba(53,208,167,.10); }
+    
+    .badge.admin{
+      border-color: rgba(110,231,255,.35);
+      background: linear-gradient(135deg, rgba(110,231,255,.22), rgba(167,139,250,.20));
+      color: var(--text);
+      font-weight: 900;
+    }
+.badge.good{ border-color: rgba(53,208,167,.30); color: rgba(165,255,230,.95); background: rgba(53,208,167,.10); }
     .badge.warn{ border-color: rgba(255,184,77,.35); color: rgba(255,220,170,.95); background: rgba(255,184,77,.10); }
     .badge.bad{ border-color: rgba(255,107,107,.35); color: rgba(255,190,190,.95); background: rgba(255,107,107,.10); }
 
@@ -735,9 +742,26 @@ const sb = supabase.createClient(
 );
 // ===== 運営判定（IDベース・安全）=====
 function isAdmin(user){
-  return user?.app_metadata?.is_admin === true;
+  return user?.app_metadata?.is_admin === true || isAdminUserId(user?.id);
 }
 
+
+// ===== 運営（Admin）判定：名前ではなく user_id で判定する（なりすまし防止）=====
+// ここに「運営にしたいユーザーのUID」を入れてね（Supabase Auth の user.id）
+// 例: const ADMIN_UIDS = ["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"];
+const ADMIN_UIDS = [
+  // "PUT_ADMIN_UID_HERE"
+];
+
+function isAdminUserId(userId){
+  const uid = String(userId || "").trim();
+  if (!uid) return false;
+  return ADMIN_UIDS.includes(uid);
+}
+
+function adminBadgeHtmlByUserId(userId){
+  return isAdminUserId(userId) ? '<span class="badge admin">運営</span>' : '';
+}
 /* 画像用（Public bucket名） */
 const IMAGE_BUCKET = "chat-images";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -891,7 +915,7 @@ function updateTop(){
   const shown = dn ? dn : (em ? em : "未ログイン");
 
   const avm = getPreferredAvatarMeta();
-  pill.innerHTML = `${avatarHtml(avm.url, shown, "", avm.ver)} <span class="nameText">👤 ${escapeHtml(shown)}</span>`;
+  pill.innerHTML = `${avatarHtml(avm.url, shown, "", avm.ver)} <span class="nameText">👤 ${escapeHtml(shown)}</span>${adminBadgeHtmlByUserId(authUser.id)}`;
 }
 
 async function reloadName(){
@@ -1304,7 +1328,7 @@ const list = (data || []).map(x=>({
     const row = document.createElement("div");
     row.className = "listItem";
     row.innerHTML = `
-      <div class="name">🎧 ${avatarHtml(p.avatar_url, p.name, "sm")} <span class="nameText">${escapeHtml(p.name)}</span></div>
+      <div class="name">🎧 ${avatarHtml(p.avatar_url, p.name, "sm")} <span class="nameText">${escapeHtml(p.name)}</span>${adminBadgeHtmlByUserId(p.user_id)}</div>
       <div class="sub"><span class="badge good">通話中</span></div>
     `;
     box.appendChild(row);
