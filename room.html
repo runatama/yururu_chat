@@ -1329,7 +1329,7 @@ const list = (data || []).map(x=>({
     const row = document.createElement("div");
     row.className = "listItem";
     row.innerHTML = `
-      <div class="name">🎧 ${avatarHtml(p.avatar_url, p.name, "sm")} <span class="nameText">${escapeHtml(p.name)}</span>${adminBadgeHtmlByUserId(p.user_id)}${adminBadgeHtmlByUserId(p.user_id)}</div>
+      <div class="name">🎧 ${avatarHtml(p.avatar_url, p.name, "sm")} <span class="nameText">${escapeHtml(p.name)}</span>${adminBadgeHtmlByUserId(p.user_id)}</div>
       <div class="sub"><span class="badge good">通話中</span></div>
     `;
     box.appendChild(row);
