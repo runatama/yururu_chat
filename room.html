@@ -2538,93 +2538,139 @@ async function startRoomMembersRealtime(){
 
 
 /* =================== 起動 =================== */
+/* =================== 起動 =================== */
 (async ()=>{
-  if (!(await requireLoginOrRedirect())) return;
-  await reloadName();
-  updateTop();
-
-  room = getRoomFromUrl();
-  if (!room){
-    alert("部屋が指定されてないよ！");
-    goLobby();
-    return;
-  }
-
-  // rooms の「この回の部屋」を確定（id で管理）
-  let row = null;
   try{
-    row = await resolveRoomRow();
-  }catch(e){
-    log("resolveRoomRow error", e);
-  }
+    if (!(await requireLoginOrRedirect())) return;
 
-  if (!row){
-    alert("その部屋が見つからないよ！（すでに削除された可能性）");
-    goLobby();
-    return;
-  }
-
-  roomId = row.id;
-  roomOwnerId = row.owner_id || "";
-  isOwner = (roomOwnerId && roomOwnerId === myUid());
-
-  // ✅ 追加：部屋が切り替わったら枠主ツール候補を初期化（前の枠の人を残さない）
-  recentUsers = new Map();
-  renderAdminUsers();
-
-
-  // 表示は room_name を優先
-  room = (row.room_name || room).toString();
-
-  document.getElementById("roomName").value = room;
-  document.getElementById("roomChip").textContent = room;
-
-  setOwnerUI();
-
-  // BANチェック（この部屋のこの回だけ）
-  await checkBanned();
-
-  // 監視開始（部屋削除 / kick / ban / forceback）
-  await startRoomInfoRealtime();
-  await startRoomDeleteWatch();
-  await startRoomEventsWatch();
-  await startRoomMemberHeartbeat();
-  await startRoomMembersRealtime();
-  await loadRoomMembersForUI();
-  if (isOwner) await loadRoomMembersForAdmin();
-document.getElementById("subTitle").textContent = "Room: " + room;
-
-
-  await loadMessages();
-  await startMessagesRealtime();
-
-  await loadActiveCallUsers();
-  await startCallParticipantsRealtime();
-
-  setReady(true, "待機中");
-
-  sb.auth.onAuthStateChange(async (event, session)=> {
-  const sessionUser = session?.user || null;
-  if (!sessionUser){
-    authUser = null;
+    await reloadName();
     updateTop();
-    location.href = "./login.html";
-    return;
+
+    // URL params
+    const urlRoom = getRoomFromUrl();
+    const urlRoomId = getRoomIdFromUrl(); // ★追加：room_id も読む
+
+    // room も room_id も無いならアウト
+    if (!urlRoom && !urlRoomId){
+      alert("部屋が指定されてないよ！");
+      goLobby();
+      return;
+    }
+
+    // ★roomの初期値
+    room = urlRoom || "";
+    roomId = ""; // ここで一旦空にして、resolveRoomRowで確定する
+
+    // rooms の「この回の部屋」を確定（id優先）
+    let row = null;
+    try{
+      row = await resolveRoomRow(urlRoom, urlRoomId); // ★変更
+    }catch(e){
+      log("resolveRoomRow error", e);
+    }
+
+    if (!row){
+      alert("その部屋が見つからないよ！（すでに削除された可能性）");
+      goLobby();
+      return;
+    }
+
+    roomId = row.id;
+    roomOwnerId = row.owner_id || "";
+    isOwner = (roomOwnerId && roomOwnerId === myUid());
+
+    // ✅ 部屋が切り替わったら枠主ツール候補を初期化（前の枠の人を残さない）
+    // ※ recentUsers が const ならここでエラーになるので、宣言は必ず `let recentUsers = new Map();` にしてね
+    recentUsers = new Map();
+    renderAdminUsers();
+
+    // 表示は room_name を優先
+    room = (row.room_name || room).toString();
+
+    document.getElementById("roomName").value = room;
+    document.getElementById("roomChip").textContent = room;
+    document.getElementById("subTitle").textContent = "Room: " + room;
+
+    setOwnerUI();
+
+    // BANチェック（この部屋のこの回だけ）
+    await checkBanned();
+
+    // 監視開始（部屋削除 / kick / ban / forceback）
+    await startRoomInfoRealtime();
+    await startRoomDeleteWatch();
+    await startRoomEventsWatch();
+    await startRoomMemberHeartbeat();
+    await startRoomMembersRealtime();
+    await loadRoomMembersForUI();
+    if (isOwner) await loadRoomMembersForAdmin();
+
+    await loadMessages();
+    await startMessagesRealtime();
+
+    await loadActiveCallUsers();
+    await startCallParticipantsRealtime();
+
+    setReady(true, "待機中");
+
+    // 認証状態が変わったら表示更新（セッション切れ対応）
+    sb.auth.onAuthStateChange(async (event, session)=> {
+      const sessionUser = session?.user || null;
+      if (!sessionUser){
+        authUser = null;
+        updateTop();
+        location.href = "./login.html";
+        return;
+      }
+
+      const { data: u, error: uErr } = await sb.auth.getUser();
+      if (uErr) log("getUser error", uErr);
+
+      authUser = u?.user || sessionUser;
+
+      await reloadName();
+      updateTop();
+    });
+
+    log("ready room=", room, "roomId=", roomId);
+  }catch(e){
+    log("init fatal error", e);
+    alert("初期化に失敗: " + (e?.message || e));
+    goLobby();
+  }
+})();
+
+/* =================== rooms の行を確定（id優先） =================== */
+async function resolveRoomRow(urlRoom, urlRoomId){
+  // ★1) URLに room_id があるなら最優先でそれを取りに行く
+  if (urlRoomId){
+    const { data: byId, error: e1 } = await sb
+      .from("rooms")
+      .select("id, room_name, created_at, owner_id")
+      .eq("id", urlRoomId)
+      .maybeSingle();
+
+    if (!e1 && byId) return byId;
+
+    // room_id が壊れてる/消された場合はフォールバックする
+    log("resolveRoomRow: room_id not found -> fallback", { urlRoomId, e1 });
   }
 
-  // ★最新 user を取り直す
-  const { data: u, error: uErr } = await sb.auth.getUser();
-  if (uErr) log("getUser error", uErr);
+  // ★2) room_name で最新の部屋（同名が複数あっても最新を取る）
+  const rn = (urlRoom || "").trim();
+  if (!rn) return null;
 
-  authUser = u?.user || sessionUser;
+  const { data: byName, error: e2 } = await sb
+    .from("rooms")
+    .select("id, room_name, created_at, owner_id")
+    .eq("room_name", rn)
+    .order("created_at", { ascending:false })
+    .limit(1)
+    .maybeSingle();
 
-  await reloadName();  // reloadName が authUser.user_metadata を使う想定
-  updateTop();
-});
-
-
-  log("ready room=", room);
-})();
+  if (e2) throw e2;
+  return byName || null;
+}
 
 function safeKey(s){
   // Storageのキーに使える文字だけにする（英数字 _ -）
@@ -2633,45 +2679,13 @@ function safeKey(s){
   t = t.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
   return t || "room";
 }
-  (async () => {
-  log("room init start");
 
-  // ① ログイン確認
-  if (!(await requireLoginOrRedirect())) return;
-
-  // ② URL から room / room_id を取得
-  room = getRoomFromUrl();
-  roomId = getRoomIdFromUrl();
-
-  log("room init params", { room, roomId });
-
-  // ③ 不正チェック
-  if (!room || !roomId){
-    alert("部屋情報が不正です。ロビーに戻ります。");
-    location.replace("./lobby.html?_r=" + Date.now());
-    return;
-  }
-
-  // ④ 表示反映
-  document.getElementById("roomName").value = room;
-  document.getElementById("roomChip").textContent = room;
-
-  await reloadName();
-  updateTop();
-
-  // ⑤ 各種ロード開始
-  await loadMessages();
-  await startMessagesRealtime();
-  await startCallParticipantsRealtime();
-
-  setReady(true, "入室完了");
-  log("room init done");
-})();
 
 
 </script>
 </body>
 </html>
+
 
 
 
