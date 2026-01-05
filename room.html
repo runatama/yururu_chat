@@ -754,7 +754,6 @@ const ADMIN_UIDS = [
   "5f96d1c0-088e-4125-8670-e0fef1b563a6",
 ];
 
-
 function isAdminUserId(userId){
   const uid = String(userId || "").trim();
   if (!uid) return false;
@@ -1019,7 +1018,7 @@ async function loadMessages(){
       left.style.display = "flex";
       left.style.alignItems = "center";
       left.style.gap = "8px";
-      left.innerHTML = `${avatarHtml(m.avatar_url, (m.name || ""), "sm")} <span class="nameText">${escapeHtml(m.name || "")}</span>`;
+      left.innerHTML = `${avatarHtml(m.avatar_url, (m.name || ""), "sm")} <span class="nameText">${escapeHtml(m.name || "")}</span>${adminBadgeHtmlByUserId(m.user_id)}`;
 
       // 右側（時刻 + 削除ボタン）
       const actions = document.createElement("div");
@@ -1330,7 +1329,7 @@ const list = (data || []).map(x=>({
     const row = document.createElement("div");
     row.className = "listItem";
     row.innerHTML = `
-      <div class="name">🎧 ${avatarHtml(p.avatar_url, p.name, "sm")} <span class="nameText">${escapeHtml(p.name)}</span>${adminBadgeHtmlByUserId(p.user_id)}</div>
+      <div class="name">🎧 ${avatarHtml(p.avatar_url, p.name, "sm")} <span class="nameText">${escapeHtml(p.name)}</span>${adminBadgeHtmlByUserId(p.user_id)}${adminBadgeHtmlByUserId(p.user_id)}</div>
       <div class="sub"><span class="badge good">通話中</span></div>
     `;
     box.appendChild(row);
@@ -2734,7 +2733,6 @@ function safeKey(s){
 </script>
 </body>
 </html>
-
 
 
 
