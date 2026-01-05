@@ -321,6 +321,11 @@
 
     .row > button{ white-space:nowrap; }
     .hide{ display:none !important; }
+
+    .replyIndent{ margin-left: 34px; padding-left: 10px; border-left: 2px solid rgba(255,255,255,.10); }
+.commentActions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+.commentActions .miniBtn{ padding:6px 10px; font-size:11px; }
+
   </style>
 </head>
 
@@ -1046,83 +1051,86 @@ async function loadFeed(){
     commentArea.id = "commentArea-" + p.id;
 
     commentArea.innerHTML = `
-      <div id="commentList-${p.id}" style="margin-bottom:10px;"></div>
-      <div class="row">
-        <textarea id="commentText-${p.id}" placeholder="コメントを書く（200文字まで）" style="min-height:70px;"></textarea>
-      </div>
-      <div class="row" style="margin-top:8px;">
-        <button class="btnPrimary" type="button" onclick="createComment('${p.id}')">コメントする</button>
-        <button type="button" onclick="loadComments('${p.id}')">更新</button>
-      </div>
-    `;
+  <div id="commentList-${p.id}" style="margin-bottom:10px;"></div>
 
-    card.appendChild(head);
-    card.appendChild(body);
-    card.appendChild(actions);
-    card.appendChild(commentArea);
+ /* =================== コメント（返信/編集/削除） =================== */
 
-    box.appendChild(card);
+// 編集・返信のUI状態（postId単位で保持）
+const commentUiState = new Map(); 
+// state例: { editingId: "uuid" | null, replyingToId: "uuid" | null }
+
+function getPostState(postId){
+  if (!commentUiState.has(postId)){
+    commentUiState.set(postId, { editingId: null, replyingToId: null });
   }
-
-  setStatus(`つぶやきOK（${posts.length}件）`, true);
+  return commentUiState.get(postId);
 }
 
-async function toggleLike(postId){
-  const ok = await refreshAuth();
-  if (!ok || !authUser){
-    alert("ログインが切れてるよ。もう一回ログインしてね！");
-    goLogin();
-    return;
-  }
-
-  // すでにいいね済み？
-  const { data: exist, error: e1 } = await withTimeout(
-    sb.from("post_likes").select("post_id").eq("post_id", postId).eq("user_id", authUser.id).maybeSingle(),
-    "like exists",
-    8000
-  );
-  if (e1){
-    log("like exists error", e1);
-    alert("いいね確認失敗: " + e1.message);
-    return;
-  }
-
-  if (exist){
-    const { error: delErr } = await withTimeout(
-      sb.from("post_likes").delete().eq("post_id", postId).eq("user_id", authUser.id),
-      "like delete",
-      8000
-    );
-    if (delErr){
-      log("like delete error", delErr);
-      alert("いいね解除失敗: " + delErr.message);
-      return;
-    }
-  }else{
-    const { error: insErr } = await withTimeout(
-      sb.from("post_likes").insert({ post_id: postId, user_id: authUser.id }),
-      "like insert",
-      8000
-    );
-    if (insErr){
-      log("like insert error", insErr);
-      alert("いいね失敗: " + insErr.message);
-      return;
-    }
-  }
-
-  await loadFeed();
+function startReply(postId, commentId){
+  const st = getPostState(postId);
+  st.replyingToId = commentId;
+  st.editingId = null;
+  loadComments(postId).catch(()=>{});
 }
 
-function toggleComments(postId){
-  const area = document.getElementById("commentArea-" + postId);
-  if (!area) return;
-  const willOpen = !area.classList.contains("open");
-  if (willOpen){
-    area.classList.add("open");
-    loadComments(postId).catch(()=>{});
-  }else{
-    area.classList.remove("open");
+function cancelReply(postId){
+  const st = getPostState(postId);
+  st.replyingToId = null;
+  loadComments(postId).catch(()=>{});
+}
+
+function startEdit(postId, commentId){
+  const st = getPostState(postId);
+  st.editingId = commentId;
+  st.replyingToId = null;
+  loadComments(postId).catch(()=>{});
+}
+
+function cancelEdit(postId){
+  const st = getPostState(postId);
+  st.editingId = null;
+  loadComments(postId).catch(()=>{});
+}
+
+async function updateComment(postId, commentId){
+  try{
+    const ok = await refreshAuth();
+    if (!ok || !authUser){
+      alert("ログインが切れてるよ。もう一回ログインしてね！");
+      goLogin();
+      return;
+    }
+
+    const ta = document.getElementById(`editText-${postId}-${commentId}`);
+    const text = (ta?.value || "").trim();
+    if (!text) return alert("内容が空だよ！");
+    if (text.length > 200) return alert("コメントが長すぎるよ（200文字まで）");
+
+    const { error } = await withTimeout(
+      sb.from("post_comments")
+        .update({ content: text })
+        .eq("id", commentId)
+        .eq("user_id", authUser.id),
+      "comment update",
+      8000
+    );
+
+    if (error){
+      log("updateComment error", error);
+      alert("編集失敗: " + error.message);
+      return;
+    }
+
+    const st = getPostState(postId);
+    st.editingId = null;
+
+    await loadComments(postId);
+    await loadFeed(); // コメント数更新
+    setStatus("コメントを編集した！", true);
+
+  }catch(e){
+    log("updateComment exception", e?.stack || String(e?.message || e));
+    alert("編集で例外:\n" + (e?.stack || e?.message || e));
   }
 }
 
@@ -1130,12 +1138,13 @@ async function loadComments(postId){
   const ok = await refreshAuth();
   if (!ok || !authUser) return;
 
+  // 返信対応のため parent_comment_id / updated_at も取る
   const { data, error } = await withTimeout(
     sb.from("post_comments")
-      .select("id, post_id, user_id, display_name, avatar_url, avatar_ver, content, created_at")
+      .select("id, post_id, parent_comment_id, user_id, display_name, avatar_url, avatar_ver, content, created_at, updated_at")
       .eq("post_id", postId)
       .order("created_at", { ascending:true })
-      .limit(60),
+      .limit(200),
     "comments select",
     8000
   );
@@ -1154,29 +1163,182 @@ async function loadComments(postId){
     return;
   }
 
+  // ツリー化
+  const byParent = new Map(); // parentId(string|null) -> array
   for (const c of data){
-    const row = document.createElement("div");
-    row.className = "commentRow";
+    const p = c.parent_comment_id || null;
+    if (!byParent.has(p)) byParent.set(p, []);
+    byParent.get(p).push(c);
+  }
 
-    const name = (c.display_name || "名無し").toString();
-    const av = avatarHtml(c.avatar_url || "", name, c.avatar_ver || "");
+  const st = getPostState(postId);
 
-    const canDelete = (c.user_id === authUser.id);
+  // 再帰描画
+  const renderList = (parentId, depth) => {
+    const arr = byParent.get(parentId) || [];
+    for (const c of arr){
+      const row = document.createElement("div");
+      row.className = "commentRow" + (depth > 0 ? " replyIndent" : "");
 
-    row.innerHTML = `
-      ${av}
-      <div class="commentBody">
-        <div class="commentMeta">
-          <span class="commentName">${escapeHtml(name)}</span>
-          <span class="commentTime">${escapeHtml(formatTime(c.created_at))}</span>
-          ${canDelete ? `<button class="miniBtn" type="button" onclick="deleteComment('${c.id}','${postId}')">削除</button>` : ""}
+      const name = (c.display_name || "名無し").toString();
+      const av = avatarHtml(c.avatar_url || "", name, c.avatar_ver || "");
+      const canOwner = (c.user_id === authUser.id);
+
+      const edited = (c.updated_at && c.created_at && (String(c.updated_at) !== String(c.created_at)));
+      const timeLabel = escapeHtml(formatTime(c.created_at)) + (edited ? "（編集済）" : "");
+
+      // 本文 or 編集フォーム
+      const isEditing = (st.editingId === c.id);
+      const bodyHtml = isEditing
+        ? `
+          <div class="row" style="margin-top:6px;">
+            <textarea id="editText-${postId}-${c.id}" style="min-height:70px;">${escapeHtml((c.content||"").toString())}</textarea>
+          </div>
+          <div class="commentActions">
+            <button class="btnPrimary miniBtn" type="button" onclick="updateComment('${postId}','${c.id}')">保存</button>
+            <button class="miniBtn" type="button" onclick="cancelEdit('${postId}')">キャンセル</button>
+          </div>
+        `
+        : `<div class="commentText">${escapeHtml((c.content||"").toString())}</div>`;
+
+      // 返信フォーム
+      const isReplying = (st.replyingToId === c.id);
+      const replyBox = isReplying
+        ? `
+          <div class="row" style="margin-top:8px;">
+            <textarea id="replyText-${postId}-${c.id}" placeholder="返信を書く（200文字まで）" style="min-height:70px;"></textarea>
+          </div>
+          <div class="commentActions">
+            <button class="btnPrimary miniBtn" type="button" onclick="createReply('${postId}','${c.id}')">返信する</button>
+            <button class="miniBtn" type="button" onclick="cancelReply('${postId}')">キャンセル</button>
+          </div>
+        `
+        : "";
+
+      row.innerHTML = `
+        ${av}
+        <div class="commentBody">
+          <div class="commentMeta">
+            <span class="commentName">${escapeHtml(name)}</span>
+            <span class="commentTime">${timeLabel}</span>
+          </div>
+
+          ${bodyHtml}
+
+          <div class="commentActions">
+            <button class="miniBtn" type="button" onclick="startReply('${postId}','${c.id}')">返信</button>
+            ${canOwner ? `<button class="miniBtn" type="button" onclick="startEdit('${postId}','${c.id}')">編集</button>` : ""}
+            ${canOwner ? `<button class="miniBtn" type="button" onclick="deleteComment('${c.id}','${postId}')">削除</button>` : ""}
+          </div>
+
+          ${replyBox}
         </div>
-        <div class="commentText">${escapeHtml((c.content||"").toString())}</div>
-      </div>
-    `;
-    list.appendChild(row);
+      `;
+
+      list.appendChild(row);
+
+      // 子（返信）を描画
+      renderList(c.id, depth + 1);
+    }
+  };
+
+  renderList(null, 0);
+}
+
+// 既存の createComment を拡張：parentCommentId を受け取れるように
+async function createComment(postId, parentCommentId){
+  log("createComment called", { postId, parentCommentId });
+
+  try{
+    const ok = await refreshAuth();
+    if (!ok || !authUser){
+      alert("ログインが切れてるよ。もう一回ログインしてね！");
+      goLogin();
+      return;
+    }
+
+    const isReply = !!parentCommentId;
+    const ta = isReply
+      ? document.getElementById(`replyText-${postId}-${parentCommentId}`)
+      : document.getElementById(`commentText-${postId}`);
+
+    const text = (ta?.value || "").trim();
+    if (!text) return alert(isReply ? "返信を入力してね！" : "コメントを入力してね！");
+    if (text.length > 200) return alert("コメントが長すぎるよ（200文字まで）");
+
+    const dn = (authUser.user_metadata?.display_name || authUser.email || "名無し").toString();
+    const avm = getPreferredAvatar();
+
+    const payload = {
+      post_id: postId,
+      parent_comment_id: parentCommentId || null,
+      user_id: authUser.id,
+      display_name: dn,
+      avatar_url: avm.url || "",
+      avatar_ver: avm.ver || "",
+      content: text
+    };
+
+    const res = await withTimeout(
+      sb.from("post_comments").insert(payload),
+      "comment insert",
+      8000
+    );
+
+    if (res?.error){
+      log("createComment insert error", res.error);
+      alert("コメント失敗(詳細):\n" + JSON.stringify(res.error, null, 2));
+      return;
+    }
+
+    if (ta) ta.value = "";
+
+    // UI状態解除
+    const st = getPostState(postId);
+    st.replyingToId = null;
+
+    await loadComments(postId);
+    await loadFeed();
+    setStatus(isReply ? "返信した！" : "コメントした！", true);
+
+  }catch(e){
+    log("createComment exception", e?.stack || String(e?.message || e));
+    alert("コメント処理で例外:\n" + (e?.stack || e?.message || e));
   }
 }
+
+// 返信ボタン用の薄いラッパ（onclickから呼ぶ）
+function createReply(postId, parentCommentId){
+  return createComment(postId, parentCommentId);
+}
+
+// 削除（完全削除）
+async function deleteComment(commentId, postId){
+  const ok = await refreshAuth();
+  if (!ok || !authUser) return;
+
+  if (!confirm("このコメントを削除する？（元に戻せないよ）")) return;
+
+  const { error } = await withTimeout(
+    sb.from("post_comments")
+      .delete()
+      .eq("id", commentId)
+      .eq("user_id", authUser.id),
+    "comment delete",
+    8000
+  );
+
+  if (error){
+    log("deleteComment error", error);
+    alert("削除失敗: " + error.message);
+    return;
+  }
+
+  await loadComments(postId);
+  await loadFeed();
+  setStatus("コメントを削除した！", true);
+}
+
 
 async function createComment(postId){
   log("createComment called", { postId });
@@ -1358,4 +1520,5 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
