@@ -756,32 +756,7 @@ let roomMembersChannel = null;
 let roomEventsChannel = null;
 
 /* ===== 通話 ===== */
-let callChannel = null;
-let localStream = null;
-
-// ★送信音量（マイク）を 1-100 で調整するための WebAudio
-let audioCtx = null;
-let micSource = null;
-let micGainNode = null;
-let processedStream = null;   // Gain通過後の送信用Stream
-let myMicGain = 1.0;          // 0.0-1.0（UIは1-100）
-
-let micMuted = false;
-
-const pcs = new Map();        // peerId -> RTCPeerConnection
-const mutedMap = new Map();   // peerId -> muted(boolean)
-
-const makingOffer = new Map(); // peerId -> boolean
-function shouldCreateOffer(peerId){
-  // どちらがOfferを作るか決める（衝突防止）
-  // 文字列比較で固定（必ず片方だけがOffer担当）
-  return String(myUid()) < String(peerId);
-}
-let heartbeatTimer = null;
-const CALL_ALIVE_SEC = 30;
-
-// ★相手ごとの受信音量
-const peerVolume = new Map(); // peerId -> 0.0-1.0
+// （通話の状態変数は下の「通話（安定版・完全版）」セクションで宣言しています）
 
 /* ===== util ===== */
 function log(...args){
