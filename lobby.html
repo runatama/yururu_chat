@@ -372,19 +372,26 @@
 
   <!-- ===== Feed Panel ===== -->
   <div id="feedPanel" class="hide">
-    <div class="row">
-      <textarea id="postText" placeholder="いまどうしてる？（つぶやき）"></textarea>
+    <div class="row" style="justify-content:flex-start;">
+      <button class="miniBtn" type="button" onclick="togglePostBox()">＋ つぶやく</button>
+      <button class="miniBtn" type="button" onclick="loadFeed()">更新</button>
     </div>
-    <div class="row" style="margin-top:8px;">
-      <button class="btnPrimary" type="button" onclick="createPost()">つぶやく</button>
-      <button type="button" onclick="loadFeed()">更新</button>
+
+    <div id="postBox" class="hide" style="margin-top:10px;">
+      <div class="row">
+        <textarea id="postText" placeholder="いまどうしてる？（つぶやき）"></textarea>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btnPrimary" type="button" onclick="createPost()">投稿</button>
+        <button class="miniBtn" type="button" onclick="togglePostBox(true)">キャンセル</button>
+      </div>
     </div>
 
     <div class="sectionTitle" style="margin-top:14px; justify-content:flex-start;">🗯️ みんなのつぶやき</div>
     <div id="feedBox"></div>
   </div>
 
-  <details open>
+  <details open> open>
     <summary>🔧 デバッグログ</summary>
     <div id="log"></div>
   </details>
@@ -624,6 +631,17 @@ function setViewMode(mode){
   }
 }
 
+
+function togglePostBox(forceClose=false){
+  const box = document.getElementById("postBox");
+  if (!box) return;
+  if (forceClose){
+    box.classList.add("hide");
+    return;
+  }
+  box.classList.toggle("hide");
+}
+
 /* =================== Realtime =================== */
 async function startRealtime(){
   if (roomsChannel) return;
@@ -659,21 +677,21 @@ async function startFeedRealtime(){
   postsChannel = sb
     .channel("posts-ch")
     .on("postgres_changes", { event:"*", schema:"public", table:"posts" }, () => {
-      if (viewMode === "feed") scheduleFeedReload(400);
+      /* Realtimeでは再描画しない（初回/手動更新で描画） */
     })
     .subscribe();
 
   likesChannel = sb
     .channel("likes-ch")
     .on("postgres_changes", { event:"*", schema:"public", table:"post_likes" }, () => {
-      if (viewMode === "feed") scheduleFeedReload(400);
+      /* Realtimeでは再描画しない（初回/手動更新で描画） */
     })
     .subscribe();
 
   commentsChannel = sb
     .channel("comments-ch")
     .on("postgres_changes", { event:"*", schema:"public", table:"post_comments" }, () => {
-      if (viewMode === "feed") scheduleFeedReload(600);
+      /* Realtimeでは再描画しない（初回/手動更新で描画） */
     })
     .subscribe();
 }
@@ -938,6 +956,7 @@ async function createPost(){
   }
 
   ta.value = "";
+  togglePostBox(true);
   await loadFeed();
   setStatus("つぶやいた！", true);
 }
@@ -1162,6 +1181,7 @@ function toggleComments(postId){
 /* =================== コメント（返信/編集/削除） =================== */
 
 // 編集・返信のUI状態（postId単位で保持）
+const loadingComments = new Set();
 const commentUiState = new Map();
 // 二重送信防止（postIdごと）
 const commentSendLock = new Map();
@@ -1244,107 +1264,113 @@ async function loadComments(postId){
   const ok = await refreshAuth();
   if (!ok || !authUser) return;
 
-  const { data, error } = await withTimeout(
-    sb.from("post_comments")
-      .select("id, post_id, parent_comment_id, user_id, display_name, avatar_url, avatar_ver, content, created_at")
-      .eq("post_id", postId)
-      .order("created_at", { ascending:true })
-      .limit(200),
-    "comments select",
-    8000
-  );
+  if (loadingComments.has(postId)) return;
+  loadingComments.add(postId);
+  try{
+      const { data, error } = await withTimeout(
+        sb.from("post_comments")
+          .select("id, post_id, parent_comment_id, user_id, display_name, avatar_url, avatar_ver, content, created_at")
+          .eq("post_id", postId)
+          .order("created_at", { ascending:true })
+          .limit(200),
+        "comments select",
+        8000
+      );
 
-  if (error){
-    log("loadComments error", error);
-    return;
+      if (error){
+        log("loadComments error", error);
+        return;
+      }
+
+      const list = document.getElementById("commentList-" + postId);
+      if (!list) return;
+
+      list.innerHTML = "";
+      if (!data || data.length === 0){
+        list.innerHTML = "<div style='color:var(--muted);font-size:12px;'>まだコメントがないよ</div>";
+        return;
+      }
+
+      // ツリー化
+      const byParent = new Map(); // parentId(string|null) -> array
+      for (const c of data){
+        const p = c.parent_comment_id || null;
+        if (!byParent.has(p)) byParent.set(p, []);
+        byParent.get(p).push(c);
+      }
+
+      const st = getPostState(postId);
+
+      const render = (parentId, depth) => {
+        const arr = byParent.get(parentId) || [];
+        for (const c of arr){
+          const row = document.createElement("div");
+          row.className = "commentRow" + (depth > 0 ? " replyIndent" : "");
+
+          const name = (c.display_name || "名無し").toString();
+          const av = avatarHtml(c.avatar_url || "", name, c.avatar_ver || "");
+          const canOwner = (c.user_id === authUser.id);
+          const isDeleted = String(c.content||"").trim() === "コメントは削除されました";
+
+          const timeLabel = escapeHtml(formatTime(c.created_at));
+
+          // 本文 or 編集フォーム
+          const isEditing = (st.editingId === c.id);
+          const bodyHtml = isEditing
+            ? `
+              <div class="row" style="margin-top:6px;">
+                <textarea id="editText-${postId}-${c.id}" style="min-height:70px;">${escapeHtml((c.content||"").toString())}</textarea>
+              </div>
+              <div class="commentActions">
+                <button class="btnPrimary" type="button" onclick="updateComment('${postId}','${c.id}', this)">保存</button>
+                <button class="miniBtn" type="button" onclick="cancelEdit('${postId}')">キャンセル</button>
+              </div>
+            `
+            : `<div class="commentText" style="color:var(--muted);">${escapeHtml((c.content||"").toString())}</div>`;
+
+          // 返信フォーム
+          const isReplying = (!isDeleted && st.replyingToId === c.id);
+          const replyBox = isReplying
+            ? `
+              <div class="row" style="margin-top:8px;">
+                <textarea id="replyText-${postId}-${c.id}" placeholder="返信を書く（200文字まで）" style="min-height:70px;"></textarea>
+              </div>
+              <div class="commentActions">
+                <button class="btnPrimary" type="button" onclick="createReply('${postId}','${c.id}', this)">返信する</button>
+                <button class="miniBtn" type="button" onclick="cancelReply('${postId}')">キャンセル</button>
+              </div>
+            `
+            : "";
+
+          row.innerHTML = `
+            ${av}
+            <div class="commentBody">
+              <div class="commentMeta">
+                <span class="commentName">${escapeHtml(name)}</span>
+                <span class="commentTime">${timeLabel}</span>
+              </div>
+
+              ${bodyHtml}
+
+              <div class="commentActions">
+                <button class="miniBtn" type="button" onclick="startReply('${postId}','${c.id}')">返信</button>
+                ${(canOwner && !isDeleted) ? `<button class="miniBtn" type="button" onclick="startEdit('${postId}','${c.id}')">編集</button>` : ""}
+                ${canOwner ? `<button class="miniBtn" type="button" onclick="deleteComment('${c.id}','${postId}')">削除</button>` : ""}
+              </div>
+
+              ${replyBox}
+            </div>
+          `;
+
+          list.appendChild(row);
+          render(c.id, depth + 1);
+        }
+      };
+
+      render(null, 0);
+  }finally{
+    loadingComments.delete(postId);
   }
-
-  const list = document.getElementById("commentList-" + postId);
-  if (!list) return;
-
-  list.innerHTML = "";
-  if (!data || data.length === 0){
-    list.innerHTML = "<div style='color:var(--muted);font-size:12px;'>まだコメントがないよ</div>";
-    return;
-  }
-
-  // ツリー化
-  const byParent = new Map(); // parentId(string|null) -> array
-  for (const c of data){
-    const p = c.parent_comment_id || null;
-    if (!byParent.has(p)) byParent.set(p, []);
-    byParent.get(p).push(c);
-  }
-
-  const st = getPostState(postId);
-
-  const render = (parentId, depth) => {
-    const arr = byParent.get(parentId) || [];
-    for (const c of arr){
-      const row = document.createElement("div");
-      row.className = "commentRow" + (depth > 0 ? " replyIndent" : "");
-
-      const name = (c.display_name || "名無し").toString();
-      const av = avatarHtml(c.avatar_url || "", name, c.avatar_ver || "");
-      const canOwner = (c.user_id === authUser.id);
-      const isDeleted = String(c.content||"").trim() === "コメントは削除されました";
-
-      const timeLabel = escapeHtml(formatTime(c.created_at));
-
-      // 本文 or 編集フォーム
-      const isEditing = (st.editingId === c.id);
-      const bodyHtml = isEditing
-        ? `
-          <div class="row" style="margin-top:6px;">
-            <textarea id="editText-${postId}-${c.id}" style="min-height:70px;">${escapeHtml((c.content||"").toString())}</textarea>
-          </div>
-          <div class="commentActions">
-            <button class="btnPrimary" type="button" onclick="updateComment('${postId}','${c.id}', this)">保存</button>
-            <button class="miniBtn" type="button" onclick="cancelEdit('${postId}')">キャンセル</button>
-          </div>
-        `
-        : `<div class="commentText" style="color:var(--muted);">${escapeHtml((c.content||"").toString())}</div>`;
-
-      // 返信フォーム
-      const isReplying = (!isDeleted && st.replyingToId === c.id);
-      const replyBox = isReplying
-        ? `
-          <div class="row" style="margin-top:8px;">
-            <textarea id="replyText-${postId}-${c.id}" placeholder="返信を書く（200文字まで）" style="min-height:70px;"></textarea>
-          </div>
-          <div class="commentActions">
-            <button class="btnPrimary" type="button" onclick="createReply('${postId}','${c.id}', this)">返信する</button>
-            <button class="miniBtn" type="button" onclick="cancelReply('${postId}')">キャンセル</button>
-          </div>
-        `
-        : "";
-
-      row.innerHTML = `
-        ${av}
-        <div class="commentBody">
-          <div class="commentMeta">
-            <span class="commentName">${escapeHtml(name)}</span>
-            <span class="commentTime">${timeLabel}</span>
-          </div>
-
-          ${bodyHtml}
-
-          <div class="commentActions">
-            <button class="miniBtn" type="button" onclick="startReply('${postId}','${c.id}')">返信</button>
-            ${(canOwner && !isDeleted) ? `<button class="miniBtn" type="button" onclick="startEdit('${postId}','${c.id}')">編集</button>` : ""}
-            ${canOwner ? `<button class="miniBtn" type="button" onclick="deleteComment('${c.id}','${postId}')">削除</button>` : ""}
-          </div>
-
-          ${replyBox}
-        </div>
-      `;
-
-      list.appendChild(row);
-      render(c.id, depth + 1);
-    }
-  };
-
-  render(null, 0);
 }
 
 // parentCommentId を受け取れる
