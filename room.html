@@ -2732,19 +2732,20 @@ async function resolveRoomRow(urlRoom, urlRoomId){
   return byName || null;
 }
 
-function safeKey(s){
-  // Storageのキーに使える文字だけにする（英数字 _ -）
-  let t = String(s || "").trim();
-  t = t.replace(/[^a-zA-Z0-9_-]+/g, "_");
-  t = t.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
-  return t || "room";
+function safeKey(str){
+  return String(str || "")
+    .trim()
+    .replace(/[^\w\-]/g, "_")
+    .slice(0, 64);
 }
+
 
 
 
 </script>
 </body>
 </html>
+
 
 
 
