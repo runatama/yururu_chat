@@ -1338,51 +1338,203 @@ async function startCallParticipantsRealtime(){
 }
 
 /* =========================================================
-   通話（Supabase Realtime Broadcast）
+   ✅ 通話（安定版・完全版）
+   - Presence と Signal(Broadcast) を別チャンネルに分離
+   - joinCall 多重実行防止
+   - Perfect Negotiation（衝突に強い）
+   - ミュート同期/相手音量UI/マイク送信音量（Gain）
+   ※ micGainスライダーのイベントは下の「UI events」側をそのまま使える
    ========================================================= */
-async function startCallChannel(){
-  if (callChannel) return;
 
-  callChannel = sb.channel(`call-${room}`, {
-    config: {
-      broadcast: { self: false },
-      presence: { key: myUid() }
-    }
+/* ===== 通話：状態 ===== */
+let callPresenceChannel = null;  // presence 専用
+let callSignalChannel = null;    // signaling(broadcast) 専用
+
+let localStream = null;
+
+// ★送信音量（マイク）を 1-100 で調整するための WebAudio
+let audioCtx = null;
+let micSource = null;
+let micGainNode = null;
+let processedStream = null;   // Gain通過後の送信用Stream
+let myMicGain = 1.0;          // 0.0-1.0（UIは1-100）
+
+let micMuted = false;
+
+const pcs = new Map();        // peerId -> RTCPeerConnection
+const mutedMap = new Map();   // peerId -> muted(boolean)
+const makingOffer = new Map(); // peerId -> boolean
+const ignoreOffer = new Map(); // peerId -> boolean
+
+let joiningCall = false;
+let joinedCall = false;
+
+let heartbeatTimer = null;
+const CALL_ALIVE_SEC = 30;
+
+// ★相手ごとの受信音量
+const peerVolume = new Map(); // peerId -> 0.0-1.0
+
+const ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:global.stun.twilio.com:3478" }
+];
+
+/* ===== util ===== */
+function setCallState(text){
+  const el = document.getElementById("callState");
+  if (el) el.textContent = text;
+}
+function setJoinBtn(enabled){
+  const b = document.getElementById("joinBtn");
+  if (b) b.disabled = !enabled;
+}
+function setMuteBtn(){
+  const b = document.getElementById("muteBtn");
+  if (b) b.textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
+}
+function getIsPolite(peerId){
+  // Perfect Negotiation: UUIDの大小で固定（必ず片方だけがpolite）
+  return String(myUid()) > String(peerId);
+}
+
+/* ===== Presence/Singal チャンネル開始 ===== */
+async function startCallChannels(){
+  if (callPresenceChannel && callSignalChannel) return;
+
+  // presence 専用
+  callPresenceChannel = sb.channel(`call-presence-${room}`, {
+    config: { presence: { key: myUid() } }
   });
 
-  callChannel
-    .on("broadcast", { event:"signal" }, async ({ payload })=>{
+  callPresenceChannel
+    .on("presence", { event: "sync" }, ()=> onPresenceSync())
+    .on("presence", { event: "join" }, ({ key, newPresences })=> onPresenceJoin(key, newPresences))
+    .on("presence", { event: "leave" }, ({ key, leftPresences })=> onPresenceLeave(key, leftPresences));
+
+  // signal 専用（broadcast）
+  callSignalChannel = sb.channel(`call-signal-${room}`, {
+    config: { broadcast: { self: false } }
+  });
+
+  callSignalChannel
+    .on("broadcast", { event: "signal" }, async ({ payload })=>{
       await onSignal(payload);
-    })
-    .on("presence", { event:"sync" }, ()=>{
-      onPresenceSync();
-    })
-    .on("presence", { event:"join" }, ({ key, newPresences })=>{
-      onPresenceJoin(key, newPresences);
-    })
-    .on("presence", { event:"leave" }, ({ key, leftPresences })=>{
-      onPresenceLeave(key, leftPresences);
     });
 
-  const { error } = await callChannel.subscribe(async (status)=>{
-    log("call channel status:", status);
-    if (status === "SUBSCRIBED"){
-      await callChannel.track({
-        user_id: myUid(),
-        name,
-        avatar_url: myAvatarUrl,
-        muted: micMuted,
-        at: new Date().toISOString()
-      });
-      await refreshPresenceList();
-    }
-  });
+  await Promise.all([
+    callPresenceChannel.subscribe(async (status)=>{
+      log("presence channel status:", status);
+      if (status === "SUBSCRIBED"){
+        await safeTrackPresence();
+        await refreshPresenceList();
+        refreshAudioTitles();
+      }
+    }),
+    callSignalChannel.subscribe((status)=>{
+      log("signal channel status:", status);
+    })
+  ]);
+}
 
-  if (error) log("callChannel subscribe error", error);
+async function safeTrackPresence(){
+  try{
+    if (!callPresenceChannel) return;
+    await callPresenceChannel.track({
+      user_id: myUid(),
+      name,
+      avatar_url: myAvatarUrl,
+      muted: micMuted,
+      joined_at: new Date().toISOString()
+    });
+  }catch(e){
+    log("presence track warn", e);
+  }
+}
+
+/* ===== WebAudio: 送信音量 ===== */
+async function ensureAudioContextRunning(){
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended"){
+    try{ await audioCtx.resume(); }catch{}
+  }
+}
+
+function buildProcessedMicStreamIfNeeded(){
+  if (!localStream) return;
+  if (processedStream && micGainNode && audioCtx) return;
+
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  micSource = audioCtx.createMediaStreamSource(localStream);
+  micGainNode = audioCtx.createGain();
+  micGainNode.gain.value = myMicGain;
+
+  const dest = audioCtx.createMediaStreamDestination();
+  micSource.connect(micGainNode);
+  micGainNode.connect(dest);
+
+  processedStream = dest.stream;
+}
+
+function applyMicGain(){
+  const v = Math.max(0.01, Math.min(1.0, myMicGain));
+  if (micGainNode) micGainNode.gain.value = v;
 }
 
 function getSendStream(){
   return processedStream || localStream;
+}
+
+/* ===== PeerConnection ===== */
+async function ensurePC(peerId){
+  if (!peerId || peerId === myUid()) return;
+  if (pcs.has(peerId)) return;
+
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  pcs.set(peerId, pc);
+
+  makingOffer.set(peerId, false);
+  ignoreOffer.set(peerId, false);
+
+  pc.onicecandidate = async (ev)=>{
+    if (ev.candidate){
+      await sendSignal(peerId, { kind:"ice", candidate: ev.candidate });
+    }
+  };
+
+  pc.onconnectionstatechange = ()=>{
+    log("pc state", peerId, pc.connectionState);
+  };
+  pc.oniceconnectionstatechange = ()=>{
+    log("ice state", peerId, pc.iceConnectionState);
+  };
+
+  pc.ontrack = (ev)=>{
+    const el = ensureAudioEl(peerId);
+    el.srcObject = ev.streams[0];
+  };
+
+  pc.onnegotiationneeded = async ()=>{
+    try{
+      makingOffer.set(peerId, true);
+      const offer = await pc.createOffer();
+      if (pc.signalingState !== "stable") return;
+      await pc.setLocalDescription(offer);
+      await sendSignal(peerId, { kind:"sdp", sdp: pc.localDescription });
+    }catch(e){
+      log("negotiationneeded error", peerId, e);
+    }finally{
+      makingOffer.set(peerId, false);
+    }
+  };
+
+  // 送信トラック付与
+  const sendStream = getSendStream();
+  if (sendStream){
+    for (const t of sendStream.getTracks()){
+      pc.addTrack(t, sendStream);
+    }
+  }
 }
 
 function attachTracksToPC(peerId){
@@ -1391,18 +1543,15 @@ function attachTracksToPC(peerId){
   if (!pc || !sendStream) return;
 
   const senders = pc.getSenders ? pc.getSenders() : [];
-  const hasAudioSender = senders.some(s => s.track && s.track.kind === "audio");
+  const audioTrack = sendStream.getAudioTracks?.()[0];
+  if (!audioTrack) return;
 
-  if (!hasAudioSender){
-    for (const t of sendStream.getTracks()){
-      pc.addTrack(t, sendStream);
-    }
+  const sender = senders.find(s => s.track && s.track.kind === "audio");
+  if (!sender){
+    pc.addTrack(audioTrack, sendStream);
   }else{
-    for (const t of sendStream.getTracks()){
-      const sender = senders.find(s => s.track && s.track.kind === t.kind);
-      if (sender && sender.track !== t){
-        try{ sender.replaceTrack(t); }catch{}
-      }
+    if (sender.track !== audioTrack){
+      try{ sender.replaceTrack(audioTrack); }catch{}
     }
   }
 }
@@ -1413,6 +1562,84 @@ function attachTracksToAllPCs(){
   }
 }
 
+function closePC(peerId){
+  const pc = pcs.get(peerId);
+  if (!pc) return;
+  try{ pc.close(); }catch{}
+  pcs.delete(peerId);
+
+  const wrap = document.getElementById("audioWrap-" + peerId);
+  if (wrap) wrap.remove();
+}
+
+/* ===== Signal ===== */
+async function sendSignal(to, data){
+  if (!callSignalChannel) return;
+  await callSignalChannel.send({
+    type: "broadcast",
+    event: "signal",
+    payload: { from: myUid(), to, data }
+  });
+}
+
+async function onSignal(payload){
+  const from = payload?.from;
+  const to = payload?.to;
+  const data = payload?.data;
+
+  if (!from || !data) return;
+  if (to && to !== myUid()) return;
+  if (!joinedCall) return;
+
+  await ensurePC(from);
+  const pc = pcs.get(from);
+  if (!pc) return;
+
+  if (data.kind === "hello"){
+    attachTracksToPC(from);
+    return;
+  }
+
+  if (data.kind === "mute"){
+    mutedMap.set(from, !!data.muted);
+    refreshAudioTitles();
+    await refreshPresenceList();
+    return;
+  }
+
+  if (data.kind === "ice"){
+    try{ await pc.addIceCandidate(data.candidate); }catch(e){ log("addIceCandidate error", e); }
+    return;
+  }
+
+  if (data.kind === "sdp"){
+    const desc = data.sdp;
+    if (!desc) return;
+
+    const polite = getIsPolite(from);
+    const offerCollision = desc.type === "offer" && (makingOffer.get(from) || pc.signalingState !== "stable");
+    ignoreOffer.set(from, !polite && offerCollision);
+    if (ignoreOffer.get(from)){
+      log("ignore offer due to collision", from);
+      return;
+    }
+
+    try{
+      await pc.setRemoteDescription(desc);
+
+      if (desc.type === "offer"){
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await sendSignal(from, { kind:"sdp", sdp: pc.localDescription });
+      }
+    }catch(e){
+      log("handle sdp error", from, e);
+    }
+    return;
+  }
+}
+
+/* ===== UI: 相手音声エレメント & 音量 ===== */
 function ensureAudioEl(peerId){
   const id = "audio-" + peerId;
   let el = document.getElementById(id);
@@ -1424,7 +1651,7 @@ function ensureAudioEl(peerId){
 
   const titleRow = document.createElement("div");
   titleRow.className = "audioTitle";
-  titleRow.innerHTML = `<span id="audioTitle-${peerId}">🔊 相手: ${peerId}</span> <span class="badge" id="muteBadge-${peerId}">mute?</span>`;
+  titleRow.innerHTML = `<span id="audioTitle-${peerId}">🔊 相手: ${peerId}</span> <span class="badge" id="muteBadge-${peerId}">...</span>`;
 
   el = document.createElement("audio");
   el.id = id;
@@ -1469,15 +1696,15 @@ function ensureAudioEl(peerId){
 
   document.getElementById("audios").appendChild(wrap);
   refreshAudioTitles();
-
   return el;
 }
 
 function refreshAudioTitles(){
-  const st = callChannel?.presenceState?.() || {};
+  const st = callPresenceChannel?.presenceState?.() || {};
   for (const [peerId] of pcs){
     const pres = st[peerId]?.[0];
     const nm = pres?.name || peerId;
+
     const t = document.getElementById("audioTitle-" + peerId);
     if (t) t.textContent = `🔊 相手: ${nm}`;
 
@@ -1490,143 +1717,74 @@ function refreshAudioTitles(){
   }
 }
 
-async function ensurePC(peerId){
-  if (peerId === myUid()) return;
-  if (pcs.has(peerId)) return;
+/* ===== Presence イベント ===== */
+function onPresenceSync(){
+  refreshPresenceList();
+  refreshAudioTitles();
 
-  const pc = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-  });
-
-  pcs.set(peerId, pc);
-
-  pc.onicecandidate = async (ev)=>{
-    if (ev.candidate) await sendSignal(peerId, { kind:"ice", candidate: ev.candidate });
-  };
-  pc.onconnectionstatechange = ()=> log("pc state", peerId, pc.connectionState);
-  pc.oniceconnectionstatechange = ()=> log("ice state", peerId, pc.iceConnectionState);
-
-  pc.ontrack = (ev)=>{
-    const el = ensureAudioEl(peerId);
-    el.srcObject = ev.streams[0];
-  };
-
-  const sendStream = getSendStream();
-  if (sendStream){
-    for (const t of sendStream.getTracks()){
-      pc.addTrack(t, sendStream);
+  const st = callPresenceChannel?.presenceState?.() || {};
+  for (const peerId of Object.keys(st)){
+    if (peerId === myUid()) continue;
+    if (!pcs.has(peerId)){
+      ensurePC(peerId).then(()=>{
+        attachTracksToPC(peerId);
+        sendSignal(peerId, { kind:"hello" });
+      });
     }
   }
 }
 
-async function maybeMakeOffer(peerId){
-  const pc = pcs.get(peerId);
-  if (!pc) return;
+function onPresenceJoin(key, newPresences){
+  refreshPresenceList();
+  refreshAudioTitles();
 
-  if (!shouldCreateOffer(peerId)) return;
-  if (makingOffer.get(peerId)) return;
-  if (pc.signalingState !== "stable") return;
+  if (!joinedCall) return;
+  if (!key || key === myUid()) return;
 
-  try{
-    makingOffer.set(peerId, true);
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    await sendSignal(peerId, { kind:"sdp", sdp: pc.localDescription });
-  }catch(e){
-    log("maybeMakeOffer error", peerId, e);
-  }finally{
-    makingOffer.set(peerId, false);
-  }
-}
-
-function closePC(peerId){
-  const pc = pcs.get(peerId);
-  if (!pc) return;
-  try { pc.close(); } catch {}
-  pcs.delete(peerId);
-
-  const wrap = document.getElementById("audioWrap-" + peerId);
-  if (wrap) wrap.remove();
-}
-
-async function sendSignal(to, data){
-  if (!callChannel) return;
-  await callChannel.send({
-    type: "broadcast",
-    event: "signal",
-    payload: {
-      from: myUid(),
-      to,
-      data
-    }
+  ensurePC(key).then(()=>{
+    attachTracksToPC(key);
+    sendSignal(key, { kind:"hello" });
   });
 }
 
-async function onSignal(payload){
-  const from = payload?.from;
-  const to = payload?.to;
-  const data = payload?.data;
-  if (!from || !data) return;
-  if (to && to !== myUid()) return;
+function onPresenceLeave(key, leftPresences){
+  closePC(key);
+  refreshPresenceList();
+  refreshAudioTitles();
+}
 
-  if (data.kind === "hello"){
-    await ensurePC(from);
-    if (String(myUid()) < String(from)){
-      await maybeMakeOffer(from);
-    }
+async function refreshPresenceList(){
+  const box = document.getElementById("callUsersList");
+  if (!box) return;
+
+  if (!callPresenceChannel){
+    box.innerHTML = "<div class='hint'>未接続</div>";
     return;
   }
 
-  await ensurePC(from);
-  const pc = pcs.get(from);
-  if (!pc) return;
+  const st = callPresenceChannel.presenceState() || {};
+  const ids = Object.keys(st);
+  box.innerHTML = "";
 
-  if (data.kind === "sdp"){
-    const desc = data.sdp;
-    if (!desc) return;
-
-    if (desc.type === "offer"){
-      try{
-        if (pc.signalingState !== "stable"){
-          try{ await pc.setLocalDescription({ type: "rollback" }); }catch{}
-        }
-        await pc.setRemoteDescription(desc);
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        await sendSignal(from, { kind:"sdp", sdp: pc.localDescription });
-      }catch(e){
-        log("handle offer error", e);
-      }
-      return;
-    }
-
-    if (desc.type === "answer"){
-      if (pc.signalingState !== "have-local-offer"){
-        log("ignore answer (wrong state)", from, pc.signalingState);
-        return;
-      }
-      try{
-        await pc.setRemoteDescription(desc);
-      }catch(e){
-        log("setRemoteDescription(answer) error", e);
-      }
-      return;
-    }
-  }
-
-  if (data.kind === "ice"){
-    try{
-      await pc.addIceCandidate(data.candidate);
-    }catch(e){
-      log("addIceCandidate error", e);
-    }
+  if (ids.length === 0){
+    box.innerHTML = "<div class='hint'>未接続</div>";
     return;
   }
 
-  if (data.kind === "mute"){
-    mutedMap.set(from, !!data.muted);
-    refreshAudioTitles();
-    return;
+  for (const id of ids){
+    const p = st[id]?.[0] || {};
+    const nm = p.name || id;
+    const muted = !!p.muted;
+
+    const row = document.createElement("div");
+    row.className = "listItem";
+    row.innerHTML = `
+      <div class="name">${muted ? "🔇" : "🎤"} ${avatarHtml(p.avatar_url, nm, "sm")} <span class="nameText">${escapeHtml(nm)}</span></div>
+      <div class="sub"><span class="badge ${muted ? "bad" : "good"}">${muted ? "ミュート" : "発話OK"}</span></div>
+    `;
+    box.appendChild(row);
+
+    mutedMap.set(id, muted);
   }
 }
 
@@ -1653,71 +1811,67 @@ function stopHeartbeat(){
   if (heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
 }
 
-function buildProcessedMicStreamIfNeeded(){
-  if (!localStream) return;
-  if (processedStream && micGainNode && audioCtx) return;
-
-  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-  micSource = audioCtx.createMediaStreamSource(localStream);
-  micGainNode = audioCtx.createGain();
-  micGainNode.gain.value = myMicGain;
-
-  const dest = audioCtx.createMediaStreamDestination();
-  micSource.connect(micGainNode);
-  micGainNode.connect(dest);
-
-  processedStream = dest.stream;
-}
-
-function applyMicGain(){
-  const v = Math.max(0.01, Math.min(1.0, myMicGain));
-  if (micGainNode) micGainNode.gain.value = v;
-}
-
+/* ===== メイン操作 ===== */
 async function joinCall(){
-  document.getElementById("callState").textContent = "準備中…";
+  if (joiningCall || joinedCall) return;
+  joiningCall = true;
+  setJoinBtn(false);
 
-  await startCallChannel();
+  try{
+    setCallState("準備中…");
+    await ensureAudioContextRunning();
+    await startCallChannels();
 
-  if (!localStream){
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    if (!localStream){
+      localStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
+    }
+
+    buildProcessedMicStreamIfNeeded();
+    applyMicGain();
+
+    // ミュート反映
+    try{
+      for (const t of localStream.getAudioTracks()){
+        t.enabled = !micMuted;
+      }
+    }catch{}
+
+    attachTracksToAllPCs();
+
+    // 既に居る人へ hello + PC 用意
+    const st = callPresenceChannel.presenceState() || {};
+    for (const peerId of Object.keys(st)){
+      if (peerId === myUid()) continue;
+      await ensurePC(peerId);
+      attachTracksToPC(peerId);
+      await sendSignal(peerId, { kind:"hello" });
+    }
+
+    await safeTrackPresence();
+
+    await upsertCallParticipant();
+    startHeartbeat();
+
+    joinedCall = true;
+    setMuteBtn();
+    setCallState("通話に参加中");
+    setReady(true, "通話準備OK");
+  }catch(e){
+    log("joinCall error", e);
+    alert("通話の開始に失敗: " + (e?.message || e));
+    await leaveCall();
+  }finally{
+    joiningCall = false;
+    setJoinBtn(true);
   }
-
-  buildProcessedMicStreamIfNeeded();
-  applyMicGain();
-  if (audioCtx && audioCtx.state === "suspended") {
-    await audioCtx.resume();
-  }
-
-  attachTracksToAllPCs();
-
-  if (callChannel){
-    await callChannel.track({
-      user_id: myUid(),
-      name,
-      muted: micMuted,
-      at: new Date().toISOString()
-    });
-  }
-
-  const state = callChannel.presenceState() || {};
-  for (const peerId of Object.keys(state)){
-    if (peerId === myUid()) continue;
-
-    await sendSignal(peerId, { kind: "hello" });
-    await ensurePC(peerId);
-    await maybeMakeOffer(peerId);
-  }
-
-  document.getElementById("callState").textContent = "通話に参加中";
-  setReady(true, "通話準備OK");
-  startHeartbeat();
 }
 
 async function leaveCall(){
+  joiningCall = false;
+  joinedCall = false;
+
   try{
-    await sb
-      .from("call_participants")
+    await sb.from("call_participants")
       .delete()
       .eq("room_id", roomId)
       .eq("user_id", myUid());
@@ -1742,26 +1896,30 @@ async function leaveCall(){
   micSource = null;
   micGainNode = null;
 
-  if (callChannel){
-    try{ await callChannel.untrack(); }catch{}
-    try{ await callChannel.unsubscribe(); }catch{}
-    callChannel = null;
+  if (callPresenceChannel){
+    try{ await callPresenceChannel.untrack(); }catch{}
+    try{ await callPresenceChannel.unsubscribe(); }catch{}
+    callPresenceChannel = null;
+  }
+  if (callSignalChannel){
+    try{ await callSignalChannel.unsubscribe(); }catch{}
+    callSignalChannel = null;
   }
 
-  document.getElementById("callState").textContent = "未接続（必要なら通話に参加を押してね）";
+  const aud = document.getElementById("audios");
+  if (aud) aud.innerHTML = "";
+  const list = document.getElementById("callUsersList");
+  if (list) list.innerHTML = "<div class='hint'>未接続</div>";
+
+  setCallState("未接続（必要なら通話に参加を押してね）");
   setReady(true, "待機中");
-  document.getElementById("audios").innerHTML = "";
-  document.getElementById("callUsersList").innerHTML = "<div class='hint'>未接続</div>";
+  setMuteBtn();
 }
 
 async function toggleMute(){
   micMuted = !micMuted;
+  setMuteBtn();
 
-  // ボタン表示（ボタン無い場合でも落ちない）
-  const btn = document.getElementById("muteBtn");
-  if (btn) btn.textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
-
-  // ★ミュートは stop() じゃなく enabled 切替だけ
   try{
     if (localStream){
       for (const t of localStream.getAudioTracks()){
@@ -1769,78 +1927,22 @@ async function toggleMute(){
       }
     }
   }catch(e){
-    log("toggleMute: localStream fail", e);
+    log("toggleMute localStream warn", e);
   }
 
-  // presence更新（失敗しても通話を止めない）
-  try{
-    if (callChannel){
-      await callChannel.track({
-        user_id: myUid(),
-        name,
-        muted: micMuted,
-        at: new Date().toISOString()
-      });
-    }
-  }catch(e){
-    log("toggleMute: presence track warn", e);
-  }
+  await safeTrackPresence();
 
-  // 相手のUI更新（失敗しても通話を止めない）
   try{
     for (const [peerId] of pcs){
       await sendSignal(peerId, { kind:"mute", muted: micMuted });
     }
   }catch(e){
-    log("toggleMute: sendSignal warn", e);
+    log("toggleMute sendSignal warn", e);
   }
-}
 
-function onPresenceSync(){
-  refreshPresenceList();
   refreshAudioTitles();
 }
-function onPresenceJoin(key, presences){
-  refreshPresenceList();
-  refreshAudioTitles();
-}
-function onPresenceLeave(key, presences){
-  closePC(key);
-  refreshPresenceList();
-}
 
-async function refreshPresenceList(){
-  const box = document.getElementById("callUsersList");
-  if (!callChannel){
-    box.innerHTML = "<div class='hint'>未接続</div>";
-    return;
-  }
-  const st = callChannel.presenceState();
-  const ids = Object.keys(st || {});
-  box.innerHTML = "";
-
-  if (ids.length === 0){
-    box.innerHTML = "<div class='hint'>未接続</div>";
-    return;
-  }
-
-  for (const id of ids){
-    const p = st[id]?.[0] || {};
-    const nm = p.name || id;
-    const muted = !!p.muted;
-
-    const row = document.createElement("div");
-    row.className = "listItem";
-    row.innerHTML = `
-      <div class="name">${muted ? "🔇" : "🎤"} ${avatarHtml(p.avatar_url, nm, "sm")} <span class="nameText">${escapeHtml(nm)}</span></div>
-      <div class="sub"><span class="badge ${muted ? "bad" : "good"}">${muted ? "ミュート" : "発話OK"}</span></div>
-    `;
-    box.appendChild(row);
-
-    mutedMap.set(id, muted);
-  }
-  refreshAudioTitles();
-}
 
 /* ===== UI events ===== */
 document.getElementById("imgFile").addEventListener("change", ()=>{
