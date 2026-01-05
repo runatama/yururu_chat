@@ -1348,6 +1348,8 @@ async function loadComments(postId){
 
 // parentCommentId を受け取れる
 async function createComment(postId, parentCommentId, btnEl){
+  const lockKey = `${postId}:${parentCommentId || "root"}`;
+
   try{
     const ok = await refreshAuth();
     if (!ok || !authUser){
@@ -1357,7 +1359,6 @@ async function createComment(postId, parentCommentId, btnEl){
     }
 
     // 二重送信防止
-    const lockKey = `${postId}:${parentCommentId || "root"}`;
     if (commentSendLock.get(lockKey)) return;
     commentSendLock.set(lockKey, true);
     if (btnEl) btnEl.disabled = true;
@@ -1406,13 +1407,13 @@ async function createComment(postId, parentCommentId, btnEl){
   }catch(e){
     log("createComment exception", e?.stack || String(e?.message || e));
     alert("コメント処理で例外:\n" + (e?.stack || e?.message || e));
-  }
+
   }finally{
-    const lockKey = `${postId}:${parentCommentId || "root"}`;
     commentSendLock.delete(lockKey);
     if (btnEl) btnEl.disabled = false;
   }
 }
+
 
 
 // 返信ボタン用
@@ -1542,5 +1543,6 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
