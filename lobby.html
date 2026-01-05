@@ -936,103 +936,109 @@ async function createPost(){
 
 async function loadFeed(){
   const ok = await refreshAuth();
-  if (!ok || !authUser){
-    setStatus("ログインが切れてるよ。もう一回ログインしてね！", false);
-    return;
-  }
+  if (!ok || !authUser) return;
 
-  const { data: posts, error } = await withTimeout(
+  // 表示領域
+  const box = document.getElementById("feedBox");
+  if (!box) return;
+  box.innerHTML = "";
+
+  // 投稿を取得（最新50件）
+  const { data: posts, error: perr } = await withTimeout(
     sb.from("posts")
-      .select("id, user_id, display_name, avatar_url, avatar_ver, content, created_at")
+      .select("id, user_id, display_name, avatar_url, avatar_ver, content, created_at, updated_at")
       .order("created_at", { ascending:false })
       .limit(50),
     "posts select",
     8000
   );
 
-  if (error){
-    log("loadFeed posts error", error);
-    setStatus("つぶやき取得失敗: " + error.message, false);
+  if (perr){
+    log("posts select error", perr);
+    setStatus("つぶやき取得失敗: " + perr.message, false);
     return;
   }
-
-  const ids = (posts || []).map(p=>p.id);
-
-  // like数・自分がlikeしてるか
-  let likeCountByPost = new Map();
-  let likedSet = new Set();
-  if (ids.length > 0){
-    const { data: likes, error: lerr } = await withTimeout(
-      sb.from("post_likes").select("post_id, user_id").in("post_id", ids),
-      "likes select",
-      8000
-    );
-    if (!lerr){
-      for (const r of (likes || [])){
-        likeCountByPost.set(r.post_id, (likeCountByPost.get(r.post_id)||0) + 1);
-        if (r.user_id === authUser.id) likedSet.add(r.post_id);
-      }
-    }else{
-      log("likes select error", lerr);
-    }
-  }
-
-  // comment数
-  let commentCountByPost = new Map();
-  if (ids.length > 0){
-    const { data: com, error: cerr } = await withTimeout(
-      sb.from("post_comments").select("post_id").in("post_id", ids),
-      "comments count select",
-      8000
-    );
-    if (!cerr){
-      for (const r of (com || [])){
-        commentCountByPost.set(r.post_id, (commentCountByPost.get(r.post_id)||0) + 1);
-      }
-    }else{
-      log("comments select error", cerr);
-    }
-  }
-
-  const box = document.getElementById("feedBox");
-  box.innerHTML = "";
 
   if (!posts || posts.length === 0){
-    box.innerHTML = "<div style='color:var(--muted);font-size:12px;'>まだつぶやきがないよ（最初の投稿してみよ！）</div>";
     setStatus("つぶやきなし", true);
+    box.innerHTML = `<div class="muted">まだつぶやきがないよ</div>`;
     return;
+  }
+
+  // いいね数
+  const postIds = posts.map(p => p.id);
+  const { data: likes, error: lerr } = await withTimeout(
+    sb.from("post_likes")
+      .select("post_id, user_id")
+      .in("post_id", postIds)
+      .limit(5000),
+    "likes select",
+    8000
+  );
+
+  if (lerr){
+    log("likes select error", lerr);
+  }
+
+  const likeCountByPost = new Map();
+  const likedByMe = new Set();
+  for (const r of (likes || [])){
+    likeCountByPost.set(r.post_id, (likeCountByPost.get(r.post_id) || 0) + 1);
+    if (r.user_id === authUser.id) likedByMe.add(r.post_id);
+  }
+
+  // コメント数
+  const { data: commentCounts, error: cerr } = await withTimeout(
+    sb.from("post_comments")
+      .select("post_id, id")
+      .in("post_id", postIds)
+      .limit(5000),
+    "comments count select",
+    8000
+  );
+
+  if (cerr){
+    log("comments count error", cerr);
+  }
+
+  const commentCountByPost = new Map();
+  for (const r of (commentCounts || [])){
+    commentCountByPost.set(r.post_id, (commentCountByPost.get(r.post_id) || 0) + 1);
   }
 
   for (const p of posts){
     const card = document.createElement("div");
-    card.className = "postCard";
+    card.className = "card";
 
     const head = document.createElement("div");
     head.className = "postHead";
 
     const name = (p.display_name || "名無し").toString();
-    const av = avatarHtml(p.avatar_url || "", name, p.avatar_ver || "");
-
     head.innerHTML = `
-      ${av}
-      <div style="min-width:0;">
-        <div class="postName">${escapeHtml(name)}</div>
-        <div class="postTime">${escapeHtml(formatTime(p.created_at))}</div>
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <div class="row" style="gap:8px;align-items:center;">
+          ${avatarHtml(p.avatar_url || "", name, p.avatar_ver || "")}
+          <div>
+            <div style="font-weight:700;">${escapeHtml(name)}</div>
+            <div style="font-size:12px;color:var(--muted);">${escapeHtml(formatTime(p.created_at))}${(p.updated_at && String(p.updated_at) !== String(p.created_at)) ? "（編集済）" : ""}</div>
+          </div>
+        </div>
       </div>
     `;
 
     const body = document.createElement("div");
     body.className = "postBody";
-    body.textContent = (p.content || "").toString();
+    body.innerHTML = `<div class="postText">${escapeHtml((p.content||"").toString())}</div>`;
 
     const actions = document.createElement("div");
-    actions.className = "postActions";
+    actions.className = "row";
+    actions.style.marginTop = "10px";
 
     const likeBtn = document.createElement("button");
     likeBtn.type = "button";
-    likeBtn.className = "miniBtn" + (likedSet.has(p.id) ? " liked" : "");
+    likeBtn.className = "miniBtn";
     const likeCount = likeCountByPost.get(p.id) || 0;
-    likeBtn.textContent = `👍 いいね ${likeCount}`;
+    likeBtn.textContent = `👍 いいね ${likeCount}${likedByMe.has(p.id) ? "（済）" : ""}`;
     likeBtn.onclick = () => toggleLike(p.id);
 
     const cBtn = document.createElement("button");
@@ -1049,14 +1055,101 @@ async function loadFeed(){
     const commentArea = document.createElement("div");
     commentArea.className = "commentArea";
     commentArea.id = "commentArea-" + p.id;
+    commentArea.style.display = "none";
 
     commentArea.innerHTML = `
-  <div id="commentList-${p.id}" style="margin-bottom:10px;"></div>
+      <div id="commentList-${p.id}" style="margin-bottom:10px;"></div>
 
- /* =================== コメント（返信/編集/削除） =================== */
+      <!-- ルートコメント入力 -->
+      <div class="row">
+        <textarea id="commentText-${p.id}" placeholder="コメントを書く（200文字まで）" style="min-height:70px;"></textarea>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btnPrimary miniBtn" type="button" onclick="createComment('${p.id}', null)">コメントする</button>
+        <button class="miniBtn" type="button" onclick="loadComments('${p.id}')">更新</button>
+      </div>
+    `;
+
+    card.appendChild(head);
+    card.appendChild(body);
+    card.appendChild(actions);
+    card.appendChild(commentArea);
+
+    box.appendChild(card);
+  }
+
+  setStatus(`つぶやきOK（${posts.length}件）`, true);
+}
+
+/* =================== いいね / コメント開閉 =================== */
+async function toggleLike(postId){
+  const ok = await refreshAuth();
+  if (!ok || !authUser){
+    alert("ログインが切れてるよ。もう一回ログインしてね！");
+    goLogin();
+    return;
+  }
+
+  // 既にいいねしてるか確認
+  const { data: exists, error: qerr } = await withTimeout(
+    sb.from("post_likes")
+      .select("post_id")
+      .eq("post_id", postId)
+      .eq("user_id", authUser.id)
+      .maybeSingle(),
+    "likes exists",
+    8000
+  );
+
+  if (qerr){
+    log("toggleLike exists error", qerr);
+    alert("いいね確認失敗: " + qerr.message);
+    return;
+  }
+
+  if (exists){
+    const { error: derr } = await withTimeout(
+      sb.from("post_likes")
+        .delete()
+        .eq("post_id", postId)
+        .eq("user_id", authUser.id),
+      "likes delete",
+      8000
+    );
+    if (derr){
+      log("toggleLike delete error", derr);
+      alert("いいね解除失敗: " + derr.message);
+      return;
+    }
+  }else{
+    const { error: ierr } = await withTimeout(
+      sb.from("post_likes").insert({ post_id: postId, user_id: authUser.id }),
+      "likes insert",
+      8000
+    );
+    if (ierr){
+      log("toggleLike insert error", ierr);
+      alert("いいね失敗: " + ierr.message);
+      return;
+    }
+  }
+
+  await loadFeed();
+}
+
+function toggleComments(postId){
+  const area = document.getElementById("commentArea-" + postId);
+  if (!area) return;
+
+  const open = area.classList.toggle("open");
+  area.style.display = open ? "block" : "none";
+  if (open) loadComments(postId).catch(()=>{});
+}
+
+/* =================== コメント（返信/編集/削除） =================== */
 
 // 編集・返信のUI状態（postId単位で保持）
-const commentUiState = new Map(); 
+const commentUiState = new Map();
 // state例: { editingId: "uuid" | null, replyingToId: "uuid" | null }
 
 function getPostState(postId){
@@ -1121,9 +1214,7 @@ async function updateComment(postId, commentId){
       return;
     }
 
-    const st = getPostState(postId);
-    st.editingId = null;
-
+    getPostState(postId).editingId = null;
     await loadComments(postId);
     await loadFeed(); // コメント数更新
     setStatus("コメントを編集した！", true);
@@ -1138,7 +1229,6 @@ async function loadComments(postId){
   const ok = await refreshAuth();
   if (!ok || !authUser) return;
 
-  // 返信対応のため parent_comment_id / updated_at も取る
   const { data, error } = await withTimeout(
     sb.from("post_comments")
       .select("id, post_id, parent_comment_id, user_id, display_name, avatar_url, avatar_ver, content, created_at, updated_at")
@@ -1173,8 +1263,7 @@ async function loadComments(postId){
 
   const st = getPostState(postId);
 
-  // 再帰描画
-  const renderList = (parentId, depth) => {
+  const render = (parentId, depth) => {
     const arr = byParent.get(parentId) || [];
     for (const c of arr){
       const row = document.createElement("div");
@@ -1236,19 +1325,15 @@ async function loadComments(postId){
       `;
 
       list.appendChild(row);
-
-      // 子（返信）を描画
-      renderList(c.id, depth + 1);
+      render(c.id, depth + 1);
     }
   };
 
-  renderList(null, 0);
+  render(null, 0);
 }
 
-// 既存の createComment を拡張：parentCommentId を受け取れるように
+// parentCommentId を受け取れる
 async function createComment(postId, parentCommentId){
-  log("createComment called", { postId, parentCommentId });
-
   try{
     const ok = await refreshAuth();
     if (!ok || !authUser){
@@ -1279,23 +1364,20 @@ async function createComment(postId, parentCommentId){
       content: text
     };
 
-    const res = await withTimeout(
+    const { error } = await withTimeout(
       sb.from("post_comments").insert(payload),
       "comment insert",
       8000
     );
 
-    if (res?.error){
-      log("createComment insert error", res.error);
-      alert("コメント失敗(詳細):\n" + JSON.stringify(res.error, null, 2));
+    if (error){
+      log("createComment insert error", error);
+      alert("コメント失敗: " + error.message);
       return;
     }
 
     if (ta) ta.value = "";
-
-    // UI状態解除
-    const st = getPostState(postId);
-    st.replyingToId = null;
+    getPostState(postId).replyingToId = null;
 
     await loadComments(postId);
     await loadFeed();
@@ -1307,7 +1389,7 @@ async function createComment(postId, parentCommentId){
   }
 }
 
-// 返信ボタン用の薄いラッパ（onclickから呼ぶ）
+// 返信ボタン用
 function createReply(postId, parentCommentId){
   return createComment(postId, parentCommentId);
 }
@@ -1340,92 +1422,6 @@ async function deleteComment(commentId, postId){
 }
 
 
-async function createComment(postId){
-  log("createComment called", { postId });
-
-  try{
-    const ok = await refreshAuth();
-    log("createComment refreshAuth ->", ok, "uid=", authUser?.id);
-
-    if (!ok || !authUser){
-      alert("ログインが切れてるよ。もう一回ログインしてね！");
-      goLogin();
-      return;
-    }
-
-    const taId = "commentText-" + postId;
-    const ta = document.getElementById(taId);
-    log("createComment textarea", { taId, found: !!ta });
-
-    const text = (ta?.value || "").trim();
-    log("createComment textlen", text.length);
-
-    if (!text){
-      alert("コメントを入力してね！");
-      return;
-    }
-    if (text.length > 200){
-      alert("コメントが長すぎるよ（200文字まで）");
-      return;
-    }
-
-    const dn = (authUser.user_metadata?.display_name || authUser.email || "名無し").toString();
-    const avm = getPreferredAvatar();
-
-    const payload = {
-      post_id: postId,
-      user_id: authUser.id,
-      display_name: dn,
-      avatar_url: avm.url || "",
-      avatar_ver: avm.ver || "",
-      content: text
-    };
-    log("createComment insert payload", payload);
-
-    const res = await withTimeout(
-      sb.from("post_comments").insert(payload),
-      "comment insert",
-      8000
-    );
-
-    log("createComment insert res", res);
-
-    if (res?.error){
-      alert("コメント失敗(詳細):\n" + JSON.stringify(res.error, null, 2));
-      return;
-    }
-
-    ta.value = "";
-    await loadComments(postId);
-    await loadFeed(); // コメント数更新
-    setStatus("コメントした！", true);
-
-  }catch(e){
-    log("createComment exception", e?.stack || String(e?.message || e));
-    alert("コメント処理で例外:\n" + (e?.stack || e?.message || e));
-  }
-}
-
-
-async function deleteComment(commentId, postId){
-  const ok = await refreshAuth();
-  if (!ok || !authUser) return;
-
-  const { error } = await withTimeout(
-    sb.from("post_comments").delete().eq("id", commentId).eq("user_id", authUser.id),
-    "comment delete",
-    8000
-  );
-
-  if (error){
-    log("deleteComment error", error);
-    alert("削除失敗: " + error.message);
-    return;
-  }
-
-  await loadComments(postId);
-  await loadFeed();
-}
 
 /* =================== HTMLエスケープ / Avatar =================== */
 function escapeHtml(s){
