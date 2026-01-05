@@ -976,13 +976,26 @@ function fmtTime(iso){
   }
 }
 
-async function loadMessages(){
-  const { data, error } = await sb
-    .from("messages_v2")
-    .select("id, room_id, name, avatar_url, message, image_url, image_path, image_purge_at, image_purged, created_at, user_id, deleted, deleted_at, deleted_by, image_deleted, image_deleted_at, image_deleted_reason")
-    .eq("room_id", room)
-    .order("created_at", { ascending:true })
-    .limit(200);
+// loadMessages: messages_v3 を roomId で絞る
+const { data, error } = await sb
+  .from("messages_v3")
+  .select("id, room_id, name, avatar_url, message, image_url, image_path, created_at, user_id, deleted, deleted_at, deleted_by")
+  .eq("room_id", roomId)
+  .order("created_at", { ascending:true })
+  .limit(200);
+
+// sendMsg: room_id は roomId(uuid)
+const { error } = await sb.from("messages_v3").insert({
+  room_id: roomId,
+  name,
+  avatar_url: myAvatarUrl,
+  message: v,
+  image_url: null,
+  user_id: myUid()
+});
+
+// sendImageのinsertも room_id: roomId に変更
+
 
   if (error){ log("loadMessages error", error); return; }
 
@@ -2406,6 +2419,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
