@@ -750,12 +750,10 @@ function isAdmin(user){
 // ここに「運営にしたいユーザーのUID」を入れてね（Supabase Auth の user.id）
 // 例: const ADMIN_UIDS = ["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"];
 const ADMIN_UIDS = [
-  const ADMIN_UIDS = [
   "054b7993-499d-45a7-ae15-c9f0e37bd2b9",
   "5f96d1c0-088e-4125-8670-e0fef1b563a6",
 ];
 
-];
 
 function isAdminUserId(userId){
   const uid = String(userId || "").trim();
@@ -2736,6 +2734,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
