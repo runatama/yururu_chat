@@ -1976,32 +1976,88 @@ async function startRoomDeleteWatch(){
 
 async function startRoomEventsWatch(){
   // room_events を監視（kick/ban/forceback/delete）
-  sb.channel("room-events-" + (roomId || ""))
-    .on("postgres_changes", { event:"INSERT", schema:"public", table:"room_events" }, (payload)=>{
-      const ev = payload.new || {};
-      if (ev.room_id !== roomId) return;
+  // ※Realtime が効かない環境があるので、2秒ポーリングも併用する（これでKick/全員戻すが確実に動く）
+  if (window.__roomEventsWatchStarted) return;
+  window.__roomEventsWatchStarted = true;
 
-      // 自分宛て or 全員
-      if (ev.target_user_id && ev.target_user_id !== myUid()) return;
+  // ここより後に作られたイベントだけ見る（入室前の古いイベントで飛ばないように）
+  window.__roomEventsLastAt = new Date().toISOString();
 
-      const typ = (ev.type || "").toString();
-      const reason = (ev.reason || "").toString();
+  function handleRoomEvent(ev){
+    if (!ev) return;
+    if (ev.room_id !== roomId) return;
 
-      if (typ === "kicked"){
-        alert("Kick されました。\n理由: " + (reason || "なし"));
-        goLobby();
-      }else if (typ === "banned"){
-        alert("Ban されました。\n理由: " + (reason || "なし"));
-        goLobby();
-      }else if (typ === "force_back_all"){
-        alert("枠主によりロビーへ戻されました。\n理由: " + (reason || "なし"));
-        goLobby();
-      }else if (typ === "room_deleted"){
-        alert("部屋が削除されました。\n理由: " + (reason || "なし"));
-        goLobby();
-      }
-    })
-    .subscribe();
+    // 自分宛て or 全員
+    if (ev.target_user_id && ev.target_user_id !== myUid()) return;
+
+    const typ = (ev.type || "").toString();
+    const reason = (ev.reason || "").toString();
+
+    // 受信済みの最新時刻を更新（null安全）
+    if (ev.created_at){
+      window.__roomEventsLastAt = ev.created_at;
+    }
+
+    if (typ === "kicked"){
+      alert("Kick されました。
+理由: " + (reason || "なし"));
+      goLobby();
+    }else if (typ === "banned"){
+      alert("Ban されました。
+理由: " + (reason || "なし"));
+      goLobby();
+    }else if (typ === "force_back_all"){
+      alert("枠主によりロビーへ戻されました。
+理由: " + (reason || "なし"));
+      goLobby();
+    }else if (typ === "room_deleted"){
+      alert("部屋が削除されました。
+理由: " + (reason || "なし"));
+      goLobby();
+    }
+  }
+
+  // --- Realtime（効くなら最速） ---
+  try{
+    sb.channel("room-events-" + (roomId || ""))
+      .on("postgres_changes", { event:"INSERT", schema:"public", table:"room_events" }, (payload)=>{
+        const ev = payload.new || {};
+        handleRoomEvent(ev);
+      })
+      .subscribe();
+  }catch(e){
+    log("room_events realtime warn", e);
+  }
+
+  // --- Polling（Realtimeが死んでも確実） ---
+  async function pollRoomEvents(){
+    if (!roomId || !myUid()) return;
+    const since = window.__roomEventsLastAt || new Date(Date.now() - 60*1000).toISOString();
+
+    // target_user_id が null（全員） or 自分宛て のものだけを拾う
+    // Supabaseのor()は "a.is.null,a.eq.xxx" の形で書ける
+    const { data, error } = await sb.from("room_events")
+      .select("id, room_id, target_user_id, type, reason, created_at")
+      .eq("room_id", roomId)
+      .gt("created_at", since)
+      .or(`target_user_id.is.null,target_user_id.eq.${myUid()}`)
+      .order("created_at", { ascending:true })
+      .limit(50);
+
+    if (error){
+      // ずっとエラーならログだけ（UIを壊さない）
+      log("room_events poll error", error);
+      return;
+    }
+
+    if (!data || !data.length) return;
+    for (const ev of data){
+      handleRoomEvent(ev);
+    }
+  }
+
+  // 2秒ごとにチェック（軽い）
+  window.__roomEventsPollTimer = setInterval(pollRoomEvents, 2000);
 }
 
 async function deleteRoomNow(){
@@ -2011,7 +2067,7 @@ async function deleteRoomNow(){
 
   // 先にイベント（全員向け）を出す
   try{
-    await sb.from("room_events").insert({
+    const { error } = await sb.from("room_events").insert({
       room_id: roomId,
       target_user_id: null,
       type: "room_deleted",
@@ -2046,10 +2102,17 @@ async function kickUser(){
   const reason = getAdminReason();
 
   // kick 記録（任意：履歴）
-  await sb.from("room_kicks").insert({ room_id: roomId, user_id: target, reason: reason || null });
+  {
+    const { error: kerr } = await sb.from("room_kicks").insert({ room_id: roomId, user_id: target, reason: reason || null });
+    if (kerr && !String(kerr.message||"").includes("duplicate")){
+      log("kick record error", kerr);
+      // 履歴が書けなくてもKick自体は続行する
+    }
+  }
 
-  // 対象だけロビーへ
-  await sb.from("room_events").insert({
+  // 対象だけロビーへ（これが本体）
+  {
+    const { error: eerr } = await sb.from("room_events").insert({
     room_id: roomId,
     target_user_id: target,
     type: "kicked",
@@ -2095,6 +2158,11 @@ async function forceBackAll(){
     reason: reason || "枠主によりロビーへ戻されました",
     actor_user_id: myUid()
   });
+  if (error){
+    alert("全員戻し失敗: " + error.message);
+    log("forceBackAll error", error);
+    return;
+  }
 
   alert("全員をロビーに戻しました。");
 }
