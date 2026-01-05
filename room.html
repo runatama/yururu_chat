@@ -960,7 +960,7 @@ async function startMessagesRealtime(){
       const nr = payload.new || {};
       const or = payload.old || {};
       const rid = nr.room_id || or.room_id;
-      if (rid === room) await loadMessages();
+      if (rid === roomId) await loadMessages();
     })
     .subscribe();
 }
@@ -1098,7 +1098,6 @@ async function loadMessages(){
     box.scrollTop = box.scrollHeight;
   }
 
-}
 async function sendMsg(){
   const v = document.getElementById("msg").value.trim();
   if (!v) return;
@@ -1333,7 +1332,7 @@ async function startCallParticipantsRealtime(){
       const nr = payload.new || {};
       const or = payload.old || {};
       const rid = nr.room_id || or.room_id;
-      if (rid === room) await loadActiveCallUsers();
+      if (rid === roomId) await loadActiveCallUsers();
     })
     .subscribe();
 }
