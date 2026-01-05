@@ -1179,44 +1179,71 @@ async function loadComments(postId){
 }
 
 async function createComment(postId){
-  const ok = await refreshAuth();
-  if (!ok || !authUser){
-    alert("ログインが切れてるよ。もう一回ログインしてね！");
-    goLogin();
-    return;
-  }
+  log("createComment called", { postId });
 
-  const ta = document.getElementById("commentText-" + postId);
-  const text = (ta?.value || "").trim();
-  if (!text) return alert("コメントを入力してね！");
-  if (text.length > 200) return alert("コメントが長すぎるよ（200文字まで）");
+  try{
+    const ok = await refreshAuth();
+    log("createComment refreshAuth ->", ok, "uid=", authUser?.id);
 
-  const dn = (authUser.user_metadata?.display_name || authUser.email || "名無し").toString();
-  const avm = getPreferredAvatar();
+    if (!ok || !authUser){
+      alert("ログインが切れてるよ。もう一回ログインしてね！");
+      goLogin();
+      return;
+    }
 
-  const { error } = await withTimeout(
-    sb.from("post_comments").insert({
+    const taId = "commentText-" + postId;
+    const ta = document.getElementById(taId);
+    log("createComment textarea", { taId, found: !!ta });
+
+    const text = (ta?.value || "").trim();
+    log("createComment textlen", text.length);
+
+    if (!text){
+      alert("コメントを入力してね！");
+      return;
+    }
+    if (text.length > 200){
+      alert("コメントが長すぎるよ（200文字まで）");
+      return;
+    }
+
+    const dn = (authUser.user_metadata?.display_name || authUser.email || "名無し").toString();
+    const avm = getPreferredAvatar();
+
+    const payload = {
       post_id: postId,
       user_id: authUser.id,
       display_name: dn,
       avatar_url: avm.url || "",
       avatar_ver: avm.ver || "",
       content: text
-    }),
-    "comment insert",
-    8000
-  );
+    };
+    log("createComment insert payload", payload);
 
-  if (error){
-    log("createComment error", error);
-    alert("コメント失敗: " + error.message);
-    return;
+    const res = await withTimeout(
+      sb.from("post_comments").insert(payload),
+      "comment insert",
+      8000
+    );
+
+    log("createComment insert res", res);
+
+    if (res?.error){
+      alert("コメント失敗(詳細):\n" + JSON.stringify(res.error, null, 2));
+      return;
+    }
+
+    ta.value = "";
+    await loadComments(postId);
+    await loadFeed(); // コメント数更新
+    setStatus("コメントした！", true);
+
+  }catch(e){
+    log("createComment exception", e?.stack || String(e?.message || e));
+    alert("コメント処理で例外:\n" + (e?.stack || e?.message || e));
   }
-
-  ta.value = "";
-  await loadComments(postId);
-  await loadFeed(); // コメント数更新
 }
+
 
 async function deleteComment(commentId, postId){
   const ok = await refreshAuth();
@@ -1331,3 +1358,4 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
