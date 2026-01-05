@@ -311,8 +311,16 @@ function withTimeout(promise, label, ms=8000){
 
 /* =================== 移動 =================== */
 function goLogin(){ location.replace("./login.html?_r=" + Date.now()); }
-function goRoom(roomName){
-  location.replace("./room.html?room=" + encodeURIComponent(roomName) + "&_r=" + Date.now());
+function goRoom(roomObj){
+  // roomObj: { id, room_name }
+  const rn = (roomObj?.room_name || "").trim();
+  const rid = roomObj?.id || "";
+  if (!rn) return;
+  const q = new URLSearchParams();
+  q.set("room", rn);
+  if (rid) q.set("room_id", rid);
+  q.set("_r", Date.now());
+  location.replace("./room.html?" + q.toString());
 }
 function goProfile(){
   location.replace("./profile.html?back=lobby&_r=" + Date.now());
@@ -553,8 +561,8 @@ async function loadRooms(){
 
   const { data, error } = await withTimeout(
     sb.from("rooms")
-      .select("room_name, created_at, owner_id")
-      .order("created_at", { ascending:true }),
+      .select("id, room_name, created_at, owner_id")
+      .order("created_at", { ascending:false }),
     "rooms select",
     8000
   );
@@ -565,10 +573,10 @@ async function loadRooms(){
     return;
   }
 
-  const activeMap = await fetchActiveCallUsersByRoom();
-
   const box = document.getElementById("roomsBox");
   box.innerHTML = "";
+
+  const activeMap = await getActiveCallMap();
 
   if (!data || data.length === 0){
     box.innerHTML = "<div style='color:var(--muted);font-size:12px;'>まだ部屋がないよ（部屋作成してね）</div>";
@@ -587,7 +595,7 @@ async function loadRooms(){
     btn.className = "roomBtn";
     btn.textContent = rn;
     btn.onclick = () => document.getElementById("room").value = rn;
-    btn.ondblclick = () => goRoom(rn);
+    btn.ondblclick = () => goRoom(r);
 
     const users = activeMap.get(rn) || [];
     if (users.length > 0){
@@ -605,18 +613,11 @@ async function loadRooms(){
     del.type = "button";
     del.className = "delBtn";
     del.textContent = "🗑";
-    del.title = "通話中は削除できません";
-
-    const inCall = await isRoomInCall(rn);
-    if (inCall){
-      del.disabled = true;
-      del.style.opacity = "0.4";
-      del.style.cursor = "not-allowed";
-    }
+    del.title = "部屋を削除（枠主のみ）";
 
     del.onclick = async () => {
       try {
-        log("delete: start", rn);
+        log("delete: start", rn, r.id);
 
         const ok = await refreshAuth();
         if (!ok || !authUser) {
@@ -625,24 +626,17 @@ async function loadRooms(){
           return;
         }
 
-        const nowInCall = await isRoomInCall(rn);
-        if (nowInCall) {
-          alert("この部屋は通話中なので削除できません。");
-          await loadRooms();
-          return;
-        }
+        if (!confirm(`部屋「${rn}」を削除しますか？\n（通話中/書き込み中でも強制終了します）`)) return;
 
-        if (!confirm(`部屋「${rn}」を削除しますか？`)) return;
-
-        const { error } = await withTimeout(
-          sb.from("rooms").delete().eq("room_name", rn),
+        const { error: delErr } = await withTimeout(
+          sb.from("rooms").delete().eq("id", r.id),
           "rooms delete",
           8000
         );
 
-        if (error) {
-          alert("削除失敗: " + error.message);
-          log("delete error", error);
+        if (delErr) {
+          alert("削除失敗: " + delErr.message);
+          log("delete error", delErr);
           return;
         }
 
@@ -652,7 +646,7 @@ async function loadRooms(){
       } catch (e) {
         console.error(e);
         log("delete: exception", String(e?.message || e));
-        alert("削除処理でエラー: " + (e?.message || e));
+        alert("削除で例外:\n" + (e?.stack || e?.message || e));
       }
     };
 
@@ -661,7 +655,7 @@ async function loadRooms(){
     box.appendChild(row);
   }
 
-  setStatus(`部屋一覧OK（${data.length}件）`, true);
+  setStatus("部屋一覧OK", true);
 }
 
 /* =================== 部屋作成 / 入室 =================== */
@@ -688,33 +682,39 @@ async function createRoom(){
 
     const rn = document.getElementById("room").value.trim();
     log("createRoom: rn=", rn);
-    if (!rn){
-      alert("部屋名を入れてね！");
-      return;
-    }
 
-    // ① exists チェック
-    log("createRoom: check exists...");
+    if (!rn) return alert("部屋名を入れてね！");
+
+    // ① exists
+    log("createRoom: exists check...");
     const q1 = await withTimeout(
-      sb.from("rooms").select("room_name").eq("room_name", rn).maybeSingle(),
-      "rooms exists check",
+      sb.from("rooms").select("id").eq("room_name", rn).maybeSingle(),
+      "rooms exists",
       8000
     );
     log("createRoom: exists raw=", q1);
 
     if (q1.error){
-      alert("確認失敗(詳細):\n" + JSON.stringify(q1.error, null, 2));
+      alert("存在チェック失敗(詳細):\n" + JSON.stringify(q1.error, null, 2));
       return;
     }
+
     if (q1.data){
       alert("その部屋はもうあるよ！");
+      // 既存の部屋へ入る（最新行を取る）
+      const { data: r2, error: e2 } = await withTimeout(
+        sb.from("rooms").select("id, room_name, created_at").eq("room_name", rn).order("created_at", { ascending:false }).limit(1).maybeSingle(),
+        "rooms select latest",
+        8000
+      );
+      if (!e2 && r2) goRoom(r2);
       return;
     }
 
     // ② insert
     log("createRoom: insert...");
     const q2 = await withTimeout(
-      sb.from("rooms").insert({ room_name: rn, owner_id: authUser.id }).select().maybeSingle(),
+      sb.from("rooms").insert({ room_name: rn, owner_id: authUser.id }).select("id, room_name, created_at, owner_id").maybeSingle(),
       "rooms insert",
       8000
     );
@@ -729,6 +729,9 @@ async function createRoom(){
     await loadRooms();
     log("=== createRoom ok ===");
 
+    // ③ 作成した部屋に入る
+    goRoom(q2.data);
+
   }catch(e){
     log("createRoom exception:", String(e?.message || e));
     alert("作成で例外:\n" + (e?.stack || e?.message || e));
@@ -741,16 +744,36 @@ async function enterRoom(){
   const rn = document.getElementById("room").value.trim();
   if (!rn) return alert("部屋名を入れてね！");
 
-  const { data: exists, error } = await withTimeout(
-    sb.from("rooms").select("room_name").eq("room_name", rn).maybeSingle(),
-    "rooms enter exists",
+  const ok = await refreshAuth();
+  if (!ok || !authUser){
+    alert("ログインが切れてるよ。もう一回ログインしてね！");
+    goLogin();
+    return;
+  }
+
+  const { data: r, error } = await withTimeout(
+    sb.from("rooms")
+      .select("id, room_name, created_at, owner_id")
+      .eq("room_name", rn)
+      .order("created_at", { ascending:false })
+      .limit(1)
+      .maybeSingle(),
+    "rooms enter select",
     8000
   );
 
-  if (error) return alert("確認失敗: " + error.message);
-  if (!exists) return alert("その部屋はまだないよ。先に部屋作成してね！");
+  if (error){
+    alert("入室チェック失敗: " + error.message);
+    log("enterRoom error", error);
+    return;
+  }
 
-  goRoom(rn);
+  if (!r){
+    alert("その部屋が見つからないよ！先に作成してね！");
+    return;
+  }
+
+  goRoom(r);
 }
 
 /* =================== HTMLエスケープ / Avatar =================== */
