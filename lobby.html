@@ -326,6 +326,14 @@
 .commentActions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
 .commentActions .miniBtn{ padding:6px 10px; font-size:11px; }
 
+/* コメントの主要ボタンは暗くしない（miniBtnに負けない） */
+.commentActions .btnPrimary{
+  background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
+  color:#08131f !important;
+  border:none !important;
+}
+
+
   </style>
 </head>
 
@@ -1070,10 +1078,10 @@ async function loadFeed(){
       </div>
     `;
 
-    // inline onclick を使わずにイベント登録（CSP/スコープ事故対策）
+    // onclick を使わずにイベント登録（クリック2重送信/CSP事故対策）
     const btnSubmit = commentArea.querySelector(`#commentSubmit-${p.id}`);
     const btnRefresh = commentArea.querySelector(`#commentRefresh-${p.id}`);
-    if (btnSubmit) btnSubmit.addEventListener("click", ()=>createComment(p.id, null));
+    if (btnSubmit) btnSubmit.addEventListener("click", ()=>createComment(p.id, null, btnSubmit));
     if (btnRefresh) btnRefresh.addEventListener("click", ()=>loadComments(p.id));
 card.appendChild(head);
     card.appendChild(body);
@@ -1155,6 +1163,8 @@ function toggleComments(postId){
 
 // 編集・返信のUI状態（postId単位で保持）
 const commentUiState = new Map();
+// 二重送信防止（postIdごと）
+const commentSendLock = new Map();
 // state例: { editingId: "uuid" | null, replyingToId: "uuid" | null }
 
 function getPostState(postId){
@@ -1190,7 +1200,7 @@ function cancelEdit(postId){
   loadComments(postId).catch(()=>{});
 }
 
-async function updateComment(postId, commentId){
+async function updateComment(postId, commentId, btnEl){
   try{
     const ok = await refreshAuth();
     if (!ok || !authUser){
@@ -1278,8 +1288,7 @@ async function loadComments(postId){
       const av = avatarHtml(c.avatar_url || "", name, c.avatar_ver || "");
       const canOwner = (c.user_id === authUser.id);
 
-      const edited = (c.updated_at && c.created_at && (String(c.updated_at) !== String(c.created_at)));
-      const timeLabel = escapeHtml(formatTime(c.created_at)) + (edited ? "（編集済）" : "");
+      const timeLabel = escapeHtml(formatTime(c.created_at));
 
       // 本文 or 編集フォーム
       const isEditing = (st.editingId === c.id);
@@ -1289,7 +1298,7 @@ async function loadComments(postId){
             <textarea id="editText-${postId}-${c.id}" style="min-height:70px;">${escapeHtml((c.content||"").toString())}</textarea>
           </div>
           <div class="commentActions">
-            <button class="btnPrimary miniBtn" type="button" onclick="updateComment('${postId}','${c.id}')">保存</button>
+            <button class="btnPrimary" type="button" onclick="updateComment('${postId}','${c.id}', this)">保存</button>
             <button class="miniBtn" type="button" onclick="cancelEdit('${postId}')">キャンセル</button>
           </div>
         `
@@ -1303,7 +1312,7 @@ async function loadComments(postId){
             <textarea id="replyText-${postId}-${c.id}" placeholder="返信を書く（200文字まで）" style="min-height:70px;"></textarea>
           </div>
           <div class="commentActions">
-            <button class="btnPrimary miniBtn" type="button" onclick="createReply('${postId}','${c.id}')">返信する</button>
+            <button class="btnPrimary" type="button" onclick="createReply('${postId}','${c.id}', this)">返信する</button>
             <button class="miniBtn" type="button" onclick="cancelReply('${postId}')">キャンセル</button>
           </div>
         `
@@ -1338,7 +1347,7 @@ async function loadComments(postId){
 }
 
 // parentCommentId を受け取れる
-async function createComment(postId, parentCommentId){
+async function createComment(postId, parentCommentId, btnEl){
   try{
     const ok = await refreshAuth();
     if (!ok || !authUser){
@@ -1346,6 +1355,12 @@ async function createComment(postId, parentCommentId){
       goLogin();
       return;
     }
+
+    // 二重送信防止
+    const lockKey = `${postId}:${parentCommentId || "root"}`;
+    if (commentSendLock.get(lockKey)) return;
+    commentSendLock.set(lockKey, true);
+    if (btnEl) btnEl.disabled = true;
 
     const isReply = !!parentCommentId;
     const ta = isReply
@@ -1392,11 +1407,17 @@ async function createComment(postId, parentCommentId){
     log("createComment exception", e?.stack || String(e?.message || e));
     alert("コメント処理で例外:\n" + (e?.stack || e?.message || e));
   }
+  }finally{
+    const lockKey = `${postId}:${parentCommentId || "root"}`;
+    commentSendLock.delete(lockKey);
+    if (btnEl) btnEl.disabled = false;
+  }
 }
 
+
 // 返信ボタン用
-function createReply(postId, parentCommentId){
-  return createComment(postId, parentCommentId);
+function createReply(postId, parentCommentId, btnEl){
+  return createComment(postId, parentCommentId, btnEl);
 }
 
 // 削除（完全削除）
@@ -1417,7 +1438,7 @@ async function deleteComment(commentId, postId){
 
   if (error){
     log("deleteComment error", error);
-    alert("削除失敗: " + error.message);
+    alert("削除失敗: " + error.message + "\n\n(返信がぶら下がっている場合、DB側で parent_comment_id の外部キーを ON DELETE CASCADE にする必要があるよ)");
     return;
   }
 
