@@ -1440,8 +1440,7 @@ async function createComment(postId, parentCommentId, btnEl){
 
   }catch(e){
     log("createComment exception", e?.stack || String(e?.message || e));
-    alert("コメント処理で例外:
-" + (e?.stack || e?.message || e));
+    alert("コメント処理で例外:\n" + (e?.stack || e?.message || e));
   }finally{
     commentSendLock.delete(lockKey);
     if (btnEl) btnEl.disabled = false;
@@ -1585,5 +1584,4 @@ function getPreferredAvatar(){
 
 </body>
 </html>
-
 
