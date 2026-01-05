@@ -1999,20 +1999,16 @@ async function startRoomEventsWatch(){
     }
 
     if (typ === "kicked"){
-      alert("Kick されました。
-理由: " + (reason || "なし"));
+      alert(`Kick されました。\n理由: ${reason || "なし"}`);
       goLobby();
     }else if (typ === "banned"){
-      alert("Ban されました。
-理由: " + (reason || "なし"));
+      alert(`Ban されました。\n理由: ${reason || "なし"}`);
       goLobby();
     }else if (typ === "force_back_all"){
-      alert("枠主によりロビーへ戻されました。
-理由: " + (reason || "なし"));
+      alert(`枠主によりロビーへ戻されました。\n理由: ${reason || "なし"}`);
       goLobby();
     }else if (typ === "room_deleted"){
-      alert("部屋が削除されました。
-理由: " + (reason || "なし"));
+      alert(`部屋が削除されました。\n理由: ${reason || "なし"}`);
       goLobby();
     }
   }
@@ -2101,27 +2097,37 @@ async function kickUser(){
   if (!target) return alert("対象ユーザーIDが不正だよ！");
   const reason = getAdminReason();
 
-  // kick 記録（任意：履歴）
+  // kick 履歴（任意）
   {
-    const { error: kerr } = await sb.from("room_kicks").insert({ room_id: roomId, user_id: target, reason: reason || null });
+    const { error: kerr } = await sb.from("room_kicks").insert({
+      room_id: roomId,
+      user_id: target,
+      reason: reason || null
+    });
     if (kerr && !String(kerr.message||"").includes("duplicate")){
       log("kick record error", kerr);
-      // 履歴が書けなくてもKick自体は続行する
     }
   }
 
   // 対象だけロビーへ（これが本体）
   {
     const { error: eerr } = await sb.from("room_events").insert({
-    room_id: roomId,
-    target_user_id: target,
-    type: "kicked",
-    reason: reason || null,
-    actor_user_id: myUid()
-  });
+      room_id: roomId,
+      target_user_id: target,
+      type: "kicked",
+      reason: reason || null,
+      actor_user_id: myUid()
+    });
+    if (eerr){
+      alert("Kick 失敗: " + eerr.message);
+      log("kick event error", eerr);
+      return;
+    }
+  }
 
   alert("Kick しました。");
 }
+
 
 async function banUser(){
   if (!isOwner) return alert("枠主だけ！");
@@ -2136,28 +2142,35 @@ async function banUser(){
     return;
   }
 
-  await sb.from("room_events").insert({
+  const { error: eerr } = await sb.from("room_events").insert({
     room_id: roomId,
     target_user_id: target,
     type: "banned",
     reason: reason || null,
     actor_user_id: myUid()
   });
+  if (eerr){
+    alert("Ban 通知失敗: " + eerr.message);
+    log("ban event error", eerr);
+    // BAN自体（room_bansへの登録）はできてるので、ここでは止めない
+  }
 
   alert("Ban しました。");
 }
+
 
 async function forceBackAll(){
   if (!isOwner) return alert("枠主だけ！");
   const reason = getAdminReason();
 
-  await sb.from("room_events").insert({
+  const { error } = await sb.from("room_events").insert({
     room_id: roomId,
     target_user_id: null,
     type: "force_back_all",
     reason: reason || "枠主によりロビーへ戻されました",
     actor_user_id: myUid()
   });
+
   if (error){
     alert("全員戻し失敗: " + error.message);
     log("forceBackAll error", error);
@@ -2166,6 +2179,7 @@ async function forceBackAll(){
 
   alert("全員をロビーに戻しました。");
 }
+
 
 
 async function upsertRoomMember(){
