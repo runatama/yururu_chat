@@ -1886,9 +1886,14 @@ function renderAdminUsers(){
   const box = document.getElementById("adminUsersList");
   if (!box) return;
 
-  // 自分以外を上に
+  // ✅ 追加：古い候補は消す（前の枠の残骸対策）
+  const TTL_MS = 3 * 60 * 1000; // 3分
+  const now = Date.now();
+
+  // 自分以外を上に + 古いのは除外
   const arr = Array.from(recentUsers.values())
-    .filter(u=>u.user_id && u.user_id !== myUid())
+    .filter(u => u.user_id && u.user_id !== myUid())
+    .filter(u => (now - (u.last_seen || 0)) <= TTL_MS)
     .sort((a,b)=>(b.last_seen||0)-(a.last_seen||0))
     .slice(0, 40);
 
@@ -1916,12 +1921,14 @@ function renderAdminUsers(){
     it.appendChild(right);
 
     it.onclick = ()=>{
-      document.getElementById("adminTargetUid").value = u.user_id;
+      const t = document.getElementById("adminTargetUid");
+      if (t) t.value = u.user_id;
     };
 
     box.appendChild(it);
   }
 }
+
 
 function avatarInline(url, alt){
   if (url){
@@ -2344,6 +2351,11 @@ async function startRoomMembersRealtime(){
   roomOwnerId = row.owner_id || "";
   isOwner = (roomOwnerId && roomOwnerId === myUid());
 
+  // ✅ 追加：部屋が切り替わったら枠主ツール候補を初期化（前の枠の人を残さない）
+  recentUsers = new Map();
+  renderAdminUsers();
+
+
   // 表示は room_name を優先
   room = (row.room_name || room).toString();
 
@@ -2407,6 +2419,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
