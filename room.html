@@ -733,6 +733,10 @@ const sb = supabase.createClient(
     }
   }
 );
+// ===== 運営判定（IDベース・安全）=====
+function isAdmin(user){
+  return user?.app_metadata?.is_admin === true;
+}
 
 /* 画像用（Public bucket名） */
 const IMAGE_BUCKET = "chat-images";
@@ -2704,6 +2708,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
