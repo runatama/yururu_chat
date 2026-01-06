@@ -991,33 +991,38 @@ function updateTop(){
     const card = document.getElementById("adminCard");
     if (!card) return;
 
-    // ★必ず一旦リセット（表示が残る事故防止）
+    // 一旦リセット
     card.style.display = "none";
 
     if (isOwner){
       card.style.display = "block";
-     }else if (isSubOwner()){
-   card.style.display = "block";
+    } else if (isSubOwner()){
+      card.style.display = "block";
 
-   // サブ枠主は Kick のみ：Ban/全員戻しは見せない（UI事故防止）
+      // サブ枠主は Kick のみ
+      const banBtn = card.querySelector('button[onclick="banUser()"]');
+      const backAllBtn = card.querySelector('button[onclick="forceBackAll()"]');
 
+      if (banBtn){
+        banBtn.style.display = "none";
+        banBtn.disabled = true;
+      }
+      if (backAllBtn){
+        backAllBtn.style.display = "none";
+        backAllBtn.disabled = true;
+      }
 
- const banBtn = card.querySelector('button[onclick="banUser()"]');
-　const backAllBtn = card.querySelector('button[onclick="forceBackAll()"]');
+      // サブ枠主には追加UIを見せない
+      const editRow = document.getElementById("subOwnerEditRow");
+      if (editRow){
+        editRow.style.display = "none";
+      }
+    }
 
-if (banBtn){ banBtn.style.display = "none"; banBtn.disabled = true; }
- if (backAllBtn){ backAllBtn.style.display = "none"; backAllBtn.disabled = true; }
-
-     // サブ枠主には「サブ枠主追加UI」を見せない
-     const editRow = document.getElementById("subOwnerEditRow");
-      if (editRow){ editRow.style.display = "none"; }
-
-
-
-    // サブ枠主リスト表示（枠主以外は中身変えられない）
     renderSubOwners();
   };
 })();
+
 
 
 
@@ -2855,6 +2860,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
