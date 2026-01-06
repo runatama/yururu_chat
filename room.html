@@ -1921,7 +1921,6 @@ function onPresenceJoin(key, newPresences){
 
   if (!joinedCall) return;
   if (!key || key === myUid()) return;
-
   ensurePC(key).then(()=>{
     attachTracksToPC(key);
     sendSignal(key, { kind:"hello" });
@@ -2889,6 +2888,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
