@@ -1931,15 +1931,9 @@ function onPresenceLeave(key, leftPresences){
 async function refreshPresenceList(){
   const box = document.getElementById("callUsersList");
   if (!box) return;
-
-  if (!callPresenceChannel){
-    box.innerHTML = "<div class='hint'>未接続</div>";
-    return;
-  }
-
-  const st = callPresenceChannel.presenceState() || {};
-  const ids = Object.keys(st);
   box.innerHTML = "";
+}
+
 
   if (ids.length === 0){
     box.innerHTML = "<div class='hint'>未接続</div>";
@@ -2889,6 +2883,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
