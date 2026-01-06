@@ -784,7 +784,9 @@ function isAdminUserId(userId){
 
 function isSubOwner(){
   const uid = String(myUid() || "").trim();
-  if (!uid) return false;+  return SUB_OWNER_UIDS.includes(uid);
+  if (!uid) return false;
+return SUB_OWNER_UIDS.includes(uid);
+
 }
 
 function adminBadgeHtmlByUserId(userId){
@@ -2863,6 +2865,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
