@@ -784,11 +784,11 @@ function canBan(){
 
 
 function isSubOwner(){
-  
-
-function adminBadgeHtmlByUserId(userId){
-  return isAdminUserId(userId) ? '<span class="badge admin">運営</span>' : '';
+  const uid = myUid();
+  if (!uid) return false;
+  return SUB_OWNER_UIDS.includes(uid);
 }
+
 
   function renderSubOwners(){
   const box = document.getElementById("subOwnerList");
@@ -2859,6 +2859,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
