@@ -772,7 +772,7 @@ function isAdminUserId(userId){
 }
 
 // ===== Sub Owner (Kick only) =====
-const SUB_OWNER_UIDS = []; // UIから追加される
+const SUB_OWNER_UIDS = []; // UIから追加される（※リロードで消える）
 
 function isSubOwner(){
   return SUB_OWNER_UIDS.includes(authUser?.id);
@@ -783,7 +783,7 @@ function canKick(){
 }
 
 function canBan(){
-  return isOwner;
+  return isOwner; // Banは枠主だけ
 }
 
 
@@ -983,6 +983,7 @@ function updateTop(){
   pill.innerHTML = `${avatarHtml(avm.url, shown, "", avm.ver)} <span class="nameText">👤 ${escapeHtml(shown)}</span>${adminBadgeHtmlByUserId(authUser.id)}`;
 }
   // ===== adminCard 表示制御（④はここ）=====
+// ===== adminCard 表示制御 =====
 (function(){
   const origUpdateTop = updateTop;
   updateTop = function(){
@@ -991,16 +992,24 @@ function updateTop(){
     const card = document.getElementById("adminCard");
     if (!card) return;
 
+    // ★必ず一旦リセット（表示が残る事故防止）
+    card.style.display = "none";
+
     if (isOwner){
       card.style.display = "block";
     }else if (isSubOwner()){
       card.style.display = "block";
+
+      // サブ枠主は Kick のみ：Ban/全員戻しは見せない（UI事故防止）
       card.querySelector('button[onclick="banUser()"]')?.remove();
+      card.querySelector('button[onclick="forceBackAll()"]')?.remove();
     }
 
+    // サブ枠主リスト表示（枠主以外は中身変えられない）
     renderSubOwners();
   };
 })();
+
 
 
 async function reloadName(){
@@ -2452,7 +2461,7 @@ function getAdminReason(){
 }
 
 async function kickUser(){
-
+  if (!canKick()) return alert("枠主 or サブ枠主だけ！");
   if (!canKick()){
     alert("Kickできるのは枠主またはサブ枠主だけです");
     return;
@@ -2507,7 +2516,7 @@ if (!(isOwner || isSubOwner())){
 }
 
 async function banUser(){
-
+　if (!canBan()) return alert("枠主だけ！");
   if (!canBan()){
     alert("Banできるのは枠主だけです");
     return;
@@ -2856,6 +2865,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
