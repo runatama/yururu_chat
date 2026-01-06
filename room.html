@@ -759,6 +759,13 @@ function isAdminUserId(userId){
   if (!uid) return false;
   return ADMIN_UIDS.includes(uid);
 }
+  const SUB_OWNER_UIDS = [
+  "ここにサブ枠主のUID"
+];
+
+function isSubOwner(){
+  return SUB_OWNER_UIDS.includes(authUser?.id);
+}
 
 function adminBadgeHtmlByUserId(userId){
   return isAdminUserId(userId) ? '<span class="badge admin">運営</span>' : '';
@@ -2368,6 +2375,11 @@ function getAdminReason(){
 }
 
 async function kickUser(){
+  // 枠主 or サブ枠主だけOK
+if (!(isOwner || isSubOwner())){
+  alert("Kickできるのは枠主かサブ枠主だけ！");
+  return;
+}
   const targetUid = document.getElementById("adminTargetUid").value.trim();
   if (!targetUid) return;
   // 🚫 運営はKick不可
@@ -2610,6 +2622,10 @@ async function startRoomMembersRealtime(){
     await reloadName();
     updateTop();
 
+    if (isSubOwner() && !isOwner){
+  document.querySelector('button[onclick="banUser()"]')?.remove();
+}
+
     // URL params
     const urlRoom = getRoomFromUrl();
     const urlRoomId = getRoomIdFromUrl(); // ★追加：room_id も読む
@@ -2749,6 +2765,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
