@@ -774,23 +774,21 @@ function isAdminUserId(userId){
 function adminBadgeHtmlByUserId(userId){
   if (!userId) return "";
 
-  // 枠主
+  let html = "";
+
   if (userId === roomOwnerId){
-    return `<span class="badge admin">OWNER</span>`;
+    html += `<span class="badge admin">OWNER</span>`;
   }
-
-  // サブ枠主
   if (SUB_OWNER_UIDS.includes(userId)){
-    return `<span class="badge warn">SUB</span>`;
+    html += `<span class="badge warn">SUB</span>`;
   }
-
-  // 運営（固定UID）
   if (isAdminUserId(userId)){
-    return `<span class="badge admin">ADMIN</span>`;
+    html += `<span class="badge admin">運営</span>`;
   }
 
-  return "";
+  return html;
 }
+
 
 // ===== Sub Owner (Kick only / DB保存版) =====
 const SUB_OWNER_UIDS = [];
@@ -2911,6 +2909,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
