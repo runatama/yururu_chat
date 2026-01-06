@@ -1,157 +1,391 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>プロフィール</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ゆるるチャット - Profile</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<style>
-body{
-  font-family: system-ui, sans-serif;
-  background:#0b1220;
-  color:#eaf2ff;
-  padding:20px;
-}
-.card{
-  max-width:600px;
-  margin:auto;
-  background:#0f1a2c;
-  padding:16px;
-  border-radius:16px;
-}
-input, textarea{
-  width:100%;
-  padding:10px;
-  margin:6px 0;
-  border-radius:10px;
-  border:none;
-}
-button{
-  padding:10px 14px;
-  border:none;
-  border-radius:12px;
-  font-weight:700;
-  cursor:pointer;
-}
-.save{ background:#6ee7ff; color:#08131f; }
-img{
-  width:96px;height:96px;
-  border-radius:50%;
-  object-fit:cover;
-}
-</style>
+  <style>
+    :root{
+      --bg1:#0b1220;
+      --bg2:#0a1a2a;
+      --card:#0f1a2cdd;
+      --line:rgba(255,255,255,.10);
+      --text:#eaf2ff;
+      --muted:rgba(234,242,255,.65);
+      --accent:#6ee7ff;
+      --accent2:#a78bfa;
+      --good:#3be0a8;
+      --bad:#ff6b6b;
+      --radius:18px;
+      --shadow: 0 18px 50px rgba(0,0,0,.45);
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(900px 600px at 15% 20%, rgba(110,231,255,.25), transparent 55%),
+        radial-gradient(900px 600px at 85% 25%, rgba(167,139,250,.22), transparent 55%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+      padding:20px;
+      min-height:100vh;
+    }
+
+    h2{ margin:0; }
+
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom:16px;
+      flex-wrap:wrap;
+    }
+
+    .btn{
+      cursor:pointer;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.08);
+      color:var(--text);
+      padding:10px 14px;
+      font-weight:800;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn:hover{ filter:brightness(1.1); }
+    .btnPrimary{
+      background:linear-gradient(135deg, var(--accent), var(--accent2));
+      color:#08131f;
+      border:none;
+    }
+    .btnDanger{
+      background:rgba(255,107,107,.18);
+      border-color:rgba(255,107,107,.4);
+    }
+
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:16px;
+      margin-bottom:16px;
+      max-width:760px;
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    input{
+      padding:12px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+      color:var(--text);
+      width:100%;
+    }
+
+    .hint{ font-size:12px; color:var(--muted); line-height:1.6; }
+
+    .avatarBig{
+      width:96px;height:96px;border-radius:50%;
+      object-fit:cover;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10);
+      box-shadow: 0 10px 26px rgba(0,0,0,.25);
+    }
+    .avatarFallback{
+      width:96px;height:96px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:32px;font-weight:900;
+      border:1px solid rgba(255,255,255,.16);
+      background: radial-gradient(circle at 30% 30%, rgba(110,231,255,.28), rgba(167,139,250,.18));
+      color: rgba(234,242,255,.92);
+      user-select:none;
+    }
+
+    #status{ margin-top:10px; font-size:12px; }
+    .ok{ color:var(--good); }
+    .ng{ color:var(--bad); }
+  </style>
 </head>
 
 <body>
 
-<div class="card">
+<div class="topbar">
   <h2>👤 プロフィール</h2>
+  <div class="row">
+    <button class="btn" onclick="goBack()">⬅ 戻る</button>
+    <button class="btn btnDanger" onclick="signOut()">🚪 ログアウト</button>
+  </div>
+</div>
 
-  <div id="avatarBox"></div>
+<div class="card">
+  <div class="row" style="align-items:flex-start;">
+    <div id="avatarBox"></div>
+    <div style="flex:1; min-width:260px;">
+      <div style="font-weight:900;margin-bottom:8px;">📝 表示名</div>
+      <div class="row">
+        <input id="displayName" placeholder="表示名（例: ゆるたま）" />
+        <button class="btn btnPrimary" onclick="saveDisplayName()">保存</button>
+      </div>
 
-  <div>表示名</div>
-  <input id="displayName">
+      <div style="height:14px;"></div>
 
-  <div>自己紹介</div>
-  <textarea id="bio" rows="4"></textarea>
+      <div style="font-weight:900;margin-bottom:8px;">🖼️ プロフィール画像</div>
+      <div class="row">
+        <input id="avatarFile" type="file" accept="image/*" />
+        <button class="btn btnPrimary" onclick="uploadAvatar()">アップロード</button>
+        <button class="btn btnDanger" onclick="removeAvatar()">削除</button>
+      </div>
 
-  <input type="file" id="avatarFile" accept="image/*">
+      <div class="hint" style="margin-top:8px;">
+        ・正方形（1:1）推奨 / 2MB以下<br>
+        ・他端末でも即反映されます
+      </div>
 
-  <button class="save" id="saveBtn" onclick="saveAll()">保存</button>
+      <div id="status"></div>
+    </div>
+  </div>
 </div>
 
 <script>
+/* ================= Supabase ================= */
+const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+
 const sb = supabase.createClient(
-  "https://gqqkjytefyllfomtqcqd.supabase.co",
-  "公開anonキー"
+  SUPABASE_URL,
+  SUPABASE_KEY,
+  {
+    auth:{
+      flowType:"pkce",
+      persistSession:true,
+      autoRefreshToken:true,
+      detectSessionInUrl:true
+    }
+  }
 );
 
-let me = null;
-let isOther = false;
+const AVATAR_BUCKET = "avatar-images";
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
-function esc(s){ return s||""; }
+let authUser = null;
 
-function avatar(url){
-  if(url){
-    avatarBox.innerHTML = `<img src="${url}">`;
-  }else{
-    avatarBox.innerHTML = `<div>no image</div>`;
+/* ================= util ================= */
+function escapeHtml(s){
+  return String(s||"")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+function getInitial(s){
+  const t = String(s||"").trim();
+  return t ? Array.from(t)[0] : "?";
+}
+function setStatus(msg, ok=true){
+  document.getElementById("status").innerHTML =
+    `<span class="${ok?"ok":"ng"}">${escapeHtml(msg)}</span>`;
+}
+function getBackUrl(){
+  const p = new URLSearchParams(location.search);
+  if (p.get("back")==="room" && p.get("room")){
+    return "./room.html?room="+encodeURIComponent(p.get("room"));
   }
+  return "./lobby.html";
 }
 
-async function init(){
-  const { data:{user} } = await sb.auth.getUser();
-  if(!user){ location.href="./login.html"; return; }
-  me = user;
+/* ================= auth ================= */
 
-  const uid = new URLSearchParams(location.search).get("uid");
-  if(uid && uid !== me.id){
-    isOther = true;
-    loadOther(uid);
-  }else{
-    loadMe();
+  async function signOut(){
+  try{
+    await sb.auth.signOut();
+  }catch(e){
+    console.error(e);
   }
+
+  // ログアウト後はログイン画面へ
+  location.replace("./login.html");
 }
+  
+async function requireLogin(){
+  // 1) セッション確認
+  const { data: ses } = await sb.auth.getSession();
+  if (!ses?.session){
+    location.replace("./login.html");
+    return false;
+  }
 
-function loadMe(){
-  displayName.value = me.user_metadata.display_name || "";
-  bio.value = me.user_metadata.bio || "";
-  avatar(me.user_metadata.custom_avatar_url || "");
-}
+  // 2) 最新ユーザー情報を取得
+  const { data: u } = await sb.auth.getUser();
+  if (!u?.user){
+    location.replace("./login.html");
+    return false;
+  }
 
-async function loadOther(uid){
-  const { data } = await sb
-    .from("profiles")
-    .select("*")
-    .eq("user_id", uid)
-    .single();
+  // 3) グローバルに保持
+  authUser = u.user;
 
-  displayName.value = esc(data.display_name);
-  bio.value = esc(data.bio);
-  avatar(data.avatar_url);
+  // 4) Googleログイン対策（custom_avatar方式）
+  const um = authUser.user_metadata || {};
 
-  displayName.disabled = true;
-  bio.disabled = true;
-  saveBtn.style.display = "none";
-}
+  const legacyUrl = String(um.avatar_url || "").trim();
+  const legacyVer = String(um.avatar_ver ?? "").trim();
+  const customUrl = String(um.custom_avatar_url || "").trim();
 
-async function saveAll(){
-  const dn = displayName.value.trim();
-  const b = bio.value.trim();
+  // 旧データ移行（avatar_url に保存していた人向け）
+  const looksLikeStorage =
+    legacyUrl.includes("/storage/v1/object/public/") &&
+    legacyUrl.includes("/" + AVATAR_BUCKET + "/");
 
-  // Auth に保存
-  const { data } = await sb.auth.updateUser({
-    data:{ display_name:dn, bio:b }
-  });
-  me = data.user;
-
-  let avatarUrl = me.user_metadata.custom_avatar_url || "";
-
-  // 画像があればアップ
-  const f = avatarFile.files[0];
-  if(f){
-    const path = me.id + "/" + Date.now();
-    await sb.storage.from("avatar-images").upload(path,f);
-    avatarUrl = sb.storage.from("avatar-images").getPublicUrl(path).data.publicUrl;
+  if (!customUrl && looksLikeStorage){
+    const now = Date.now();
     await sb.auth.updateUser({
-      data:{ custom_avatar_url:avatarUrl }
+      data:{
+        custom_avatar_url: legacyUrl,
+        custom_avatar_ver: legacyVer || String(now)
+      }
     });
+    const { data: uu } = await sb.auth.getUser();
+    if (uu?.user) authUser = uu.user;
   }
 
-  // profiles に保存（他人用）
-  await sb.from("profiles").upsert({
-    user_id: me.id,
-    display_name: dn,
-    bio: b,
-    avatar_url: avatarUrl
-  });
+  // custom_avatar_ver が無い場合の補完
+  const um2 = authUser.user_metadata || {};
+  if (um2.custom_avatar_url && !um2.custom_avatar_ver){
+    await sb.auth.updateUser({
+      data:{ custom_avatar_ver: Date.now() }
+    });
+    const { data: uu } = await sb.auth.getUser();
+    if (uu?.user) authUser = uu.user;
+  }
 
-  alert("保存したよ！");
+  return true;
 }
 
-init();
+
+/* ================= UI ================= */
+function buildAvatarUrl(){
+  const um = authUser?.user_metadata || {};
+  const hasCustom = !!String(um.custom_avatar_url || "").trim();
+  const base = hasCustom
+    ? String(um.custom_avatar_url || "").trim()
+    : String(um.avatar_url || "").trim();
+
+  const verRaw = hasCustom ? um.custom_avatar_ver : um.avatar_ver;
+  const ver = String(verRaw ?? "").trim();
+
+  if (!base) return "";
+  if (!ver) return base;
+  return base + (base.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(ver);
+}
+
+function renderAvatar(){
+  const box = document.getElementById("avatarBox");
+  const dn = authUser?.user_metadata?.display_name || "";
+  const url = buildAvatarUrl();
+
+  if (url){
+    box.innerHTML = `<img class="avatarBig" src="${url}" />`;
+  }else{
+    box.innerHTML = `<div class="avatarFallback">${escapeHtml(getInitial(dn))}</div>`;
+  }
+}
+
+function refreshUI(){
+  document.getElementById("displayName").value =
+    authUser?.user_metadata?.display_name || "";
+  renderAvatar();
+}
+
+/* ================= save ================= */
+async function saveDisplayName(){
+  const dn = document.getElementById("displayName").value.trim();
+  if (!dn) return setStatus("表示名を入力してね", false);
+
+  const { data, error } = await sb.auth.updateUser({
+    data:{ display_name: dn }
+  });
+  if (error) return setStatus(error.message,false);
+
+  authUser = data.user;
+  refreshUI();
+  setStatus("保存しました！");
+}
+
+async function uploadAvatar(){
+  const file = document.getElementById("avatarFile").files[0];
+  if (!file) return setStatus("画像を選んでね", false);
+  if (file.size > MAX_AVATAR_BYTES) return setStatus("2MB以下にしてね", false);
+
+  const safeName = file.name.replace(/[^\w.-]+/g, "_");
+  const path = `${authUser.id}/${Date.now()}_${safeName}`;
+
+  setStatus("アップロード中…");
+
+  const { error: upErr } = await sb.storage
+    .from(AVATAR_BUCKET)
+    .upload(path, file, {
+      upsert: false,
+      cacheControl: "0"   // ✅ 追加：キャッシュさせない（戻る問題の決定打）
+    });
+
+  if (upErr) return setStatus(upErr.message, false);
+
+  const { data } = sb.storage.from(AVATAR_BUCKET).getPublicUrl(path);
+  const url = data.publicUrl;
+
+  const now = Date.now();
+  const { data: ud, error } = await sb.auth.updateUser({
+    data: {
+      custom_avatar_url: url,
+      custom_avatar_ver: now  // ★ここが最重要（URLに ?v= が付く）
+    }
+  });
+  if (error) return setStatus(error.message, false);
+
+  // ✅ 念押し：サーバーから最新の user_metadata を取り直す（端末差のバグ潰し）
+  const { data: uu } = await sb.auth.getUser();
+  authUser = uu?.user || ud.user;
+
+  document.getElementById("avatarFile").value = "";
+  refreshUI();
+  setStatus("画像を更新しました！");
+}
+
+async function removeAvatar(){
+  const { data, error } = await sb.auth.updateUser({
+    data:{
+      custom_avatar_url:"",
+      custom_avatar_ver: Date.now()
+    }
+  });
+  if (error) return setStatus(error.message,false);
+
+  authUser = data.user;
+  refreshUI();
+  setStatus("削除しました");
+}
+
+/* ================= init ================= */
+function goBack(){ location.replace(getBackUrl()); }
+
+(async()=>{
+  if (!await requireLogin()) return;
+  refreshUI();
+})();
 </script>
 
 </body>
