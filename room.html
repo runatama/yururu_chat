@@ -602,7 +602,18 @@
           </div>
 
           <div class="hint" style="margin-top:10px;">Kick/Ban はその瞬間ルームにいる人をロビーに戻す（理由付き）。Ban は再入室もブロック。</div>
-        </div>
+        
+<div class="divider"></div>
+<div class="field">
+  <label>👥 サブ枠主（Kickのみ）</label>
+  <input id="subOwnerUidInput" type="text" placeholder="ユーザーUID" />
+  <div style="display:flex; gap:8px; margin-top:6px;">
+    <button class="btn btnSmall" type="button" onclick="addSubOwner()">➕ 追加</button>
+  </div>
+  <div class="list" id="subOwnerList" style="margin-top:8px;"></div>
+  <div class="hint">※ サブ枠主は Kick のみ可能（Ban不可）</div>
+</div>
+</div>
       </div>
 
 
@@ -759,6 +770,19 @@ function isAdminUserId(userId){
   if (!uid) return false;
   return ADMIN_UIDS.includes(uid);
 }
+
+// ===== Sub Owner (Kick only) =====
+const SUB_OWNER_UIDS = []; // ★ここにUIDを入れる（UIからも追加可）
+function isSubOwner(){
+  return SUB_OWNER_UIDS.includes(authUser?.id);
+}
+function canKick(){
+  return isOwner || isSubOwner();
+}
+function canBan(){
+  return isOwner;
+}
+
   const SUB_OWNER_UIDS = [
   "ここにサブ枠主のUID"
 ];
@@ -2375,6 +2399,13 @@ function getAdminReason(){
 }
 
 async function kickUser(){
+
+  if (!canKick()){
+    alert("Kickできるのは枠主またはサブ枠主だけです");
+    return;
+  }
+
+
   // 枠主 or サブ枠主だけOK
 if (!(isOwner || isSubOwner())){
   alert("Kickできるのは枠主かサブ枠主だけ！");
@@ -2423,6 +2454,13 @@ if (!(isOwner || isSubOwner())){
 }
 
 async function banUser(){
+
+  if (!canBan()){
+    alert("Banできるのは枠主だけです");
+    return;
+  }
+
+
   const targetUid = document.getElementById("adminTargetUid").value.trim();
   if (!targetUid) return;
 
@@ -2788,3 +2826,49 @@ function safeKey(s){
 
 
 
+
+
+
+function renderSubOwners(){
+  const box = document.getElementById("subOwnerList");
+  if (!box) return;
+  box.innerHTML = "";
+  SUB_OWNER_UIDS.forEach(uid=>{
+    const row = document.createElement("div");
+    row.className = "listItem";
+    row.innerHTML = `<div class="name">${uid}</div>
+      <button class="btn btnSmall danger" onclick="removeSubOwner('${uid}')">削除</button>`;
+    box.appendChild(row);
+  });
+}
+function addSubOwner(){
+  if (!isOwner) return alert("枠主だけ操作できます");
+  const i = document.getElementById("subOwnerUidInput");
+  const uid = (i?.value || "").trim();
+  if (!uid) return;
+  if (!SUB_OWNER_UIDS.includes(uid)) SUB_OWNER_UIDS.push(uid);
+  if (i) i.value = "";
+  renderSubOwners();
+}
+function removeSubOwner(uid){
+  if (!isOwner) return;
+  const idx = SUB_OWNER_UIDS.indexOf(uid);
+  if (idx >= 0) SUB_OWNER_UIDS.splice(idx,1);
+  renderSubOwners();
+}
+
+(function(){
+  const origUpdateTop = updateTop;
+  updateTop = function(){
+    try{ origUpdateTop(); }catch{}
+    const card = document.getElementById("adminCard");
+    if (!card) return;
+    if (isOwner){
+      card.style.display = "block";
+    }else if (isSubOwner()){
+      card.style.display = "block";
+      card.querySelector('button[onclick="banUser()"]')?.remove();
+    }
+    renderSubOwners();
+  }
+})();
