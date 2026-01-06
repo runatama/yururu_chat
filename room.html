@@ -1936,9 +1936,11 @@ function onPresenceLeave(key, leftPresences){
 async function refreshPresenceList(){
   const box = document.getElementById("callUsersList");
   if (!box) return;
-  box.innerHTML = "";
-}
 
+  box.innerHTML = "";
+
+  const st = callPresenceChannel?.presenceState?.() || {};
+  const ids = Object.keys(st).filter(id => id && id !== myUid());
 
   if (ids.length === 0){
     box.innerHTML = "<div class='hint'>未接続</div>";
@@ -1961,6 +1963,7 @@ async function refreshPresenceList(){
     mutedMap.set(id, muted);
   }
 }
+
 
 /* ===== call_participants（alive） ===== */
 async function upsertCallParticipant(){
@@ -2888,6 +2891,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
