@@ -771,60 +771,108 @@ function isAdminUserId(userId){
   return ADMIN_UIDS.includes(uid);
 }
 
- // ===== Sub Owner (Kick only) =====
- const SUB_OWNER_UIDS = []; // UIから追加される（※リロードで消える）
+// ===== Sub Owner (Kick only / DB保存版) =====
+const SUB_OWNER_UIDS = [];
 
- function canKick(){
-   return isOwner || isSubOwner();
- }
-
- function canBan(){
-   return isOwner; // Banは枠主だけ
- }
-
+// サブ枠主か？
 function isSubOwner(){
-  const uid = String(myUid() || "").trim();
+  const uid = myUid();
   if (!uid) return false;
   return SUB_OWNER_UIDS.includes(uid);
 }
 
-
-function adminBadgeHtmlByUserId(userId){
-  return isAdminUserId(userId) ? '<span class="badge admin">運営</span>' : '';
+// Kickできるか
+function canKick(){
+  return isOwner || isSubOwner();
 }
 
+// Banできるか（枠主のみ）
+function canBan(){
+  return isOwner;
+}
+
+// DBからサブ枠主一覧を取得
+async function loadSubOwnersFromDb(){
+  if (!roomId) return;
+
+  const { data, error } = await sb
+    .from("room_subowners")
+    .select("user_id")
+    .eq("room_id", roomId);
+
+  if (error){
+    console.error("loadSubOwnersFromDb error", error);
+    return;
+  }
+
+  SUB_OWNER_UIDS.length = 0;
+  for (const r of (data || [])){
+    if (r?.user_id) SUB_OWNER_UIDS.push(r.user_id);
+  }
+
+  renderSubOwners();
+}
+
+// 表示
 function renderSubOwners(){
-   const box = document.getElementById("subOwnerList");
-   if (!box) return;
+  const box = document.getElementById("subOwnerList");
+  if (!box) return;
 
-   box.innerHTML = "";
-   SUB_OWNER_UIDS.forEach(uid=>{
-     const row = document.createElement("div");
-     row.className = "listItem";
+  box.innerHTML = "";
+  SUB_OWNER_UIDS.forEach(uid=>{
+    const row = document.createElement("div");
+    row.className = "listItem";
     row.innerHTML =
-     '<div class="name">' + uid + '</div>' +
-     (isOwner ? '<button class="btn btnSmall danger" onclick="removeSubOwner(\'' + uid + '\')">削除</button>' : '');
-     box.appendChild(row);
-   });
- }
+      '<div class="name">' + uid + '</div>' +
+      (isOwner
+        ? '<button class="btn btnSmall danger" onclick="removeSubOwner(\'' + uid + '\')">削除</button>'
+        : '');
+    box.appendChild(row);
+  });
+}
 
-
-function addSubOwner(){
+// 追加（枠主だけ）
+async function addSubOwner(){
   if (!isOwner) return alert("枠主だけ操作できます");
-  const i = document.getElementById("subOwnerUidInput");
-  const uid = (i?.value || "").trim();
+
+  const input = document.getElementById("subOwnerUidInput");
+  const uid = (input?.value || "").trim();
   if (!uid) return;
-  if (!SUB_OWNER_UIDS.includes(uid)) SUB_OWNER_UIDS.push(uid);
-  if (i) i.value = "";
-  renderSubOwners();
+
+  const { error } = await sb.from("room_subowners").insert({
+    room_id: roomId,
+    user_id: uid
+  });
+
+  if (error){
+    alert("追加失敗: " + error.message);
+    console.error(error);
+    return;
+  }
+
+  input.value = "";
+  await loadSubOwnersFromDb();
 }
 
-function removeSubOwner(uid){
+// 削除（枠主だけ）
+async function removeSubOwner(uid){
   if (!isOwner) return;
-  const idx = SUB_OWNER_UIDS.indexOf(uid);
-  if (idx >= 0) SUB_OWNER_UIDS.splice(idx, 1);
-  renderSubOwners();
+
+  const { error } = await sb
+    .from("room_subowners")
+    .delete()
+    .eq("room_id", roomId)
+    .eq("user_id", uid);
+
+  if (error){
+    alert("削除失敗: " + error.message);
+    console.error(error);
+    return;
+  }
+
+  await loadSubOwnersFromDb();
 }
+
 
 /* 画像用（Public bucket名） */
 const IMAGE_BUCKET = "chat-images";
@@ -981,7 +1029,7 @@ function updateTop(){
   const avm = getPreferredAvatarMeta();
   pill.innerHTML = `${avatarHtml(avm.url, shown, "", avm.ver)} <span class="nameText">👤 ${escapeHtml(shown)}</span>${adminBadgeHtmlByUserId(authUser.id)}`;
 }
-  // ===== adminCard 表示制御（④はここ）=====
+
 // ===== adminCard 表示制御 =====
 (function(){
   const origUpdateTop = updateTop;
@@ -991,15 +1039,13 @@ function updateTop(){
     const card = document.getElementById("adminCard");
     if (!card) return;
 
-    // 一旦リセット
     card.style.display = "none";
 
     if (isOwner){
       card.style.display = "block";
-    } else if (isSubOwner()){
+    }else if (isSubOwner()){
       card.style.display = "block";
 
-      // サブ枠主は Kick のみ
       const banBtn = card.querySelector('button[onclick="banUser()"]');
       const backAllBtn = card.querySelector('button[onclick="forceBackAll()"]');
 
@@ -1012,7 +1058,6 @@ function updateTop(){
         backAllBtn.disabled = true;
       }
 
-      // サブ枠主には追加UIを見せない
       const editRow = document.getElementById("subOwnerEditRow");
       if (editRow){
         editRow.style.display = "none";
@@ -1022,6 +1067,7 @@ function updateTop(){
     renderSubOwners();
   };
 })();
+
 
 
 
@@ -2316,6 +2362,8 @@ async function resolveRoomRow(){
   if (ridParam && isValidUuid(ridParam)){
     const { data, error } = await sb.from("rooms").select("id, room_name, owner_id, created_at").eq("id", ridParam).maybeSingle();
     if (!error && data) return data;
+    
+
   }
 
   // fallback: room 名から最新の 1 行
@@ -2326,6 +2374,8 @@ async function resolveRoomRow(){
     .order("created_at", { ascending:false })
     .limit(1)
     .maybeSingle();
+  await loadSubOwnersFromDb();
+
 
   if (error) throw error;
   return data || null;
@@ -2475,57 +2525,43 @@ function getAdminReason(){
 }
 
  async function kickUser(){
- // ✅ 枠主 or サブ枠主だけ
-if (!canKick()) return alert("枠主 or サブ枠主だけ！");
- const targetUid = (document.getElementById("adminTargetUid")?.value || "").trim();
-   if (!targetUid) return;
-   // 🚫 運営はKick不可
-   if (isAdminUserId(targetUid)){
-     alert("運営ユーザーは Kick できません");
-     return;
-   }
-   const target = getAdminTargetUid();
-   if (!target) return alert("対象ユーザーIDが不正だよ！");
-   const reason = getAdminReason();
+  if (!canKick()) return alert("Kickできるのは枠主またはサブ枠主だけです");
 
-   // kick 履歴（任意）
-   {
-     const { error: kerr } = await sb.from("room_kicks").insert({
-       room_id: roomId,
-       user_id: target,
-       reason: reason || null
-     });
-     if (kerr && !String(kerr.message||"").toLowerCase().includes("duplicate")){
-       log("kick record error", kerr);
-     }
-   }
+  const targetUid = (document.getElementById("adminTargetUid")?.value || "").trim();
+  if (!targetUid) return;
 
-   // 即時反映用イベント
-   const { error: eerr } = await sb.from("room_events").insert({
-     room_id: roomId,
-     target_user_id: target,
-     type: "kicked",
-     reason: reason || null,
-     actor_user_id: myUid()
-   });
+  if (isAdminUserId(targetUid)){
+    alert("運営ユーザーは Kick できません");
+    return;
+  }
 
-   if (eerr){
-     alert("Kick 失敗: " + eerr.message);
-     log("kick event error", eerr);
-     return;
-   }
+  const target = getAdminTargetUid();
+  if (!target) return alert("対象ユーザーIDが不正だよ！");
+  const reason = getAdminReason();
 
-   alert("Kick しました。");
- }
+  await sb.from("room_kicks").insert({
+    room_id: roomId,
+    user_id: target,
+    reason: reason || null
+  });
 
- async function banUser(){
-  // ✅ Banできるのは枠主だけ
+  await sb.from("room_events").insert({
+    room_id: roomId,
+    target_user_id: target,
+    type: "kicked",
+    reason: reason || null,
+    actor_user_id: myUid()
+  });
+
+  alert("Kickしました");
+}
+
+async function banUser(){
   if (!canBan()) return alert("枠主だけ！");
 
   const targetUid = (document.getElementById("adminTargetUid")?.value || "").trim();
   if (!targetUid) return;
 
-  // 🚫 運営はBan不可
   if (isAdminUserId(targetUid)){
     alert("運営ユーザーは Ban できません");
     return;
@@ -2535,33 +2571,22 @@ if (!canKick()) return alert("枠主 or サブ枠主だけ！");
   if (!target) return alert("対象ユーザーIDが不正だよ！");
   const reason = getAdminReason();
 
-  const { error: berr } = await sb.from("room_bans").insert({
+  await sb.from("room_bans").insert({
     room_id: roomId,
     user_id: target,
     reason: reason || null
   });
 
-   if (berr){
-     alert("Ban 失敗: " + berr.message);
-     log("ban error", berr);
-     return;
-   }
+  await sb.from("room_events").insert({
+    room_id: roomId,
+    target_user_id: target,
+    type: "banned",
+    reason: reason || null,
+    actor_user_id: myUid()
+  });
 
-   // ★即時反映用イベント（任意）
-   const { error: eerr } = await sb.from("room_events").insert({
-     room_id: roomId,
-     target_user_id: target,
-     type: "banned",
-     reason: reason || null,
-     actor_user_id: myUid()
-   });
-
-   if (eerr){
-     log("ban event error", eerr);
-   }
-
-   alert("Ban しました。");
- }
+  alert("Banしました");
+}
 
 
 async function forceBackAll(){
@@ -2860,6 +2885,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
