@@ -2481,68 +2481,57 @@ function getAdminReason(){
 }
 
  async function kickUser(){
+ // ✅ 枠主 or サブ枠主だけ
 if (!canKick()) return alert("枠主 or サブ枠主だけ！");
-if (!canKick()){
-alert("Kickできるのは枠主またはサブ枠主だけです");
- return;
- }
-
-  // 枠主 or サブ枠主だけOK
-  if (!(isOwner || isSubOwner())){
-    alert("Kickできるのは枠主かサブ枠主だけ！");
-    return;
-  }
-  if (!canKick()) return alert("枠主 or サブ枠主だけ！");
-
-   const targetUid = document.getElementById("adminTargetUid").value.trim();
+ const targetUid = (document.getElementById("adminTargetUid")?.value || "").trim();
    if (!targetUid) return;
    // 🚫 運営はKick不可
    if (isAdminUserId(targetUid)){
      alert("運営ユーザーは Kick できません");
      return;
    }
--  if (!isOwner) return alert("枠主だけ！");
    const target = getAdminTargetUid();
    if (!target) return alert("対象ユーザーIDが不正だよ！");
    const reason = getAdminReason();
 
-  // kick 履歴（任意）
-  {
-    const { error: kerr } = await sb.from("room_kicks").insert({
-      room_id: roomId,
-      user_id: target,
-      reason: reason || null
-    });
-    if (kerr && !String(kerr.message||"").toLowerCase().includes("duplicate")){
-      log("kick record error", kerr);
-    }
-  }
+   // kick 履歴（任意）
+   {
+     const { error: kerr } = await sb.from("room_kicks").insert({
+       room_id: roomId,
+       user_id: target,
+       reason: reason || null
+     });
+     if (kerr && !String(kerr.message||"").toLowerCase().includes("duplicate")){
+       log("kick record error", kerr);
+     }
+   }
 
-  // 即時反映用イベント
-  const { error: eerr } = await sb.from("room_events").insert({
-    room_id: roomId,
-    target_user_id: target,
-    type: "kicked",
-    reason: reason || null,
-    actor_user_id: myUid()
-  });
+   // 即時反映用イベント
+   const { error: eerr } = await sb.from("room_events").insert({
+     room_id: roomId,
+     target_user_id: target,
+     type: "kicked",
+     reason: reason || null,
+     actor_user_id: myUid()
+   });
 
-  if (eerr){
-    alert("Kick 失敗: " + eerr.message);
-    log("kick event error", eerr);
-    return;
-  }
+   if (eerr){
+     alert("Kick 失敗: " + eerr.message);
+     log("kick event error", eerr);
+     return;
+   }
 
-  alert("Kick しました。");
-}
+   alert("Kick しました。");
+ }
 
-async function banUser(){
-  // ✅ 枠主だけ
+ async function banUser(){
+  // ✅ Banできるのは枠主だけ
   if (!canBan()) return alert("枠主だけ！");
 
   const targetUid = (document.getElementById("adminTargetUid")?.value || "").trim();
   if (!targetUid) return;
 
+  // 🚫 運営はBan不可
   if (isAdminUserId(targetUid)){
     alert("運営ユーザーは Ban できません");
     return;
@@ -2551,8 +2540,6 @@ async function banUser(){
   const target = getAdminTargetUid();
   if (!target) return alert("対象ユーザーIDが不正だよ！");
   const reason = getAdminReason();
-}
-
 
   const { error: berr } = await sb.from("room_bans").insert({
     room_id: roomId,
@@ -2560,28 +2547,27 @@ async function banUser(){
     reason: reason || null
   });
 
-  if (berr){
-    alert("Ban 失敗: " + berr.message);
-    log("ban error", berr);
-    return;
-  }
+   if (berr){
+     alert("Ban 失敗: " + berr.message);
+     log("ban error", berr);
+     return;
+   }
 
-  // ★即時反映用イベント（任意：kickと同じく入れておくと「即反映」しやすい）
-  const { error: eerr } = await sb.from("room_events").insert({
-    room_id: roomId,
-    target_user_id: target,
-    type: "banned",
-    reason: reason || null,
-    actor_user_id: myUid()
-  });
+   // ★即時反映用イベント（任意）
+   const { error: eerr } = await sb.from("room_events").insert({
+     room_id: roomId,
+     target_user_id: target,
+     type: "banned",
+     reason: reason || null,
+     actor_user_id: myUid()
+   });
 
-  if (eerr){
-    // ban自体は成功してる可能性があるので、ここは warn 扱いでもOK
-    log("ban event error", eerr);
-  }
+   if (eerr){
+     log("ban event error", eerr);
+   }
 
-  alert("Ban しました。");
-}
+   alert("Ban しました。");
+ }
 
 
 async function forceBackAll(){
@@ -2880,6 +2866,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
