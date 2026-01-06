@@ -772,7 +772,6 @@ function isAdminUserId(userId){
 }
 
 // ===== Sub Owner (Kick only) =====
-const SUB_OWNER_UIDS = []; // ★ここにUIDを入れる（UIからも追加可）
 function isSubOwner(){
   return SUB_OWNER_UIDS.includes(authUser?.id);
 }
@@ -2872,3 +2871,4 @@ function removeSubOwner(uid){
     renderSubOwners();
   }
 })();
+
