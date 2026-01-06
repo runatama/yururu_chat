@@ -506,15 +506,14 @@
       </div>
 
       <div class="btnRow">
-        <button class="btnPrimary" onclick="doPrimary()" id="primaryBtn">ログイン</button>
-        <button class="btnGhost" onclick="resetMode()">戻る</button>
-        <button class="btnDanger" onclick="signOut()" id="signOutBtn" disabled>ログアウト</button>
-      </div>
+  <button class="btnPrimary" onclick="doPrimary()" id="primaryBtn">ログイン</button>
 
-      <div class="statusLine" id="statusLine">
-        <span class="statusIcon" id="statusIcon"></span>
-        <span id="status">未ログイン</span>
-      </div>
+  <button class="btnGhost" onclick="gotoResetPage()">🔑 パスワード再設定</button>
+
+  <button class="btnGhost" onclick="resetMode()">戻る</button>
+  <button class="btnDanger" onclick="signOut()" id="signOutBtn" disabled>ログアウト</button>
+</div>
+
 
       <details>
         <summary>🔧 デバッグログ（困ったらここをコピペして送って）</summary>
@@ -679,6 +678,21 @@ function gotoMain() {
   u.searchParams.set("_r", String(Date.now()));
   setTimeout(() => location.replace(u.toString()), 300);
 }
+  function gotoResetPage(){
+  const email = (document.getElementById("email")?.value || "").trim();
+
+  // reset.html は login.html と同階層に置く想定
+  const u = new URL("https://yururu-chat.pages.dev/reset", location.href);
+
+  // メール入力済みなら引き継ぐ（reset側で初期表示に使える）
+  if (email) u.searchParams.set("email", email);
+
+  // キャッシュ回避（任意）
+  u.searchParams.set("_r", String(Date.now()));
+
+  location.href = u.toString();
+}
+
 
 /* =================== セッション表示 =================== */
 function setAuthPill(){
@@ -857,6 +871,7 @@ async function saveDisplayName() {
 </script>
 </body>
 </html>
+
 
 
 
