@@ -771,39 +771,41 @@ function isAdminUserId(userId){
   return ADMIN_UIDS.includes(uid);
 }
 
-// ===== Sub Owner (Kick only) =====
-const SUB_OWNER_UIDS = []; // UIから追加される（※リロードで消える）
+ // ===== Sub Owner (Kick only) =====
+ const SUB_OWNER_UIDS = []; // UIから追加される（※リロードで消える）
 
-function canKick(){
-  return isOwner || isSubOwner();
-}
+ function canKick(){
+   return isOwner || isSubOwner();
+ }
 
-function canBan(){
-  return isOwner; // Banは枠主だけ
-}
-
+ function canBan(){
+   return isOwner; // Banは枠主だけ
+ }
 
 function isSubOwner(){
-  const uid = myUid();
-  if (!uid) return false;
-  return SUB_OWNER_UIDS.includes(uid);
+  const uid = String(myUid() || "").trim();
+  if (!uid) return false;+  return SUB_OWNER_UIDS.includes(uid);
 }
 
-
-  function renderSubOwners(){
-  const box = document.getElementById("subOwnerList");
-  if (!box) return;
-
-  box.innerHTML = "";
-  SUB_OWNER_UIDS.forEach(uid=>{
-    const row = document.createElement("div");
-    row.className = "listItem";
-    row.innerHTML =
-      '<div class="name">' + uid + '</div>' +
-      '<button class="btn btnSmall danger" onclick="removeSubOwner(\'' + uid + '\')">削除</button>';
-    box.appendChild(row);
-  });
+function adminBadgeHtmlByUserId(userId){
+  return isAdminUserId(userId) ? '<span class="badge admin">運営</span>' : '';
 }
+
+function renderSubOwners(){
+   const box = document.getElementById("subOwnerList");
+   if (!box) return;
+
+   box.innerHTML = "";
+   SUB_OWNER_UIDS.forEach(uid=>{
+     const row = document.createElement("div");
+     row.className = "listItem";
+     row.innerHTML =
+       '<div class="name">' + uid + '</div>' +
+       '<button class="btn btnSmall danger" onclick="removeSubOwner(\'' + uid + '\')">削除</button>';
+     box.appendChild(row);
+   });
+ }
+
 
 function addSubOwner(){
   if (!isOwner) return alert("枠主だけ操作できます");
@@ -2859,6 +2861,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
