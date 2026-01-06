@@ -852,6 +852,14 @@ async function addSubOwner(){
 
   input.value = "";
   await loadSubOwnersFromDb();
+if (isSubOwner() && !isOwner){
+  document.querySelector('button[onclick="banUser()"]')?.remove();
+}
+
+// サブ枠主は Ban 不可にしたい場合（枠主じゃない時だけBanボタン消す）
+if (isSubOwner() && !isOwner){
+  document.querySelector('button[onclick="banUser()"]')?.remove();
+
 }
 
 // 削除（枠主だけ）
@@ -2742,10 +2750,6 @@ async function startRoomMembersRealtime(){
     await reloadName();
     updateTop();
 
-    if (isSubOwner() && !isOwner){
-  document.querySelector('button[onclick="banUser()"]')?.remove();
-}
-
     // URL params
     const urlRoom = getRoomFromUrl();
     const urlRoomId = getRoomIdFromUrl(); // ★追加：room_id も読む
@@ -2885,6 +2889,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
