@@ -772,19 +772,20 @@ function isAdminUserId(userId){
 }
 
 // ===== Sub Owner (Kick only) =====
+const SUB_OWNER_UIDS = []; // UIから追加される
+
 function isSubOwner(){
   return SUB_OWNER_UIDS.includes(authUser?.id);
 }
+
 function canKick(){
   return isOwner || isSubOwner();
 }
+
 function canBan(){
   return isOwner;
 }
 
-  const SUB_OWNER_UIDS = [
-  "ここにサブ枠主のUID"
-];
 
 function isSubOwner(){
   return SUB_OWNER_UIDS.includes(authUser?.id);
@@ -793,6 +794,39 @@ function isSubOwner(){
 function adminBadgeHtmlByUserId(userId){
   return isAdminUserId(userId) ? '<span class="badge admin">運営</span>' : '';
 }
+
+  function renderSubOwners(){
+  const box = document.getElementById("subOwnerList");
+  if (!box) return;
+
+  box.innerHTML = "";
+  SUB_OWNER_UIDS.forEach(uid=>{
+    const row = document.createElement("div");
+    row.className = "listItem";
+    row.innerHTML =
+      '<div class="name">' + uid + '</div>' +
+      '<button class="btn btnSmall danger" onclick="removeSubOwner(\'' + uid + '\')">削除</button>';
+    box.appendChild(row);
+  });
+}
+
+function addSubOwner(){
+  if (!isOwner) return alert("枠主だけ操作できます");
+  const i = document.getElementById("subOwnerUidInput");
+  const uid = (i?.value || "").trim();
+  if (!uid) return;
+  if (!SUB_OWNER_UIDS.includes(uid)) SUB_OWNER_UIDS.push(uid);
+  if (i) i.value = "";
+  renderSubOwners();
+}
+
+function removeSubOwner(uid){
+  if (!isOwner) return;
+  const idx = SUB_OWNER_UIDS.indexOf(uid);
+  if (idx >= 0) SUB_OWNER_UIDS.splice(idx, 1);
+  renderSubOwners();
+}
+
 /* 画像用（Public bucket名） */
 const IMAGE_BUCKET = "chat-images";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -948,6 +982,26 @@ function updateTop(){
   const avm = getPreferredAvatarMeta();
   pill.innerHTML = `${avatarHtml(avm.url, shown, "", avm.ver)} <span class="nameText">👤 ${escapeHtml(shown)}</span>${adminBadgeHtmlByUserId(authUser.id)}`;
 }
+  // ===== adminCard 表示制御（④はここ）=====
+(function(){
+  const origUpdateTop = updateTop;
+  updateTop = function(){
+    try{ origUpdateTop(); }catch{}
+
+    const card = document.getElementById("adminCard");
+    if (!card) return;
+
+    if (isOwner){
+      card.style.display = "block";
+    }else if (isSubOwner()){
+      card.style.display = "block";
+      card.querySelector('button[onclick="banUser()"]')?.remove();
+    }
+
+    renderSubOwners();
+  };
+})();
+
 
 async function reloadName(){
   // authUser は requireLoginOrRedirect() で最新を取り直している想定
@@ -2818,57 +2872,4 @@ function safeKey(s){
 
 
 
-
-
-
-
-
-
-
-
-
-
-function renderSubOwners(){
-  const box = document.getElementById("subOwnerList");
-  if (!box) return;
-  box.innerHTML = "";
-  SUB_OWNER_UIDS.forEach(uid=>{
-    const row = document.createElement("div");
-    row.className = "listItem";
-    row.innerHTML = `<div class="name">${uid}</div>
-      <button class="btn btnSmall danger" onclick="removeSubOwner('${uid}')">削除</button>`;
-    box.appendChild(row);
-  });
-}
-function addSubOwner(){
-  if (!isOwner) return alert("枠主だけ操作できます");
-  const i = document.getElementById("subOwnerUidInput");
-  const uid = (i?.value || "").trim();
-  if (!uid) return;
-  if (!SUB_OWNER_UIDS.includes(uid)) SUB_OWNER_UIDS.push(uid);
-  if (i) i.value = "";
-  renderSubOwners();
-}
-function removeSubOwner(uid){
-  if (!isOwner) return;
-  const idx = SUB_OWNER_UIDS.indexOf(uid);
-  if (idx >= 0) SUB_OWNER_UIDS.splice(idx,1);
-  renderSubOwners();
-}
-
-(function(){
-  const origUpdateTop = updateTop;
-  updateTop = function(){
-    try{ origUpdateTop(); }catch{}
-    const card = document.getElementById("adminCard");
-    if (!card) return;
-    if (isOwner){
-      card.style.display = "block";
-    }else if (isSubOwner()){
-      card.style.display = "block";
-      card.querySelector('button[onclick="banUser()"]')?.remove();
-    }
-    renderSubOwners();
-  }
-})();
 
