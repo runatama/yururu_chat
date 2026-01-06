@@ -632,6 +632,12 @@ function currentPageUrlNoParams(){
   u.hash = "";
   return u.toString();
 }
+  function getUrlParam(name){
+  const q = new URLSearchParams(location.search).get(name);
+  if (q) return q;
+  const h = new URLSearchParams((location.hash || "").replace(/^#/, "")).get(name);
+  return h;
+}
 
 /* =================== UI：モード切替 =================== */
 function setMode(next){
@@ -886,7 +892,8 @@ async function handlePasswordRecovery(){
 
   // ★ 先に recovery かどうかだけ覚えておく（replaceStateで消える前に）
   const qs = new URLSearchParams(location.search);
-  const isRecoveryFlow = (qs.get("type") === "recovery");
+  const isRecoveryFlow = (getUrlParam("type") === "recovery");
+
 
   try {
     const url = new URL(location.href);
@@ -922,10 +929,13 @@ async function handlePasswordRecovery(){
 
   sb.auth.onAuthStateChange(async () => {
     await reloadSession();
+    if (getUrlParam("type") === "recovery") return;
+
 
     // ★ recovery の時は自動でロビーへ飛ばさない（入力を邪魔しない）
-    const type = new URLSearchParams(location.search).get("type");
-    if (type === "recovery") return;
+    const type = getUrlParam("type");
+if (type !== "recovery") return;
+
 
     if (authUser) gotoMain();
   });
@@ -934,6 +944,7 @@ async function handlePasswordRecovery(){
 </script>
 </body>
 </html>
+
 
 
 
