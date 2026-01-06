@@ -459,19 +459,20 @@
       padding-top:10px;
     }
     summary{ cursor:pointer; color: var(--muted); font-size:12px; }
-    #log{
-      margin-top:10px;
-      white-space:pre-wrap;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size:12px;
-      padding:10px 12px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(7,12,24,.35);
-      max-height: 200px;
-      overflow:auto;
-      color: rgba(234,242,255,.78);
-    }
+    #debugLog{
+  margin-top:10px;
+  white-space:pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size:12px;
+  padding:10px 12px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,10);
+  background: rgba(7,12,24,35);
+  max-height: 200px;
+  overflow:auto;
+  color: rgba(234,242,255,78);
+}
+
 
     /* ===== audio cards ===== */
     #audios{
@@ -833,28 +834,41 @@ function renderSubOwners(){
 
 // 追加（枠主だけ）
 async function addSubOwner(){
-  if (!isOwner) return alert("枠主だけ操作できます");
-
+  if (!isOwner) return alert("枠主だけ！");
   const input = document.getElementById("subOwnerUidInput");
   const uid = (input?.value || "").trim();
-  if (!uid) return;
+  if (!uid) return alert("subOwner uid を入れてね！");
 
-  const { error } = await sb.from("room_subowners").insert({
+  // 自分をサブ枠主にするのは不要（枠主は常に権限ある）
+  if (uid === myUid()) return alert("自分自身は追加しなくてOK！（枠主は常に権限ある）");
+
+  const { error } = await sb.from("room_sub_owners").insert({
     room_id: roomId,
-    user_id: uid
+    user_id: uid,
+    added_by: myUid()
   });
 
   if (error){
-    alert("追加失敗: " + error.message);
+    // 既に登録済みを許容したいなら、ここで判定してメッセージ変える
     console.error(error);
-    return;
+    return alert("追加できなかった: " + (error.message || ""));
   }
 
   input.value = "";
   await loadSubOwnersFromDb();
-if (isSubOwner() && !isOwner){
-  document.querySelector('button[onclick="banUser()"]')?.remove();
+  updateOwnerToolsVisibility(); // UI反映
+  applySubOwnerUi();
+
+  function applySubOwnerUi(){
+  // サブ枠主は Kick だけ可、Banは不可（あなたのルール）
+  const banBtn = document.getElementById("banBtn");
+  if (banBtn){
+    banBtn.style.display = (isSubOwner() && !isOwner) ? "none" : "";
+  }
 }
+
+
+
 
 // サブ枠主は Ban 不可にしたい場合（枠主じゃない時だけBanボタン消す）
 if (isSubOwner() && !isOwner){
@@ -918,13 +932,16 @@ let roomNameSaveLock = false; // 二重送信防止
 
 /* ===== util ===== */
 function log(...args){
-  const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
-  console.log("[room]", ...args); // lobbyなら "[lobby]"
-  const el = document.getElementById("log");
-  if (!el) return;
-  el.textContent += s + "\n";
-  el.scrollTop = el.scrollHeight;
+  console.log("[room]", ...args);
+  const box = document.getElementById("debugLog"); // ←ここ
+  if (!box) return;
+  box.textContent += args.map(a=>{
+    try{ return typeof a === "string" ? a : JSON.stringify(a, null, 2); }
+    catch{ return String(a); }
+  }).join(" ") + "\n";
+  box.scrollTop = box.scrollHeight;
 }
+
 
 
 
@@ -2883,6 +2900,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
