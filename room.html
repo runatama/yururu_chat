@@ -777,7 +777,7 @@ function adminBadgeHtmlByUserId(userId){
   let html = "";
 
   if (userId === roomOwnerId){
-    html += `<span class="badge admin">OWNER</span>`;
+    html += `<span class="badge admin">枠主</span>`;
   }
   if (SUB_OWNER_UIDS.includes(userId)){
     html += `<span class="badge warn">SUB</span>`;
@@ -788,7 +788,6 @@ function adminBadgeHtmlByUserId(userId){
 
   return html;
 }
-
 
 // ===== Sub Owner (Kick only / DB保存版) =====
 const SUB_OWNER_UIDS = [];
@@ -2909,6 +2908,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
