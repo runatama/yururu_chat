@@ -841,9 +841,52 @@ async function saveDisplayName() {
   }
 }
 
+// =================== パスワード再設定（メールリンク後） ===================
+async function handlePasswordRecovery(){
+  // URLの type=recovery を見て、該当時だけ動く
+  const type = new URLSearchParams(location.search).get("type");
+  if (type !== "recovery") return;
+
+  // セッションがまだ無い場合はここでは何もしない（getSessionFromUrl 後に呼ばれる想定）
+  const { data } = await sb.auth.getSession();
+  if (!data?.session) {
+    log("handlePasswordRecovery: no session yet");
+    return;
+  }
+
+  const newPass = prompt("新しいパスワードを入力してね（6文字以上）");
+  if (!newPass || newPass.length < 6) {
+    alert("パスワードは6文字以上にしてね");
+    return;
+  }
+
+  const { error } = await sb.auth.updateUser({ password: newPass });
+  if (error) {
+    showAuthError("パスワード変更失敗", error);
+    return;
+  }
+
+  alert("パスワード変更完了！いったんログアウトするね。新しいパスワードでログインしてね！");
+
+  // 安全のため一度ログアウト（recovery直後に自動遷移しないようにする目的もある）
+  try {
+    await sb.auth.signOut({ scope: "local" });
+  } catch (e) {
+    log("signOut after recovery error", e);
+  }
+
+  authUser = null;
+  setLoggedInUI();
+  setStatus("パスワードを変更しました。新しいパスワードでログインしてね！", true);
+}
+
 /* =================== 起動時：OAuth戻りを確定させる =================== */
 (async () => {
   document.getElementById("y").textContent = String(new Date().getFullYear());
+
+  // ★ 先に recovery かどうかだけ覚えておく（replaceStateで消える前に）
+  const qs = new URLSearchParams(location.search);
+  const isRecoveryFlow = (qs.get("type") === "recovery");
 
   try {
     const url = new URL(location.href);
@@ -855,27 +898,43 @@ async function saveDisplayName() {
       (location.hash && (location.hash.includes("access_token=") || location.hash.includes("refresh_token=")));
 
     if (hasAuthParams) {
+      // OAuth / Recovery の戻りをセッションに反映
       const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
       if (error) log("getSessionFromUrl error", error);
-      if (data?.session?.user) {
-        log("OAuth session OK", data.session.user.email);
-      }
-      history.replaceState({}, document.title, currentPageUrlNoParams());
+      if (data?.session?.user) log("OAuth session OK", data.session.user.email);
     }
   } catch (e) {
     log("init exception", e);
   }
 
+  // まず通常のUI更新
   await reloadSession();
+
+  // ★ recovery のときだけ、新パスワード設定を実行
+  if (isRecoveryFlow) {
+    await handlePasswordRecovery();
+  }
+
+  // ★ 最後にURLを掃除（type=recovery 等を消す）
+  try {
+    history.replaceState({}, document.title, currentPageUrlNoParams());
+  } catch {}
 
   sb.auth.onAuthStateChange(async () => {
     await reloadSession();
+
+    // ★ recovery の時は自動でロビーへ飛ばさない（入力を邪魔しない）
+    const type = new URLSearchParams(location.search).get("type");
+    if (type === "recovery") return;
+
     if (authUser) gotoMain();
   });
 })();
+
 </script>
 </body>
 </html>
+
 
 
 
