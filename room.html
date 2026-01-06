@@ -547,7 +547,7 @@
               <button class="btn btnSmall btnAccent2" type="button" id="saveRoomNameBtn" onclick="saveRoomName()">💾 部屋名を変更</button>
               <button class="btn btnSmall" type="button" id="resetRoomNameBtn" onclick="resetRoomNameInput()">↩ 元に戻す</button>
             </div>
-            <div class="hint" id="roomNameHint">※ 部屋名は枠主（オーナー）だけ変更できます</div>
+            <div class="hint" id="roomNameHint">※ 部屋名は枠主だけ変更できます</div>
 </div>
           <div class="row" id="roomActionRow" style="display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn btnSmall" onclick="leaveRoom()">🚪 退室</button>
@@ -569,7 +569,7 @@
       <div class="card" id="adminCard" style="display:none;">
         <div class="cardHeader">
           <b>🛡️ 枠主ツール（Kick / Ban / 強制ロビー戻し）</b>
-          <span class="chip">Owner</span>
+          <span class="chip">枠主</span>
         </div>
         <div class="cardBody">
           <div class="hint">※ この部屋の「今回の部屋(roomsの1行)」だけに効く。部屋を削除→同名で作り直しても前のBanは引き継がれない。</div>
@@ -780,7 +780,7 @@ function adminBadgeHtmlByUserId(userId){
     html += `<span class="badge admin">枠主</span>`;
   }
   if (SUB_OWNER_UIDS.includes(userId)){
-    html += `<span class="badge warn">SUB</span>`;
+    html += `<span class="badge warn">サブ枠主</span>`;
   }
   if (isAdminUserId(userId)){
     html += `<span class="badge admin">運営</span>`;
@@ -788,6 +788,7 @@ function adminBadgeHtmlByUserId(userId){
 
   return html;
 }
+
 
 // ===== Sub Owner (Kick only / DB保存版) =====
 const SUB_OWNER_UIDS = [];
@@ -866,8 +867,7 @@ async function addSubOwner(){
 
   const { error } = await sb.from("room_subowners").insert({
     room_id: roomId,
-    user_id: uid,
-    added_by: myUid()
+    user_id: uid
   });
 
   if (error){
@@ -2174,8 +2174,12 @@ function isValidUuid(v){
 function setOwnerUI(){
   const delBtn = document.getElementById("deleteRoomBtn");
   const adminCard = document.getElementById("adminCard");
+
+  // 部屋削除は枠主のみ
   if (delBtn) delBtn.style.display = isOwner ? "" : "none";
-  if (adminCard) adminCard.style.display = isOwner ? "" : "none";
+
+  // 枠主ツールカードは「Kickできる人」に表示（枠主 or サブ枠主）
+  if (adminCard) adminCard.style.display = canKick() ? "" : "none";
 
   // ★部屋名編集（枠主のみ）
   const rn = document.getElementById("roomName");
@@ -2188,7 +2192,16 @@ function setOwnerUI(){
   }
   if (row) row.style.display = isOwner ? "flex" : "none";
   if (hint) hint.style.display = isOwner ? "none" : "";
+
+  // ★サブ枠主管理（追加/削除）は枠主だけ見えるようにする
+  const subOwnerField = document.getElementById("subOwnerUidInput")?.closest(".field");
+  if (subOwnerField) subOwnerField.style.display = isOwner ? "" : "none";
 }
+
+function updateOwnerToolsVisibility(){
+  setOwnerUI();
+}
+
 
 
 async function saveRoomName(){
@@ -2660,13 +2673,13 @@ let roomMemberTimer = null;
 async function startRoomMemberHeartbeat(){
   await upsertRoomMember();
   await loadRoomMembersForUI();
-  if (isOwner) await loadRoomMembersForAdmin();
+  if (canKick()) await loadRoomMembersForAdmin();
 
   if (roomMemberTimer) clearInterval(roomMemberTimer);
   roomMemberTimer = setInterval(()=>{
     upsertRoomMember();
     loadRoomMembersForUI();
-    if (isOwner) loadRoomMembersForAdmin();
+    if (canKick()) loadRoomMembersForAdmin();
   }, 20000);
 
   window.addEventListener("beforeunload", ()=>{ deleteRoomMember(); });
@@ -2754,7 +2767,7 @@ async function startRoomMembersRealtime(){
     .channel("room-members-" + roomId)
     .on("postgres_changes",
       { event:"*", schema:"public", table:"room_members", filter:`room_id=eq.${roomId}` },
-      async ()=>{ await loadRoomMembersForUI(); if (isOwner) await loadRoomMembersForAdmin(); }
+      async ()=>{ await loadRoomMembersForUI(); if (canKick()) await loadRoomMembersForAdmin(); }
     )
     .subscribe();
 }
@@ -2826,7 +2839,7 @@ async function startRoomMembersRealtime(){
     await startRoomMemberHeartbeat();
     await startRoomMembersRealtime();
     await loadRoomMembersForUI();
-    if (isOwner) await loadRoomMembersForAdmin();
+    if (canKick()) await loadRoomMembersForAdmin();
 
     await loadMessages();
     await startMessagesRealtime();
@@ -2908,7 +2921,6 @@ function safeKey(s){
 </script>
 </body>
 </html>
-
 
 
 
