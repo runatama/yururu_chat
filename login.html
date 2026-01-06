@@ -850,8 +850,9 @@ async function saveDisplayName() {
 // =================== パスワード再設定（メールリンク後） ===================
 async function handlePasswordRecovery(){
   // URLの type=recovery を見て、該当時だけ動く
-  const type = new URLSearchParams(location.search).get("type");
-  if (type !== "recovery") return;
+  const type = getUrlParam("type");
+if (type !== "recovery") return;
+
 
   // セッションがまだ無い場合はここでは何もしない（getSessionFromUrl 後に呼ばれる想定）
   const { data } = await sb.auth.getSession();
@@ -927,23 +928,26 @@ async function handlePasswordRecovery(){
     history.replaceState({}, document.title, currentPageUrlNoParams());
   } catch {}
 
-  sb.auth.onAuthStateChange(async () => {
-    await reloadSession();
-    if (getUrlParam("type") === "recovery") return;
+  // ✅ 正しい onAuthStateChange（完全版）
+sb.auth.onAuthStateChange(async () => {
+  await reloadSession();
 
+  // ★ recovery の時は自動でロビーへ飛ばさない（入力を邪魔しない）
+  // isRecoveryFlow は IIFE の上で
+  // const isRecoveryFlow = (getUrlParam("type") === "recovery");
+  // として作ってある前提
+  if (isRecoveryFlow) return;
 
-    // ★ recovery の時は自動でロビーへ飛ばさない（入力を邪魔しない）
-    const type = getUrlParam("type");
-if (type !== "recovery") return;
+  // 通常ログイン時だけロビーへ
+  if (authUser) gotoMain();
+});
 
-
-    if (authUser) gotoMain();
-  });
 })();
 
 </script>
 </body>
 </html>
+
 
 
 
