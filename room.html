@@ -2586,10 +2586,11 @@ function getAdminReason(){
  async function kickUser(){
   if (!canKick()) return alert("Kickできるのは枠主またはサブ枠主だけです");
 
-  const targetUid = (document.getElementById("adminTargetUid")?.value || "").trim();
-  if (!targetUid) return;
+  const targetUidRaw = (document.getElementById("adminTargetUid")?.value || "").trim();
+  if (!targetUidRaw) return;
 
-  if (isAdminUserId(targetUid)){
+  // 🚫 運営はKick不可（既存）
+  if (isAdminUserId(targetUidRaw)){
     alert("運営ユーザーは Kick できません");
     return;
   }
@@ -2597,6 +2598,28 @@ function getAdminReason(){
   const target = getAdminTargetUid();
   if (!target) return alert("対象ユーザーIDが不正だよ！");
   const reason = getAdminReason();
+
+  // =========================
+  // ✅ 追加：Kick対象の制限
+  // =========================
+
+  // ① サブ枠主は「枠主」をKickできない（ついでに枠主自体もKick不可にして安全）
+  if (target === roomOwnerId){
+    alert("枠主は Kick できません");
+    return;
+  }
+
+  // ② サブ枠主は「他のサブ枠主」をKickできない（希望があれば）
+  if (isSubOwner() && SUB_OWNER_UIDS.includes(target)){
+    alert("サブ枠主は他のサブ枠主を Kick できません");
+    return;
+  }
+
+  // （任意）自分自身をKickさせたくないなら
+  // if (target === myUid()){
+  //   alert("自分自身は Kick できません");
+  //   return;
+  // }
 
   await sb.from("room_kicks").insert({
     room_id: roomId,
@@ -2614,6 +2637,7 @@ function getAdminReason(){
 
   alert("Kickしました");
 }
+
 
 async function banUser(){
   if (!canBan()) return alert("枠主だけ！");
@@ -2950,6 +2974,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
