@@ -850,10 +850,16 @@ async function saveDisplayName() {
 
 // =================== パスワード再設定（メールリンク後） ===================
 async function handlePasswordRecovery(){
-  const type = getUrlParam("type"); // ← search/hash 両対応
+  log("handlePasswordRecovery: start", { search: location.search, hash: location.hash });
+
+  const type = getUrlParam("type");
+  log("handlePasswordRecovery: type=", type);
+
   if (type !== "recovery") return;
 
   const { data } = await sb.auth.getSession();
+  log("handlePasswordRecovery: hasSession=", !!data?.session);
+
   if (!data?.session) {
     log("handlePasswordRecovery: no session yet");
     return;
@@ -884,8 +890,9 @@ async function handlePasswordRecovery(){
   document.getElementById("y").textContent = String(new Date().getFullYear());
 
   // ★ 先に recovery かどうかだけ覚えておく（replaceStateで消える前に）
-  const qs = new URLSearchParams(location.search);
-  const isRecoveryFlow = (getUrlParam("type") === "recovery");
+  const = new URLSearchParams(location.search);
+const isRecoveryFlow = (getUrlParam("type") === "recovery");
+
 
 
   try {
@@ -937,6 +944,7 @@ sb.auth.onAuthStateChange(async () => {
 </script>
 </body>
 </html>
+
 
 
 
