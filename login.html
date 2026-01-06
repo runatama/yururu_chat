@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -505,12 +506,10 @@
       </div>
 
       <div class="btnRow">
-　　  <button class="btnPrimary" onclick="doPrimary()" id="primaryBtn">ログイン</button>
-  　　<button class="btnGhost" onclick="sendPasswordReset()">パスワード再設定</button>
- 　　 <button class="btnGhost" onclick="resetMode()">戻る</button>
- 　　 <button class="btnDanger" onclick="signOut()" id="signOutBtn" disabled>ログアウト</button>
-</div>
-
+        <button class="btnPrimary" onclick="doPrimary()" id="primaryBtn">ログイン</button>
+        <button class="btnGhost" onclick="resetMode()">戻る</button>
+        <button class="btnDanger" onclick="signOut()" id="signOutBtn" disabled>ログアウト</button>
+      </div>
 
       <div class="statusLine" id="statusLine">
         <span class="statusIcon" id="statusIcon"></span>
@@ -631,12 +630,6 @@ function currentPageUrlNoParams(){
   u.search = "";
   u.hash = "";
   return u.toString();
-}
-  function getUrlParam(name){
-  const q = new URLSearchParams(location.search).get(name);
-  if (q) return q;
-  const h = new URLSearchParams((location.hash || "").replace(/^#/, "")).get(name);
-  return h;
 }
 
 /* =================== UI：モード切替 =================== */
@@ -800,25 +793,6 @@ async function signIn() {
   await reloadSession();
   gotoMain();
 }
-  // =================== パスワード再設定（メール送信） ===================
-async function sendPasswordReset(){
-  const email = document.getElementById("email").value.trim();
-  if (!email) return alert("メールアドレスを入れてね！");
-
-  // reset完了後に戻ってくるURL（今の login ページ）
-  const { error } = await sb.auth.resetPasswordForEmail(email, {
-    redirectTo: currentPageUrlNoParams()
-
-  });
-
-  if (error) {
-    showAuthError("再設定メール送信失敗", error);
-    return;
-  }
-
-  alert("再設定メールを送ったよ！メールを開いてリンクからパスワードを変えてね！");
-  setStatus("再設定メールを送信しました（メールを確認してね）", true);
-}
 
 async function signOut() {
   const { error } = await sb.auth.signOut({ scope: "local" });
@@ -848,62 +822,9 @@ async function saveDisplayName() {
   }
 }
 
-// =================== パスワード再設定（メールリンク後） ===================
-// =================== パスワード再設定（メールリンク後） ===================
-async function handlePasswordRecovery(){
-  log("handlePasswordRecovery: start", { search: location.search, hash: location.hash });
-
-  const type = getUrlParam("type");
-  log("handlePasswordRecovery: type=", type);
-
-  if (type !== "recovery") return;
-
-  // ★ recovery直後は session がまだ取れないことがあるので少し待つ
-  let session = null;
-  for (let i = 0; i < 10; i++) { // 最大 約2秒（200ms×10）
-    const { data } = await sb.auth.getSession();
-    session = data?.session || null;
-    log("handlePasswordRecovery: try", i, "hasSession=", !!session);
-    if (session) break;
-    await new Promise(r => setTimeout(r, 200));
-  }
-
-  if (!session) {
-    alert("再設定リンクのセッション取得に失敗したかも。もう一度メールのリンクを開いてね！");
-    setStatus("recovery: sessionが取れませんでした", false);
-    return;
-  }
-
-  const newPass = prompt("新しいパスワードを入力してね（6文字以上）");
-  if (!newPass || newPass.length < 6) {
-    alert("パスワードは6文字以上にしてね");
-    return;
-  }
-
-  const { error } = await sb.auth.updateUser({ password: newPass });
-  if (error) {
-    showAuthError("パスワード変更失敗", error);
-    return;
-  }
-
-  alert("パスワード変更完了！いったんログアウトするね。新しいパスワードでログインしてね！");
-  try { await sb.auth.signOut({ scope: "local" }); } catch (e) { log("signOut after recovery error", e); }
-
-  authUser = null;
-  setLoggedInUI();
-  setStatus("パスワードを変更しました。新しいパスワードでログインしてね！", true);
-}
-
-
 /* =================== 起動時：OAuth戻りを確定させる =================== */
 (async () => {
   document.getElementById("y").textContent = String(new Date().getFullYear());
-
-  // ★ 先に recovery かどうかだけ覚えておく（replaceStateで消える前に）
-  const qs = new URLSearchParams(location.search);
-const isRecoveryFlow = (getUrlParam("type") === "recovery");
-
-
 
   try {
     const url = new URL(location.href);
@@ -915,54 +836,27 @@ const isRecoveryFlow = (getUrlParam("type") === "recovery");
       (location.hash && (location.hash.includes("access_token=") || location.hash.includes("refresh_token=")));
 
     if (hasAuthParams) {
-      // OAuth / Recovery の戻りをセッションに反映
       const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
       if (error) log("getSessionFromUrl error", error);
-      if (data?.session?.user) log("OAuth session OK", data.session.user.email);
+      if (data?.session?.user) {
+        log("OAuth session OK", data.session.user.email);
+      }
+      history.replaceState({}, document.title, currentPageUrlNoParams());
     }
   } catch (e) {
     log("init exception", e);
   }
 
-  // まず通常のUI更新
   await reloadSession();
 
-  // ★ recovery のときだけ、新パスワード設定を実行
-  if (isRecoveryFlow) {
-    await handlePasswordRecovery();
-  }
-
-  // ★ 最後にURLを掃除（type=recovery 等を消す）
-  try {
-    history.replaceState({}, document.title, currentPageUrlNoParams());
-  } catch {}
-
-  // ✅ 正しい onAuthStateChange（完全版）
-sb.auth.onAuthStateChange(async () => {
-  await reloadSession();
-
-  // recovery中は自動遷移させない（URL掃除後でも効く）
-  if (isRecoveryFlow) return;
-
-  if (authUser) gotoMain();
-});
-
-
-
+  sb.auth.onAuthStateChange(async () => {
+    await reloadSession();
+    if (authUser) gotoMain();
+  });
 })();
-
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
 
 
 
