@@ -849,12 +849,9 @@ async function saveDisplayName() {
 
 // =================== パスワード再設定（メールリンク後） ===================
 async function handlePasswordRecovery(){
-  // URLの type=recovery を見て、該当時だけ動く
-  const type = getUrlParam("type");
-if (type !== "recovery") return;
+  const type = getUrlParam("type"); // ← search/hash 両対応
+  if (type !== "recovery") return;
 
-
-  // セッションがまだ無い場合はここでは何もしない（getSessionFromUrl 後に呼ばれる想定）
   const { data } = await sb.auth.getSession();
   if (!data?.session) {
     log("handlePasswordRecovery: no session yet");
@@ -874,13 +871,7 @@ if (type !== "recovery") return;
   }
 
   alert("パスワード変更完了！いったんログアウトするね。新しいパスワードでログインしてね！");
-
-  // 安全のため一度ログアウト（recovery直後に自動遷移しないようにする目的もある）
-  try {
-    await sb.auth.signOut({ scope: "local" });
-  } catch (e) {
-    log("signOut after recovery error", e);
-  }
+  try { await sb.auth.signOut({ scope: "local" }); } catch (e) { log("signOut after recovery error", e); }
 
   authUser = null;
   setLoggedInUI();
@@ -932,21 +923,21 @@ if (type !== "recovery") return;
 sb.auth.onAuthStateChange(async () => {
   await reloadSession();
 
-  // ★ recovery の時は自動でロビーへ飛ばさない（入力を邪魔しない）
-  // isRecoveryFlow は IIFE の上で
-  // const isRecoveryFlow = (getUrlParam("type") === "recovery");
-  // として作ってある前提
-  if (isRecoveryFlow) return;
+  // recovery中は自動遷移させない（パスワード入力を邪魔しない）
+  const type = getUrlParam("type");
+  if (type === "recovery") return;
 
-  // 通常ログイン時だけロビーへ
+  // 通常ログインだけロビーへ
   if (authUser) gotoMain();
 });
+
 
 })();
 
 </script>
 </body>
 </html>
+
 
 
 
