@@ -1,0 +1,704 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ゆるるチャット - パスワード再設定</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        :root {
+            --bg1: #0b1220;
+            --bg2: #0a1a2a;
+            --card: #0f1a2cdd;
+            --line: rgba(255,255,255,.10);
+            --text: #eaf2ff;
+            --muted: rgba(234,242,255,.7);
+            --muted2: rgba(234,242,255,.55);
+            --accent: #6ee7ff;
+            --accent2: #a78bfa;
+            --good: #3be0a8;
+            --bad: #ff6b6b;
+            --radius: 18px;
+            --shadow: 0 18px 50px rgba(0,0,0,.45);
+            --shadow2: 0 10px 30px rgba(0,0,0,.35);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", sans-serif;
+            color: var(--text);
+            background: radial-gradient(900px 550px at 15% 20%, rgba(110,231,255,.28), transparent 55%), radial-gradient(900px 550px at 85% 25%, rgba(167,139,250,.26), transparent 55%), radial-gradient(1000px 650px at 40% 95%, rgba(59,224,168,.18), transparent 60%), linear-gradient(180deg, var(--bg1), var(--bg2));
+            padding: 24px 16px 40px;
+            overflow-x: hidden;
+        }
+
+        .grain {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.25'/%3E%3C/svg%3E");
+            opacity: .08;
+            mix-blend-mode: overlay;
+        }
+
+        .wrap {
+            max-width: 920px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .logo {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            background: radial-gradient(16px 16px at 30% 30%, rgba(255,255,255,.9), transparent 55%), linear-gradient(135deg, rgba(110,231,255,.9), rgba(167,139,250,.85));
+            box-shadow: 0 14px 30px rgba(110,231,255,.15), 0 14px 30px rgba(167,139,250,.10);
+            position: relative;
+            overflow: hidden;
+        }
+
+            .logo::after {
+                content: "";
+                position: absolute;
+                inset: -30%;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+                transform: rotate(20deg);
+                animation: sheen 3.2s infinite;
+            }
+
+        @keyframes sheen {
+            0% {
+                transform: translateX(-40%) rotate(20deg);
+                opacity: .0;
+            }
+
+            20% {
+                opacity: .6;
+            }
+
+            50% {
+                opacity: .25;
+            }
+
+            100% {
+                transform: translateX(40%) rotate(20deg);
+                opacity: 0;
+            }
+        }
+
+        .titleBox {
+            min-width: 0;
+        }
+
+        .title {
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: .02em;
+            margin: 0;
+            line-height: 1.1;
+        }
+
+        .subtitle {
+            margin: 6px 0 0;
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.4;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 62vw;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,.06);
+            box-shadow: var(--shadow2);
+            font-size: 12px;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.35);
+            box-shadow: 0 0 0 4px rgba(255,255,255,.06);
+        }
+
+        .pill.ok .dot {
+            background: var(--good);
+            box-shadow: 0 0 0 4px rgba(59,224,168,.14);
+        }
+
+        .pill.ng .dot {
+            background: var(--bad);
+            box-shadow: 0 0 0 4px rgba(255,107,107,.14);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.1fr .9fr;
+            gap: 16px;
+            align-items: start;
+        }
+
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .subtitle {
+                max-width: 78vw;
+            }
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+            .card::before {
+                content: "";
+                position: absolute;
+                inset: -2px;
+                border-radius: var(--radius);
+                background: radial-gradient(600px 220px at 20% 0%, rgba(110,231,255,.18), transparent 60%), radial-gradient(600px 220px at 80% 0%, rgba(167,139,250,.16), transparent 60%);
+                pointer-events: none;
+            }
+
+            .card > * {
+                position: relative;
+                z-index: 1;
+            }
+
+        .sectionTitle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+            .sectionTitle b {
+                font-size: 14px;
+                color: rgba(234,242,255,.92);
+                letter-spacing: .02em;
+            }
+
+        .badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,.06);
+            color: rgba(234,242,255,.80);
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.6;
+            margin-top: 6px;
+        }
+
+            .hint.small {
+                font-size: 11px;
+                color: var(--muted2);
+            }
+
+        .divider {
+            height: 1px;
+            background: var(--line);
+            margin: 12px 0;
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .field {
+            flex: 1 1 260px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 11px;
+            color: var(--muted2);
+            font-weight: 700;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 12px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: rgba(0,0,0,.22);
+            color: var(--text);
+            outline: none;
+            transition: border-color .12s ease, box-shadow .12s ease;
+        }
+
+            input::placeholder {
+                color: rgba(234,242,255,.38);
+            }
+
+            input:focus {
+                border-color: rgba(110,231,255,.55);
+                box-shadow: 0 0 0 4px rgba(110,231,255,.12);
+            }
+
+        .btnRow {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        button {
+            appearance: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text);
+            font-weight: 800;
+            padding: 11px 14px;
+            border-radius: 14px;
+            background: rgba(255,255,255,.08);
+            border: 1px solid var(--line);
+            transition: transform .08s ease, filter .12s ease, background .12s ease;
+        }
+
+            button:hover {
+                filter: brightness(1.08);
+            }
+
+            button:active {
+                transform: translateY(1px) scale(.99);
+            }
+
+            button:disabled {
+                opacity: .55;
+                cursor: not-allowed;
+            }
+
+        .btnPrimary {
+            background: linear-gradient(135deg, rgba(110,231,255,.92), rgba(167,139,250,.88));
+            border-color: rgba(255,255,255,.18);
+            color: #07101c;
+            box-shadow: 0 18px 35px rgba(110,231,255,.13), 0 18px 35px rgba(167,139,250,.10);
+        }
+
+        .btnGhost {
+            background: rgba(255,255,255,.06);
+        }
+
+        .btnDanger {
+            background: rgba(255,107,107,.14);
+            border-color: rgba(255,107,107,.25);
+        }
+
+        .statusLine {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,.05);
+            font-size: 12px;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+            .statusLine.ok {
+                border-color: rgba(59,224,168,.25);
+                background: rgba(59,224,168,.08);
+                color: rgba(234,242,255,.85);
+            }
+
+            .statusLine.ng {
+                border-color: rgba(255,107,107,.25);
+                background: rgba(255,107,107,.10);
+                color: rgba(234,242,255,.88);
+            }
+
+        .statusIcon {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.35);
+            box-shadow: 0 0 0 4px rgba(255,255,255,.05);
+            flex: 0 0 auto;
+        }
+
+        .statusLine.ok .statusIcon {
+            background: var(--good);
+            box-shadow: 0 0 0 4px rgba(59,224,168,.13);
+        }
+
+        .statusLine.ng .statusIcon {
+            background: var(--bad);
+            box-shadow: 0 0 0 4px rgba(255,107,107,.13);
+        }
+
+        details {
+            margin-top: 12px;
+        }
+
+        summary {
+            cursor: pointer;
+            color: rgba(234,242,255,.85);
+            font-weight: 800;
+            font-size: 12px;
+            user-select: none;
+        }
+
+        #log {
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12px;
+            border: 1px solid var(--line);
+            background: rgba(0,0,0,.25);
+            padding: 10px;
+            border-radius: 14px;
+            max-height: 240px;
+            overflow: auto;
+            color: rgba(234,242,255,.88);
+        }
+
+        a {
+            color: rgba(110,231,255,.9);
+            text-decoration: none;
+        }
+
+            a:hover {
+                text-decoration: underline;
+            }
+    </style>
+</head>
+
+<body>
+    <div class="grain"></div>
+
+    <div class="wrap">
+        <div class="header">
+            <div class="brand">
+                <div class="logo" aria-hidden="true"></div>
+                <div class="titleBox">
+                    <h1 class="title">ゆるるチャット</h1>
+                    <p class="subtitle">パスワード再設定（メールのリンクからここに来る）</p>
+                </div>
+            </div>
+
+            <div class="pill" id="statePillWrap">
+                <span class="dot" id="stateDot"></span>
+                <span id="statePill">確認中...</span>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- 左：再設定カード -->
+            <div class="card">
+                <div class="sectionTitle">
+                    <b>🔑 パスワード再設定</b>
+                    <span class="badge">Reset</span>
+                </div>
+
+                <div class="hint" id="topHint">
+                    メールのリンクから来たら、新しいパスワードを入力して「変更する」を押してね。
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="row">
+                    <div class="field">
+                        <label for="email">メールアドレス（表示だけ）</label>
+                        <input id="email" placeholder="(取得中...)" autocomplete="email" disabled />
+                    </div>
+                </div>
+
+                <div class="row" style="margin-top:12px;">
+                    <div class="field">
+                        <label for="newPass">新しいパスワード</label>
+                        <input id="newPass" type="password" placeholder="6文字以上（推奨8以上）" autocomplete="new-password" />
+                    </div>
+                    <div class="field">
+                        <label for="newPass2">新しいパスワード（確認）</label>
+                        <input id="newPass2" type="password" placeholder="もう一度入力" autocomplete="new-password" />
+                    </div>
+                </div>
+
+                <div class="btnRow">
+                    <button class="btnPrimary" id="btnUpdate" onclick="updatePassword()" disabled>変更する</button>
+                    <button class="btnGhost" onclick="gotoLogin()">ログインへ戻る</button>
+                    <button class="btnDanger" onclick="clearLocalSession()">ローカルセッション消す</button>
+                </div>
+
+                <div class="statusLine" id="statusLine">
+                    <span class="statusIcon" id="statusIcon"></span>
+                    <span id="status">準備中...</span>
+                </div>
+
+                <details>
+                    <summary>🔧 デバッグログ</summary>
+                    <div id="log"></div>
+                </details>
+            </div>
+
+            <!-- 右：案内 -->
+            <div class="card">
+                <div class="sectionTitle">
+                    <b>🧭 うまく行かないとき</b>
+                    <span class="badge">Tips</span>
+                </div>
+
+                <ul class="hint" style="margin:0; padding-left: 18px;">
+                    <li>必ず「メールの再設定リンク」からこのページへ来てね</li>
+                    <li>リンクが古いと失敗するので、もう一回「再設定メール」を送り直すのが早い</li>
+                    <li>タブを複数開いてると失敗しやすい（できれば1つだけ）</li>
+                </ul>
+
+                <div class="divider"></div>
+
+                <div class="hint small">
+                    このページは「再設定専用」。ログイン判定や自動遷移は入れてないので、安定します。
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top:16px; text-align:center; font-size:11px; color: rgba(234,242,255,.45);">
+            ゆるるチャット © <span id="y"></span>
+        </div>
+    </div>
+
+    <script>
+/* =================== Supabase 設定 =================== */
+const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+
+const sb = supabase.createClient(
+  SUPABASE_URL.trim(),
+  (SUPABASE_KEY || "").replace(/\s+/g, "").trim(),
+  {
+    auth: {
+      flowType: "pkce",
+      detectSessionInUrl: true,
+      autoRefreshToken: true,
+      persistSession: true
+    }
+  }
+);
+
+/* =================== ログ =================== */
+function log(...args){
+  const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
+  console.log("[reset]", ...args);
+  const el = document.getElementById("log");
+  if (!el) return;
+  el.textContent += s + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
+window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
+
+function setStatus(text, ok = true){
+  const el = document.getElementById("status");
+  const line = document.getElementById("statusLine");
+  el.textContent = text;
+
+  line.classList.remove("ok","ng");
+  if (ok === true) line.classList.add("ok");
+  if (ok === false) line.classList.add("ng");
+}
+
+function setPill(ok, text){
+  const pill = document.getElementById("statePill");
+  const wrap = document.getElementById("statePillWrap");
+  const dot = document.getElementById("stateDot");
+  pill.textContent = text;
+
+  wrap.classList.remove("ok","ng");
+  dot.style.background = "rgba(255,255,255,.35)";
+  if (ok === true){ wrap.classList.add("ok"); dot.style.background = "var(--good)"; }
+  if (ok === false){ wrap.classList.add("ng"); dot.style.background = "var(--bad)"; }
+}
+
+function getUrlParam(name){
+  const q = new URLSearchParams(location.search).get(name);
+  if (q) return q;
+  const h = new URLSearchParams((location.hash || "").replace(/^#/, "")).get(name);
+  return h;
+}
+
+function gotoLogin(){
+  // login が /login.html の場合はこちら
+  location.href = "/login.html?_r=" + Date.now();
+}
+
+/* =================== セッション消す（困った時用） =================== */
+async function clearLocalSession(){
+  try{
+    await sb.auth.signOut({ scope: "local" });
+  }catch(e){
+    log("signOut(local) error", e);
+  }
+  try{ localStorage.removeItem("sb-" + new URL(SUPABASE_URL).host + "-auth-token"); }catch{}
+  setStatus("ローカルセッションを消しました。メールのリンクを開き直してね。", true);
+  setPill(null, "未接続");
+}
+
+/* =================== Recovery セッション確定 =================== */
+let ready = false;
+
+async function initRecovery(){
+  document.getElementById("y").textContent = String(new Date().getFullYear());
+
+  // 画面表示だけ：loginから来た場合の email 引継ぎ
+  const emailFromQuery = (new URL(location.href)).searchParams.get("email");
+  if (emailFromQuery){
+    document.getElementById("email").value = emailFromQuery;
+  }
+
+  setPill(null, "確認中...");
+  setStatus("再設定リンクを確認中...", true);
+  log("initRecovery: href=", location.href);
+
+  // recovery かどうか（メールリンクだと type=recovery になりがち）
+  const type = getUrlParam("type");
+  log("initRecovery: type=", type);
+
+  // 重要：URLからセッションを確定
+  let session = null;
+  try{
+    const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
+    if (error) log("getSessionFromUrl error", error);
+    session = data?.session || null;
+  }catch(e){
+    log("getSessionFromUrl exception", e);
+  }
+
+  // 念のため：少し待って getSession を取り直す
+  if (!session){
+    for (let i=0; i<12; i++){
+      const { data } = await sb.auth.getSession();
+      session = data?.session || null;
+      log("getSession retry", i, "hasSession=", !!session);
+      if (session) break;
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+
+  if (!session){
+    setPill(false, "リンク無効");
+    setStatus("再設定リンクのセッションが取れませんでした。再設定メールのリンクから来てね。", false);
+    document.getElementById("btnUpdate").disabled = true;
+    return;
+  }
+
+  // セッションOK
+  const user = session.user;
+  const email = user?.email || "";
+  if (email) document.getElementById("email").value = email;
+
+  setPill(true, "リンクOK");
+  setStatus("OK！新しいパスワードを入力して「変更する」を押してね", true);
+  document.getElementById("btnUpdate").disabled = false;
+  ready = true;
+
+  // URL掃除：ここで消してOK（セッション確定後なので安全）
+  try{
+    const clean = new URL(location.href);
+    clean.search = "";
+    clean.hash = "";
+    history.replaceState({}, document.title, clean.toString());
+    log("URL cleaned");
+  }catch(e){
+    log("replaceState error", e);
+  }
+}
+
+/* =================== パスワード更新 =================== */
+async function updatePassword(){
+  if (!ready) return alert("まだ準備中だよ。メールのリンクから来てね！");
+
+  const p1 = document.getElementById("newPass").value || "";
+  const p2 = document.getElementById("newPass2").value || "";
+
+  if (p1.length < 6) return alert("パスワードは6文字以上にしてね！（推奨8文字以上）");
+  if (p1 !== p2) return alert("確認用パスワードが一致してないよ！");
+
+  const btn = document.getElementById("btnUpdate");
+  btn.disabled = true;
+
+  try{
+    setStatus("パスワードを変更中...", true);
+
+    const { error } = await sb.auth.updateUser({ password: p1 });
+    if (error){
+      log("updateUser(password) error", error);
+      setPill(false, "失敗");
+      setStatus("パスワード変更に失敗しました: " + (error.message || "unknown"), false);
+      alert("変更失敗: " + (error.message || "unknown"));
+      return;
+    }
+
+    setPill(true, "完了");
+    setStatus("変更完了！いったんログアウトしてログイン画面へ戻るよ", true);
+    alert("パスワード変更完了！ログイン画面に戻るね。");
+
+    try{ await sb.auth.signOut({ scope: "local" }); }catch(e){ log("signOut after update error", e); }
+    setTimeout(()=> gotoLogin(), 300);
+
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* =================== 起動 =================== */
+initRecovery();
+    </script>
+</body>
+</html>
