@@ -924,13 +924,12 @@ async function handlePasswordRecovery(){
 sb.auth.onAuthStateChange(async () => {
   await reloadSession();
 
-  // recovery中は自動遷移させない（パスワード入力を邪魔しない）
-  const type = getUrlParam("type");
-  if (type === "recovery") return;
+  // recovery中は自動遷移させない（URL掃除後でも効く）
+  if (isRecoveryFlow) return;
 
-  // 通常ログインだけロビーへ
   if (authUser) gotoMain();
 });
+
 
 
 })();
@@ -938,6 +937,7 @@ sb.auth.onAuthStateChange(async () => {
 </script>
 </body>
 </html>
+
 
 
 
