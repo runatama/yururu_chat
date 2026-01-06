@@ -807,7 +807,8 @@ async function sendPasswordReset(){
 
   // reset完了後に戻ってくるURL（今の login ページ）
   const { error } = await sb.auth.resetPasswordForEmail(email, {
-    redirectTo: currentPageUrlNoParams()
+    redirectTo: "https://yururu-chat.pages.dev/login.html"
+
   });
 
   if (error) {
