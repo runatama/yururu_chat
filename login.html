@@ -849,6 +849,7 @@ async function saveDisplayName() {
 }
 
 // =================== パスワード再設定（メールリンク後） ===================
+// =================== パスワード再設定（メールリンク後） ===================
 async function handlePasswordRecovery(){
   log("handlePasswordRecovery: start", { search: location.search, hash: location.hash });
 
@@ -857,11 +858,19 @@ async function handlePasswordRecovery(){
 
   if (type !== "recovery") return;
 
-  const { data } = await sb.auth.getSession();
-  log("handlePasswordRecovery: hasSession=", !!data?.session);
+  // ★ recovery直後は session がまだ取れないことがあるので少し待つ
+  let session = null;
+  for (let i = 0; i < 10; i++) { // 最大 約2秒（200ms×10）
+    const { data } = await sb.auth.getSession();
+    session = data?.session || null;
+    log("handlePasswordRecovery: try", i, "hasSession=", !!session);
+    if (session) break;
+    await new Promise(r => setTimeout(r, 200));
+  }
 
-  if (!data?.session) {
-    log("handlePasswordRecovery: no session yet");
+  if (!session) {
+    alert("再設定リンクのセッション取得に失敗したかも。もう一度メールのリンクを開いてね！");
+    setStatus("recovery: sessionが取れませんでした", false);
     return;
   }
 
@@ -885,12 +894,13 @@ async function handlePasswordRecovery(){
   setStatus("パスワードを変更しました。新しいパスワードでログインしてね！", true);
 }
 
+
 /* =================== 起動時：OAuth戻りを確定させる =================== */
 (async () => {
   document.getElementById("y").textContent = String(new Date().getFullYear());
 
   // ★ 先に recovery かどうかだけ覚えておく（replaceStateで消える前に）
-  const = new URLSearchParams(location.search);
+  const qs = new URLSearchParams(location.search);
 const isRecoveryFlow = (getUrlParam("type") === "recovery");
 
 
@@ -944,6 +954,7 @@ sb.auth.onAuthStateChange(async () => {
 </script>
 </body>
 </html>
+
 
 
 
