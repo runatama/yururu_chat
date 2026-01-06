@@ -774,10 +774,6 @@ function isAdminUserId(userId){
 // ===== Sub Owner (Kick only) =====
 const SUB_OWNER_UIDS = []; // UIから追加される（※リロードで消える）
 
-function isSubOwner(){
-  return SUB_OWNER_UIDS.includes(authUser?.id);
-}
-
 function canKick(){
   return isOwner || isSubOwner();
 }
@@ -2459,22 +2455,31 @@ function getAdminReason(){
   return (document.getElementById("adminReason")?.value || "").trim().slice(0, 200);
 }
 
-async function kickUser(){
-  // ✅ 枠主 or サブ枠主だけOK
-  if (!canKick()) return alert("枠主 or サブ枠主だけ！");
+ async function kickUser(){
+if (!canKick()) return alert("枠主 or サブ枠主だけ！");
+if (!canKick()){
+alert("Kickできるのは枠主またはサブ枠主だけです");
+ return;
+ }
 
-  const targetUid = (document.getElementById("adminTargetUid")?.value || "").trim();
-  if (!targetUid) return;
-
-  // 🚫 運営はKick不可
-  if (isAdminUserId(targetUid)){
-    alert("運営ユーザーは Kick できません");
+  // 枠主 or サブ枠主だけOK
+  if (!(isOwner || isSubOwner())){
+    alert("Kickできるのは枠主かサブ枠主だけ！");
     return;
   }
+  if (!canKick()) return alert("枠主 or サブ枠主だけ！");
 
-  const target = getAdminTargetUid();
-  if (!target) return alert("対象ユーザーIDが不正だよ！");
-  const reason = getAdminReason();
+   const targetUid = document.getElementById("adminTargetUid").value.trim();
+   if (!targetUid) return;
+   // 🚫 運営はKick不可
+   if (isAdminUserId(targetUid)){
+     alert("運営ユーザーは Kick できません");
+     return;
+   }
+-  if (!isOwner) return alert("枠主だけ！");
+   const target = getAdminTargetUid();
+   if (!target) return alert("対象ユーザーIDが不正だよ！");
+   const reason = getAdminReason();
 
   // kick 履歴（任意）
   {
@@ -2850,6 +2855,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
