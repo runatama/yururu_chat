@@ -775,6 +775,11 @@ function isAdminUserId(userId){
 // ===== Sub Owner (Kick only / DB保存版) =====
 const SUB_OWNER_UIDS = [];
 
+// 自分のUID（あなたの既存関数がある前提。無ければ authUser?.id を使ってね）
+function myUid(){
+  return authUser?.id || "";
+}
+
 // サブ枠主か？
 function isSubOwner(){
   const uid = myUid();
@@ -826,7 +831,7 @@ function renderSubOwners(){
     row.innerHTML =
       '<div class="name">' + uid + '</div>' +
       (isOwner
-        ? '<button class="btn btnSmall danger" onclick="removeSubOwner(\'' + uid + '\')">削除</button>'
+        ? '<button class="btn btnSmall danger" type="button" onclick="removeSubOwner(\'' + uid + '\')">削除</button>'
         : '');
     box.appendChild(row);
   });
@@ -839,41 +844,23 @@ async function addSubOwner(){
   const uid = (input?.value || "").trim();
   if (!uid) return alert("subOwner uid を入れてね！");
 
-  // 自分をサブ枠主にするのは不要（枠主は常に権限ある）
+  // 自分をサブ枠主にするのは不要
   if (uid === myUid()) return alert("自分自身は追加しなくてOK！（枠主は常に権限ある）");
 
-  const { error } = await sb.from("room_sub_owners").insert({
+  const { error } = await sb.from("room_subowners").insert({
     room_id: roomId,
     user_id: uid,
     added_by: myUid()
   });
 
   if (error){
-    // 既に登録済みを許容したいなら、ここで判定してメッセージ変える
-    console.error(error);
+    console.error("addSubOwner error", error);
     return alert("追加できなかった: " + (error.message || ""));
   }
 
-  input.value = "";
+  if (input) input.value = "";
   await loadSubOwnersFromDb();
-  updateOwnerToolsVisibility(); // UI反映
-  applySubOwnerUi();
-
-  function applySubOwnerUi(){
-  // サブ枠主は Kick だけ可、Banは不可（あなたのルール）
-  const banBtn = document.getElementById("banBtn");
-  if (banBtn){
-    banBtn.style.display = (isSubOwner() && !isOwner) ? "none" : "";
-  }
-}
-
-
-
-
-// サブ枠主は Ban 不可にしたい場合（枠主じゃない時だけBanボタン消す）
-if (isSubOwner() && !isOwner){
-  document.querySelector('button[onclick="banUser()"]')?.remove();
-
+  updateOwnerToolsVisibility(); // 既存のあなたの関数想定
 }
 
 // 削除（枠主だけ）
@@ -887,13 +874,14 @@ async function removeSubOwner(uid){
     .eq("user_id", uid);
 
   if (error){
-    alert("削除失敗: " + error.message);
-    console.error(error);
-    return;
+    console.error("removeSubOwner error", error);
+    return alert("削除できなかった: " + (error.message || ""));
   }
 
   await loadSubOwnersFromDb();
+  updateOwnerToolsVisibility(); // 既存のあなたの関数想定
 }
+
 
 
 /* 画像用（Public bucket名） */
@@ -932,15 +920,16 @@ let roomNameSaveLock = false; // 二重送信防止
 
 /* ===== util ===== */
 function log(...args){
+  const s = args.map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2))).join(" ");
   console.log("[room]", ...args);
-  const box = document.getElementById("debugLog"); // ←ここ
-  if (!box) return;
-  box.textContent += args.map(a=>{
-    try{ return typeof a === "string" ? a : JSON.stringify(a, null, 2); }
-    catch{ return String(a); }
-  }).join(" ") + "\n";
-  box.scrollTop = box.scrollHeight;
+
+  const el = document.getElementById("log");
+  if (el){
+    el.textContent += s + "\n";
+    el.scrollTop = el.scrollHeight;
+  }
 }
+
 
 
 
@@ -2900,6 +2889,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
