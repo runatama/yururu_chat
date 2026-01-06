@@ -548,7 +548,7 @@
             </div>
             <div class="hint" id="roomNameHint">※ 部屋名は枠主（オーナー）だけ変更できます</div>
 </div>
-          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap;">
+          <div class="row" id="subOwnerEditRow" style="display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn btnSmall" onclick="leaveRoom()">🚪 退室</button>
               <button class="btn btnSmall danger" id="deleteRoomBtn" style="display:none;" onclick="deleteRoomNow()">🗑 部屋を削除</button>
           </div>
@@ -799,9 +799,9 @@ function renderSubOwners(){
    SUB_OWNER_UIDS.forEach(uid=>{
      const row = document.createElement("div");
      row.className = "listItem";
-     row.innerHTML =
-       '<div class="name">' + uid + '</div>' +
-       '<button class="btn btnSmall danger" onclick="removeSubOwner(\'' + uid + '\')">削除</button>';
+    row.innerHTML =
+     '<div class="name">' + uid + '</div>' +
+     (isOwner ? '<button class="btn btnSmall danger" onclick="removeSubOwner(\'' + uid + '\')">削除</button>' : '');
      box.appendChild(row);
    });
  }
@@ -1002,7 +1002,9 @@ function updateTop(){
 const backAllBtn = card.querySelector('button[onclick="forceBackAll()"]');
 
 if (banBtn){ banBtn.style.display = "none"; banBtn.disabled = true; }
-if (backAllBtn){ backAllBtn.style.display = "none"; backAllBtn.disabled = true; }
+if (backAllBtn){ backAllBtn.style.display = "none"; backAllBtn.disabled = true; }// サブ枠主には「サブ枠主追加UI」を見せない
+  const editRow = document.getElementById("subOwnerEditRow");
+  if (editRow){ editRow.style.display = "none"; }
 
     }
 
@@ -2861,6 +2863,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
