@@ -505,10 +505,12 @@
       </div>
 
       <div class="btnRow">
-        <button class="btnPrimary" onclick="doPrimary()" id="primaryBtn">ログイン</button>
-        <button class="btnGhost" onclick="resetMode()">戻る</button>
-        <button class="btnDanger" onclick="signOut()" id="signOutBtn" disabled>ログアウト</button>
-      </div>
+　　  <button class="btnPrimary" onclick="doPrimary()" id="primaryBtn">ログイン</button>
+  　　<button class="btnGhost" onclick="sendPasswordReset()">パスワード再設定</button>
+ 　　 <button class="btnGhost" onclick="resetMode()">戻る</button>
+ 　　 <button class="btnDanger" onclick="signOut()" id="signOutBtn" disabled>ログアウト</button>
+</div>
+
 
       <div class="statusLine" id="statusLine">
         <span class="statusIcon" id="statusIcon"></span>
@@ -792,6 +794,24 @@ async function signIn() {
   await reloadSession();
   gotoMain();
 }
+  // =================== パスワード再設定（メール送信） ===================
+async function sendPasswordReset(){
+  const email = document.getElementById("email").value.trim();
+  if (!email) return alert("メールアドレスを入れてね！");
+
+  // reset完了後に戻ってくるURL（今の login ページ）
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: currentPageUrlNoParams()
+  });
+
+  if (error) {
+    showAuthError("再設定メール送信失敗", error);
+    return;
+  }
+
+  alert("再設定メールを送ったよ！メールを開いてリンクからパスワードを変えてね！");
+  setStatus("再設定メールを送信しました（メールを確認してね）", true);
+}
 
 async function signOut() {
   const { error } = await sb.auth.signOut({ scope: "local" });
@@ -856,6 +876,7 @@ async function saveDisplayName() {
 </script>
 </body>
 </html>
+
 
 
 
