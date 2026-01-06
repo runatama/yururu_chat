@@ -788,8 +788,7 @@ function canBan(){
 
 
 function isSubOwner(){
-  return SUB_OWNER_UIDS.includes(authUser?.id);
-}
+  
 
 function adminBadgeHtmlByUserId(userId){
   return isAdminUserId(userId) ? '<span class="badge admin">運営</span>' : '';
@@ -2461,26 +2460,18 @@ function getAdminReason(){
 }
 
 async function kickUser(){
+  // ✅ 枠主 or サブ枠主だけOK
   if (!canKick()) return alert("枠主 or サブ枠主だけ！");
-  if (!canKick()){
-    alert("Kickできるのは枠主またはサブ枠主だけです");
-    return;
-  }
 
-
-  // 枠主 or サブ枠主だけOK
-if (!(isOwner || isSubOwner())){
-  alert("Kickできるのは枠主かサブ枠主だけ！");
-  return;
-}
-  const targetUid = document.getElementById("adminTargetUid").value.trim();
+  const targetUid = (document.getElementById("adminTargetUid")?.value || "").trim();
   if (!targetUid) return;
+
   // 🚫 運営はKick不可
   if (isAdminUserId(targetUid)){
     alert("運営ユーザーは Kick できません");
     return;
   }
-  if (!isOwner) return alert("枠主だけ！");
+
   const target = getAdminTargetUid();
   if (!target) return alert("対象ユーザーIDが不正だよ！");
   const reason = getAdminReason();
@@ -2497,7 +2488,7 @@ if (!(isOwner || isSubOwner())){
     }
   }
 
-  // ★即時反映用イベント（ここが動かないと「読み込みしたら効く」状態になる）
+  // 即時反映用イベント
   const { error: eerr } = await sb.from("room_events").insert({
     room_id: roomId,
     target_user_id: target,
@@ -2516,28 +2507,22 @@ if (!(isOwner || isSubOwner())){
 }
 
 async function banUser(){
-　if (!canBan()) return alert("枠主だけ！");
-  if (!canBan()){
-    alert("Banできるのは枠主だけです");
-    return;
-  }
+  // ✅ 枠主だけ
+  if (!canBan()) return alert("枠主だけ！");
 
-
-  const targetUid = document.getElementById("adminTargetUid").value.trim();
+  const targetUid = (document.getElementById("adminTargetUid")?.value || "").trim();
   if (!targetUid) return;
 
-  // 🚫 運営はBan不可
   if (isAdminUserId(targetUid)){
     alert("運営ユーザーは Ban できません");
     return;
   }
 
-  if (!isOwner) return alert("枠主だけ！");
-
   const target = getAdminTargetUid();
   if (!target) return alert("対象ユーザーIDが不正だよ！");
-
   const reason = getAdminReason();
+}
+
 
   const { error: berr } = await sb.from("room_bans").insert({
     room_id: roomId,
@@ -2865,6 +2850,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
