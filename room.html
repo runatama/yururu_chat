@@ -877,7 +877,8 @@ async function addSubOwner(){
 
   if (input) input.value = "";
   await loadSubOwnersFromDb();
-  updateOwnerToolsVisibility(); // 既存のあなたの関数想定
+　updateTop();
+ // 既存のあなたの関数想定
 }
 
 // 削除（枠主だけ）
@@ -896,7 +897,8 @@ async function removeSubOwner(uid){
   }
 
   await loadSubOwnersFromDb();
-  updateOwnerToolsVisibility(); // 既存のあなたの関数想定
+　updateTop();
+ // 既存のあなたの関数想定
 }
 
 
@@ -931,6 +933,8 @@ let roomEventsChannel = null;
 /* ===== rooms 監視（部屋名など） ===== */
 let roomInfoChannel = null;
 let roomNameSaveLock = false; // 二重送信防止
+
+let subOwnersChannel = null;
 
 /* ===== 通話 ===== */
 // （通話の状態変数は下の「通話（安定版・完全版）」セクションで宣言しています）
@@ -1143,9 +1147,24 @@ async function requireLoginOrRedirect(){
   authUser = u?.user || sessionUser;
   return true;
 }
+  
+async function startSubOwnersRealtime(){
+  if (!roomId) return;
+  if (subOwnersChannel) return;
 
-
-
+  subOwnersChannel = sb
+    .channel("room-subowners-" + roomId)
+    .on(
+      "postgres_changes",
+      { event:"*", schema:"public", table:"room_subowners", filter:`room_id=eq.${roomId}` },
+      async ()=> {
+        await loadSubOwnersFromDb(); // SUB_OWNER_UIDS を更新
+        updateTop();                 // isSubOwner() の結果でUI切替
+        if (canKick()) await loadRoomMembersForAdmin(); // 権限が増えた瞬間に候補表示も出す
+      }
+    )
+    .subscribe();
+}
 /* =========================================================
    チャット（messages）
    ========================================================= */
@@ -2829,6 +2848,16 @@ async function startRoomMembersRealtime(){
 
     setOwnerUI();
 
+　　// ★追加：サブ枠主をDBから読み込む（これをしないと反映されない）
+　　await loadSubOwnersFromDb();
+
+　　// ★追加：サブ枠主の変更をリアルタイム反映
+　　await startSubOwnersRealtime();
+
+　　// ★追加：権限UI更新（adminCard表示など）
+　　updateTop();
+
+
     // BANチェック（この部屋のこの回だけ）
     await checkBanned();
 
@@ -2921,6 +2950,7 @@ function safeKey(s){
 </script>
 </body>
 </html>
+
 
 
 
