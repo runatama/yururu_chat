@@ -123,6 +123,7 @@
       background:rgba(255,255,255,.06);font-weight:900;font-size:12px;}
     .dot{width:8px;height:8px;border-radius:50%;background:rgba(234,242,255,.75);}
     .statusSub{font-size:12px;color:var(--muted);}
+    #onlineSub{display:none;}
 
     /* ===== online color buckets ===== */
     .st-green{
@@ -196,6 +197,22 @@
       <div class="hint" style="margin-top:8px;">
         ・正方形（1:1）推奨 / 2MB以下<br>
         ・他端末でも即反映されます
+      </div>
+
+      
+      <div style="height:14px;"></div>
+
+      <div style="font-weight:900;margin-bottom:8px;">🕶️ オンライン状況</div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;">
+          <input type="checkbox" id="hideOnline" style="width:auto;transform:scale(1.2);" />
+          <span>オンライン状況を非公開にする</span>
+        </label>
+        <button class="btn btnPrimary" id="savePrivacyBtn" onclick="savePrivacy()">保存</button>
+      </div>
+      <div class="hint" style="margin-top:6px;">
+        ・ONにすると、他の人の画面であなたのオンライン状況は「非公開」と表示されます<br>
+        ・非公開中は最終オンライン(last_seen)の更新もしません
       </div>
 
       <div id="status"></div>
@@ -304,20 +321,33 @@ function onlineBucket(lastSeenIso){
   return { label, color };
 }
 
-function setOnlineUI(lastSeenIso){
-  const b = onlineBucket(lastSeenIso);
+function setOnlineUI(lastSeenOrObj){
   const statusEl = document.getElementById("onlineStatus");
-  const subEl = document.getElementById("onlineSub");
   const dotEl = document.getElementById("onlineDot");
   const badgeEl = document.getElementById("onlineBadge");
 
+  // lastSeenOrObj に {online_hidden:true} が来たら非公開表示
+  const hidden = (typeof lastSeenOrObj === "object" && lastSeenOrObj) ? !!lastSeenOrObj.online_hidden : false;
+  const lastSeenIso = (typeof lastSeenOrObj === "string") ? lastSeenOrObj : (lastSeenOrObj?.last_seen || "");
+
+  if (hidden){
+    if (statusEl) statusEl.textContent = "非公開";
+    if (badgeEl){
+      badgeEl.classList.remove("st-green","st-yellow","st-gray");
+      badgeEl.classList.add("st-gray");
+    }
+    if (dotEl){
+      dotEl.classList.remove("dot-green","dot-yellow","dot-gray");
+      dotEl.classList.add("dot-gray");
+      dotEl.style.opacity = "1";
+    }
+    return;
+  }
+
+  const b = onlineBucket(lastSeenIso);
   if (statusEl) statusEl.textContent = b.label;
 
-  const when = fmtJpDateTime(lastSeenIso);
-  if (subEl) subEl.textContent = when ? `最終: ${when}` : "";
-
   const color = b.color || "gray";
-
   if (badgeEl){
     badgeEl.classList.remove("st-green","st-yellow","st-gray");
     badgeEl.classList.add(color === "green" ? "st-green" : (color === "yellow" ? "st-yellow" : "st-gray"));
@@ -407,7 +437,7 @@ async function upsertPublicProfile(payload){
 async function loadPublicProfile(uid){
   const { data, error } = await sb
     .from("profiles")
-    .select("user_id, display_name, avatar_url, bio, updated_at, last_seen")
+    .select("user_id, display_name, avatar_url, bio, updated_at, last_seen, online_hidden")
     .eq("user_id", uid)
     .maybeSingle();
   if (error) throw error;
@@ -427,7 +457,8 @@ async function syncPublicProfileFromAuth(){
     avatar_url: avatarUrl || null,
     bio: bio || null,
     updated_at: new Date().toISOString(),
-    last_seen: new Date().toISOString()
+    last_seen: new Date().toISOString(),
+    online_hidden: !!(authUser?.user_metadata?.online_hidden)
   };
 
   try{
@@ -441,10 +472,15 @@ async function syncPublicProfileFromAuth(){
 async function heartbeatLastSeen(){
   try{
     if (!authUser?.id) return;
+
+    // 非公開中は更新しない
+    if (!!(authUser?.user_metadata?.online_hidden)) return;
+
     await sb.from("profiles").upsert({
       user_id: authUser.id,
       last_seen: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      online_hidden: false
     }, { onConflict: "user_id" });
   }catch(e){
     console.error("heartbeatLastSeen error", e);
@@ -475,6 +511,12 @@ function setViewOnlyMode(on){
   document.getElementById("saveBioBtn").style.display  = isViewOnly ? "none" : "";
   document.getElementById("uploadBtn").style.display   = isViewOnly ? "none" : "";
   document.getElementById("removeBtn").style.display   = isViewOnly ? "none" : "";
+
+  // プライバシー設定（本人のみ）
+  const privacyBtn = document.getElementById("savePrivacyBtn");
+  const privacyChk = document.getElementById("hideOnline");
+  if (privacyBtn) privacyBtn.style.display = isViewOnly ? "none" : "";
+  if (privacyChk) privacyChk.disabled = isViewOnly;
 }
 
 function refreshSelfUI(){
@@ -486,7 +528,50 @@ function refreshSelfUI(){
   document.getElementById("bio").value = bio;
 
   renderAvatarBy(dn, url);
+
+  const hide = !!(authUser?.user_metadata?.online_hidden);
+  const chk = document.getElementById("hideOnline");
+  if (chk) chk.checked = hide;
 }
+
+async function savePrivacy(){
+  if (isViewOnly) return;
+
+  const hide = !!document.getElementById("hideOnline")?.checked;
+
+  // 1) auth metadata 更新（本人設定）
+  const { data, error } = await sb.auth.updateUser({
+    data:{ online_hidden: hide }
+  });
+  if (error) return setStatus(error.message, false);
+
+  authUser = data.user;
+
+  // 2) profiles にも反映（公開プロフィール側の設定）
+  try{
+    await sb.from("profiles").upsert({
+      user_id: authUser.id,
+      online_hidden: hide,
+      updated_at: new Date().toISOString(),
+      // OFFにした瞬間は「今オンライン」にしたいので last_seen も更新
+      ...(hide ? {} : { last_seen: new Date().toISOString() })
+    }, { onConflict: "user_id" });
+  }catch(e){
+    console.error("savePrivacy profiles upsert error", e);
+  }
+
+  // UI更新
+  if (hide){
+    setOnlineUI({ online_hidden: true });
+    setStatus("オンライン状況を非公開にしました");
+  }else{
+    // 解除したら即オンライン更新
+    await heartbeatLastSeen();
+    setOnlineUI({ last_seen: new Date().toISOString(), online_hidden: !!(authUser?.user_metadata?.online_hidden) });
+    setStatus("オンライン状況の非公開を解除しました");
+  }
+}
+
 
 /* ================= save (self) ================= */
 async function saveAll(){
@@ -604,7 +689,7 @@ function goBack(){ location.replace(getBackUrl()); }
       document.getElementById("bio").value = bio;
 
       renderAvatarBy(dn, av);
-      setOnlineUI(p?.last_seen);
+      setOnlineUI({ last_seen: p?.last_seen, online_hidden: !!p?.online_hidden });
 
       // 相手閲覧中はログアウトボタンは残す（好みで隠してもOK）
       setStatus("閲覧モード（相手のプロフィール）", true);
