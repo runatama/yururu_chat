@@ -86,14 +86,17 @@
       align-items:center;
     }
 
-    input{
+    input, textarea{
       padding:12px;
       border-radius:14px;
       border:1px solid var(--line);
       background:rgba(0,0,0,.25);
       color:var(--text);
       width:100%;
+      font-family:inherit;
+      font-size:14px;
     }
+    textarea{ min-height:110px; resize:vertical; }
 
     .hint{ font-size:12px; color:var(--muted); line-height:1.6; }
 
@@ -126,27 +129,37 @@
   <h2>👤 プロフィール</h2>
   <div class="row">
     <button class="btn" onclick="goBack()">⬅ 戻る</button>
-    <button class="btn btnDanger" onclick="signOut()">🚪 ログアウト</button>
+    <button class="btn btnDanger" id="logoutBtn" onclick="signOut()">🚪 ログアウト</button>
   </div>
 </div>
 
 <div class="card">
   <div class="row" style="align-items:flex-start;">
     <div id="avatarBox"></div>
+
     <div style="flex:1; min-width:260px;">
       <div style="font-weight:900;margin-bottom:8px;">📝 表示名</div>
       <div class="row">
         <input id="displayName" placeholder="表示名（例: ゆるたま）" />
-        <button class="btn btnPrimary" onclick="saveDisplayName()">保存</button>
+        <button class="btn btnPrimary" id="saveNameBtn" onclick="saveAll()">保存</button>
       </div>
+
+      <div style="height:14px;"></div>
+
+      <div style="font-weight:900;margin-bottom:8px;">💬 自己紹介</div>
+      <div class="row">
+        <textarea id="bio" placeholder="自己紹介を書いてね（例：ゲーム好き！Among Usとかやってるよ〜）"></textarea>
+        <button class="btn btnPrimary" id="saveBioBtn" onclick="saveAll()">保存</button>
+      </div>
+      <div class="hint" style="margin-top:6px;">・最大 300 文字くらい推奨（長すぎると読みにくいので）</div>
 
       <div style="height:14px;"></div>
 
       <div style="font-weight:900;margin-bottom:8px;">🖼️ プロフィール画像</div>
       <div class="row">
         <input id="avatarFile" type="file" accept="image/*" />
-        <button class="btn btnPrimary" onclick="uploadAvatar()">アップロード</button>
-        <button class="btn btnDanger" onclick="removeAvatar()">削除</button>
+        <button class="btn btnPrimary" id="uploadBtn" onclick="uploadAvatar()">アップロード</button>
+        <button class="btn btnDanger" id="removeBtn" onclick="removeAvatar()">削除</button>
       </div>
 
       <div class="hint" style="margin-top:8px;">
@@ -162,7 +175,7 @@
 <script>
 /* ================= Supabase ================= */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+const SUPABASE_KEY = "（既存のanonキーそのまま）";
 
 const sb = supabase.createClient(
   SUPABASE_URL,
@@ -181,6 +194,8 @@ const AVATAR_BUCKET = "avatar-images";
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 let authUser = null;
+let viewUid = "";       // URLで指定された uid（相手閲覧）
+let isViewOnly = false; // 相手閲覧モードか？
 
 /* ================= util ================= */
 function escapeHtml(s){
@@ -206,46 +221,41 @@ function getBackUrl(){
   }
   return "./lobby.html";
 }
+function getUidFromUrl(){
+  const p = new URLSearchParams(location.search);
+  return String(p.get("uid") || "").trim();
+}
+function clampBio(s){
+  const t = String(s||"").replaceAll("\r\n","\n").trim();
+  if (t.length <= 300) return t;
+  return t.slice(0,300);
+}
 
 /* ================= auth ================= */
-
-  async function signOut(){
-  try{
-    await sb.auth.signOut();
-  }catch(e){
-    console.error(e);
-  }
-
-  // ログアウト後はログイン画面へ
+async function signOut(){
+  try{ await sb.auth.signOut(); }catch(e){ console.error(e); }
   location.replace("./login.html");
 }
-  
+
 async function requireLogin(){
-  // 1) セッション確認
   const { data: ses } = await sb.auth.getSession();
   if (!ses?.session){
     location.replace("./login.html");
     return false;
   }
-
-  // 2) 最新ユーザー情報を取得
   const { data: u } = await sb.auth.getUser();
   if (!u?.user){
     location.replace("./login.html");
     return false;
   }
-
-  // 3) グローバルに保持
   authUser = u.user;
 
-  // 4) Googleログイン対策（custom_avatar方式）
+  // Googleログイン対策（custom_avatar方式）※元コード維持
   const um = authUser.user_metadata || {};
-
   const legacyUrl = String(um.avatar_url || "").trim();
   const legacyVer = String(um.avatar_ver ?? "").trim();
   const customUrl = String(um.custom_avatar_url || "").trim();
 
-  // 旧データ移行（avatar_url に保存していた人向け）
   const looksLikeStorage =
     legacyUrl.includes("/storage/v1/object/public/") &&
     legacyUrl.includes("/" + AVATAR_BUCKET + "/");
@@ -262,12 +272,9 @@ async function requireLogin(){
     if (uu?.user) authUser = uu.user;
   }
 
-  // custom_avatar_ver が無い場合の補完
   const um2 = authUser.user_metadata || {};
   if (um2.custom_avatar_url && !um2.custom_avatar_ver){
-    await sb.auth.updateUser({
-      data:{ custom_avatar_ver: Date.now() }
-    });
+    await sb.auth.updateUser({ data:{ custom_avatar_ver: Date.now() } });
     const { data: uu } = await sb.auth.getUser();
     if (uu?.user) authUser = uu.user;
   }
@@ -275,10 +282,9 @@ async function requireLogin(){
   return true;
 }
 
-
-/* ================= UI ================= */
-function buildAvatarUrl(){
-  const um = authUser?.user_metadata || {};
+/* ================= profiles table helpers ================= */
+function buildAvatarUrlFromUser(u){
+  const um = u?.user_metadata || {};
   const hasCustom = !!String(um.custom_avatar_url || "").trim();
   const base = hasCustom
     ? String(um.custom_avatar_url || "").trim()
@@ -292,40 +298,109 @@ function buildAvatarUrl(){
   return base + (base.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(ver);
 }
 
-function renderAvatar(){
-  const box = document.getElementById("avatarBox");
-  const dn = authUser?.user_metadata?.display_name || "";
-  const url = buildAvatarUrl();
+async function upsertPublicProfile(payload){
+  const { error } = await sb
+    .from("profiles")
+    .upsert(payload, { onConflict: "user_id" });
+  if (error) throw error;
+}
 
-  if (url){
-    box.innerHTML = `<img class="avatarBig" src="${url}" />`;
-  }else{
-    box.innerHTML = `<div class="avatarFallback">${escapeHtml(getInitial(dn))}</div>`;
+async function loadPublicProfile(uid){
+  const { data, error } = await sb
+    .from("profiles")
+    .select("user_id, display_name, avatar_url, bio, updated_at")
+    .eq("user_id", uid)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+async function syncPublicProfileFromAuth(){
+  if (!authUser?.id) return;
+
+  const dn = String(authUser?.user_metadata?.display_name || "").trim();
+  const bio = clampBio(String(authUser?.user_metadata?.bio || "").trim());
+  const avatarUrl = buildAvatarUrlFromUser(authUser);
+
+  const payload = {
+    user_id: authUser.id,
+    display_name: dn || null,
+    avatar_url: avatarUrl || null,
+    bio: bio || null,
+    updated_at: new Date().toISOString()
+  };
+
+  try{
+    await upsertPublicProfile(payload);
+  }catch(e){
+    console.error("syncPublicProfileFromAuth error", e);
+    // 失敗しても止めない（閲覧が一部できないだけ）
   }
 }
 
-function refreshUI(){
-  document.getElementById("displayName").value =
-    authUser?.user_metadata?.display_name || "";
-  renderAvatar();
+/* ================= UI ================= */
+function renderAvatarBy(displayName, url){
+  const box = document.getElementById("avatarBox");
+  if (url){
+    box.innerHTML = `<img class="avatarBig" src="${escapeHtml(url)}" />`;
+  }else{
+    box.innerHTML = `<div class="avatarFallback">${escapeHtml(getInitial(displayName))}</div>`;
+  }
 }
 
-/* ================= save ================= */
-async function saveDisplayName(){
+function setViewOnlyMode(on){
+  isViewOnly = !!on;
+
+  // 入力類
+  document.getElementById("displayName").disabled = isViewOnly;
+  document.getElementById("bio").disabled = isViewOnly;
+  document.getElementById("avatarFile").disabled = isViewOnly;
+
+  // ボタン類（相手閲覧時は隠す）
+  document.getElementById("saveNameBtn").style.display = isViewOnly ? "none" : "";
+  document.getElementById("saveBioBtn").style.display  = isViewOnly ? "none" : "";
+  document.getElementById("uploadBtn").style.display   = isViewOnly ? "none" : "";
+  document.getElementById("removeBtn").style.display   = isViewOnly ? "none" : "";
+}
+
+function refreshSelfUI(){
+  const dn = String(authUser?.user_metadata?.display_name || "");
+  const bio = String(authUser?.user_metadata?.bio || "");
+  const url = buildAvatarUrlFromUser(authUser);
+
+  document.getElementById("displayName").value = dn;
+  document.getElementById("bio").value = bio;
+
+  renderAvatarBy(dn, url);
+}
+
+/* ================= save (self) ================= */
+async function saveAll(){
+  if (isViewOnly) return;
+
   const dn = document.getElementById("displayName").value.trim();
   if (!dn) return setStatus("表示名を入力してね", false);
 
+  const bio = clampBio(document.getElementById("bio").value);
+
+  // 1) 自分のUI用（auth metadata）も更新
   const { data, error } = await sb.auth.updateUser({
-    data:{ display_name: dn }
+    data:{ display_name: dn, bio: bio }
   });
-  if (error) return setStatus(error.message,false);
+  if (error) return setStatus(error.message, false);
 
   authUser = data.user;
-  refreshUI();
+  refreshSelfUI();
+
+  // 2) 公開プロフィール（profiles）へ同期
+  await syncPublicProfileFromAuth();
+
   setStatus("保存しました！");
 }
 
 async function uploadAvatar(){
+  if (isViewOnly) return;
+
   const file = document.getElementById("avatarFile").files[0];
   if (!file) return setStatus("画像を選んでね", false);
   if (file.size > MAX_AVATAR_BYTES) return setStatus("2MB以下にしてね", false);
@@ -339,9 +414,8 @@ async function uploadAvatar(){
     .from(AVATAR_BUCKET)
     .upload(path, file, {
       upsert: false,
-      cacheControl: "0"   // ✅ 追加：キャッシュさせない（戻る問題の決定打）
+      cacheControl: "0"
     });
-
   if (upErr) return setStatus(upErr.message, false);
 
   const { data } = sb.storage.from(AVATAR_BUCKET).getPublicUrl(path);
@@ -351,21 +425,27 @@ async function uploadAvatar(){
   const { data: ud, error } = await sb.auth.updateUser({
     data: {
       custom_avatar_url: url,
-      custom_avatar_ver: now  // ★ここが最重要（URLに ?v= が付く）
+      custom_avatar_ver: now
     }
   });
   if (error) return setStatus(error.message, false);
 
-  // ✅ 念押し：サーバーから最新の user_metadata を取り直す（端末差のバグ潰し）
+  // 念押しで最新 user_metadata を取り直す
   const { data: uu } = await sb.auth.getUser();
   authUser = uu?.user || ud.user;
 
   document.getElementById("avatarFile").value = "";
-  refreshUI();
+  refreshSelfUI();
+
+  // 公開プロフィールも同期
+  await syncPublicProfileFromAuth();
+
   setStatus("画像を更新しました！");
 }
 
 async function removeAvatar(){
+  if (isViewOnly) return;
+
   const { data, error } = await sb.auth.updateUser({
     data:{
       custom_avatar_url:"",
@@ -375,7 +455,11 @@ async function removeAvatar(){
   if (error) return setStatus(error.message,false);
 
   authUser = data.user;
-  refreshUI();
+  refreshSelfUI();
+
+  // 公開プロフィールも同期
+  await syncPublicProfileFromAuth();
+
   setStatus("削除しました");
 }
 
@@ -384,7 +468,39 @@ function goBack(){ location.replace(getBackUrl()); }
 
 (async()=>{
   if (!await requireLogin()) return;
-  refreshUI();
+
+  viewUid = getUidFromUrl();
+
+  // 相手閲覧モード：uid があり、かつ自分じゃない
+  if (viewUid && viewUid !== authUser.id){
+    setViewOnlyMode(true);
+    // 相手のprofilesを表示
+    try{
+      const p = await loadPublicProfile(viewUid);
+      const dn = String(p?.display_name || "（未設定）");
+      const bio = String(p?.bio || "");
+      const av = String(p?.avatar_url || "");
+
+      document.getElementById("displayName").value = dn;
+      document.getElementById("bio").value = bio;
+
+      renderAvatarBy(dn, av);
+
+      // 相手閲覧中はログアウトボタンは残す（好みで隠してもOK）
+      setStatus("閲覧モード（相手のプロフィール）", true);
+    }catch(e){
+      console.error(e);
+      setStatus("プロフィール取得に失敗", false);
+    }
+    return;
+  }
+
+  // 自分編集モード
+  setViewOnlyMode(false);
+  refreshSelfUI();
+
+  // 初回でもprofilesが作られるように同期
+  await syncPublicProfileFromAuth();
 })();
 </script>
 
