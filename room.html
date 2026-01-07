@@ -511,6 +511,92 @@
     }
     .audioCtl .lbl{ font-size:12px; color:var(--muted); }
     .audioCtl .val{ font-size:12px; color:var(--text); min-width: 34px; text-align:right; }
+  
+/* ===================
+   📱 Mobile Bottom Nav (iOSっぽい固定ナビ)
+   =================== */
+body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
+.bottomNav{
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 9999;
+  padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(6,10,20,.20), rgba(6,10,20,.86));
+  backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255,255,255,.10);
+}
+.bottomNavInner{
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+.navBtn{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  color: rgba(234,242,255,.78);
+  border-radius: 18px;
+  padding: 10px 6px;
+  cursor: pointer;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  min-height: 52px;
+  box-shadow: 0 12px 22px rgba(0,0,0,.16);
+}
+.navBtn:hover{ background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.16); }
+.navBtn:active{ transform: translateY(1px); }
+.navIcon{ font-size: 18px; line-height: 1; }
+.navLabel{ font-size: 10px; line-height: 1; color: rgba(234,242,255,.55); font-weight: 800; letter-spacing:.2px; }
+.navBtn.active{
+  background: linear-gradient(135deg, rgba(120,167,255,.22), rgba(166,139,255,.16));
+  border-color: rgba(120,167,255,.35);
+  color: rgba(234,242,255,.92);
+}
+.navBtn.active .navLabel{ color: rgba(234,242,255,.72); }
+
+/* 設定シート（簡易） */
+.sheetBackdrop{
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display:none;
+}
+.sheet{
+  position:absolute;
+  left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06));
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 22px;
+  box-shadow: 0 22px 60px rgba(0,0,0,.45);
+  overflow:hidden;
+}
+.sheetHead{
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  color: rgba(234,242,255,.75);
+  font-size: 12px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.sheetBtns{
+  padding: 12px 14px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.sheetBtns .btn{ flex: 1 1 140px; justify-content:center; }
+
+/* モバイルでは上のボタン群を少し軽く見せる */
+@media (max-width: 980px){
+  .topActions .btn{ padding: 10px 12px; }
+  .topActions .btn span{ display:none; }
+}
+
   </style>
 </head>
 
@@ -621,7 +707,7 @@
       </div>
 
 
-      <div class="card">
+      <div class="card" id="callSection">
         <div class="cardHeader">
           <b>🎙️ 音声通話（複数人）</b>
           <span class="chip">Call</span>
@@ -700,7 +786,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="chatSection">
         <div class="cardHeader">
           <b>💬 チャット（画像OK）</b>
           <span class="chip">Messages</span>
@@ -3044,49 +3130,51 @@ function safeKey(s){
 
 
 </script>
+
+  <!-- ===================
+       📱 Bottom Navigation
+       =================== -->
+  <nav class="bottomNav" aria-label="bottom navigation">
+    <div class="bottomNavInner">
+      <button class="navBtn" type="button" onclick="goLobby()" aria-label="ロビー">
+        <div class="navIcon">🏠</div><div class="navLabel">ロビー</div>
+      </button>
+
+      <button class="navBtn active" type="button" onclick="scrollToTopSafe()" aria-label="ルーム">
+        <div class="navIcon">🗨️</div><div class="navLabel">ルーム</div>
+      </button>
+
+      <button class="navBtn" type="button" onclick="scrollToSection('callSection')" aria-label="通話">
+        <div class="navIcon">🎧</div><div class="navLabel">通話</div>
+      </button>
+
+      <button class="navBtn" type="button" onclick="scrollToSection('chatSection')" aria-label="チャット">
+        <div class="navIcon">💬</div><div class="navLabel">チャット</div>
+      </button>
+
+      <button class="navBtn" type="button" onclick="openSheet()" aria-label="設定">
+        <div class="navIcon">⚙️</div><div class="navLabel">設定</div>
+      </button>
+    </div>
+  </nav>
+
+  <!-- 設定シート（簡易） -->
+  <div class="sheetBackdrop" id="sheetBackdrop" role="dialog" aria-modal="true" aria-label="設定">
+    <div class="sheet">
+      <div class="sheetHead">
+        <b>⚙️ 設定</b>
+        <button class="btn btnSmall" type="button" onclick="closeSheet()">閉じる</button>
+      </div>
+      <div class="sheetBtns">
+        <button class="btn btnSmall btnAccent2" type="button" onclick="goProfile()">👤 プロフィール</button>
+        <button class="btn btnSmall" type="button" onclick="goLobby()">🏠 ロビーへ</button>
+        <button class="btn btnSmall danger" type="button" onclick="doLogout()">🚪 ログアウト</button>
+      </div>
+      <div class="hint" style="padding: 0 14px 14px;">
+        ※ 画面下のナビで「通話」「チャット」にすぐ飛べるよ
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
