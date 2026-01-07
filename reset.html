@@ -556,13 +556,24 @@ async function initRecovery(){
   log("initRecovery: type=", type);
 
   // 重要：URLからセッションを確定
+  // 重要：URLからセッションを確定（PKCE code / token 両対応）
   let session = null;
   try{
-    const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
-    if (error) log("getSessionFromUrl error", error);
-    session = data?.session || null;
+    const u = new URL(location.href);
+    const code = u.searchParams.get("code");
+    if (code){
+      // ✅ PKCE: code を session に交換
+      const { data, error } = await sb.auth.exchangeCodeForSession(code);
+      if (error) log("exchangeCodeForSession error", error);
+      session = data?.session || null;
+    }else{
+      // token/hash などの戻り
+　     const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
+      if (error) log("getSessionFromUrl error", error);
+      session = data?.session || null;
+    }
   }catch(e){
-    log("getSessionFromUrl exception", e);
+    log("getSessionFromUrl/exchange exception", e);
   }
 
   // 念のため：少し待って getSession を取り直す
@@ -649,3 +660,4 @@ initRecovery();
 </script>
 </body>
 </html>
+
