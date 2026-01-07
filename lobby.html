@@ -244,7 +244,10 @@
       gap:10px;
       margin-bottom:8px;
     }
-    .postName{
+    .profileLink{cursor:pointer;}
+.profileLink:hover{text-decoration:underline;opacity:.95;}
+
+.postName{
       font-weight:900;
       font-size:13px;
       line-height:1.2;
@@ -502,6 +505,17 @@ function goRoom(roomObj){
 function goProfile(){
   location.replace("./profile.html?back=lobby&_r=" + Date.now());
 }
+
+function goUserProfile(uid){
+  const id = String(uid || "").trim();
+  if (!id) return;
+  const p = new URLSearchParams();
+  p.set("uid", id);
+  p.set("back", "lobby");
+  p.set("_r", Date.now());
+  location.href = "./profile.html?" + p.toString();
+}
+
 
 /* =================== 右上ユーザー表示 =================== */
 function setTopRightButtons(isLoggedIn){
@@ -1084,9 +1098,9 @@ async function loadFeed(){
       head.innerHTML = `
         <div class="row" style="justify-content:space-between;align-items:center;">
           <div class="row" style="gap:8px;align-items:center;">
-            ${avatarHtml(p.avatar_url || "", name, p.avatar_ver || "")}
+            <span class="profileLink" title="プロフィールを見る" onclick="goUserProfile('${escapeAttr(p.user_id)}');event.stopPropagation();">${avatarHtml(p.avatar_url || "", name, p.avatar_ver || "")}</span>
             <div>
-              <div style="font-weight:700;">${escapeHtml(name)} ${adminBadgeHtmlByUserId(p.user_id)}</div>
+              <div style="font-weight:700;"><span class="profileLink" title="プロフィールを見る" onclick="goUserProfile('${escapeAttr(p.user_id)}');event.stopPropagation();">${escapeHtml(name)}</span> ${adminBadgeHtmlByUserId(p.user_id)}</div>
               <div style="font-size:12px;color:var(--muted);">${escapeHtml(formatTime(p.created_at))}${(p.updated_at && String(p.updated_at) !== String(p.created_at)) ? "（編集済）" : ""}</div>
             </div>
           </div>
@@ -1426,11 +1440,11 @@ async function loadComments(postId){
         : "";
 
       row.innerHTML = `
-        ${av}
+        <span class="profileLink" title="プロフィールを見る" onclick="goUserProfile('${escapeAttr(c.user_id)}');event.stopPropagation();">${av}</span>
         <div class="commentBody">
           <div class="commentMeta">
   <span class="commentName">
-    ${escapeHtml(name)} ${adminBadgeHtmlByUserId(c.user_id)}
+    <span class="profileLink" title="プロフィールを見る" onclick="goUserProfile('${escapeAttr(c.user_id)}');event.stopPropagation();">${escapeHtml(name)}</span> ${adminBadgeHtmlByUserId(c.user_id)}
   </span>
   <span class="commentTime">${timeLabel}</span>
 </div>
