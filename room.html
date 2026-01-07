@@ -298,7 +298,64 @@
       flex-direction:column;
       gap:8px;
     }
-    .listItem{
+    
+    /* ===== member grid (スマホで3列・アイコン大きめ) ===== */
+    .memberGrid{ display:flex; flex-direction:column; gap:8px; }
+
+    @media (max-width: 560px){
+      .memberGrid{
+        display:grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap:10px;
+      }
+      .memberGrid .listItem{
+        flex-direction:column;
+        align-items:center;
+        justify-content:flex-start;
+        text-align:center;
+        gap:8px;
+        padding:12px 8px;
+        position:relative;
+      }
+      .memberGrid .avatar,
+      .memberGrid .avatarFallback{
+        width:56px;
+        height:56px;
+      }
+      .memberGrid .avatarFallback{ font-size:20px; }
+      .memberGrid .listMain{ align-items:center; width:100%; }
+      .memberGrid .listTitle{
+        width:100%;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+      .memberGrid .listSub{ display:none; }
+      .memberGrid .chip{
+        position:absolute;
+        top:6px;
+        right:6px;
+      }
+
+      /* 通話中一覧の別マークアップにも効かせる */
+      .memberGrid .name{
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:8px;
+      }
+      .memberGrid .sub{ display:none; }
+      .memberGrid .nameText{
+        display:block;
+        width:100%;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+    }
+
+.listItem{
       display:flex;
       align-items:center;
       justify-content:space-between;
@@ -735,7 +792,7 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
               <b>👥 参加者（通話：チャンネル接続中のみ表示）</b>
               <span class="chip">Presence</span>
             </div>
-            <div class="list" id="callUsersList">
+            <div class="list memberGrid" id="callUsersList">
               <div class="hint">未接続</div>
             </div>
           </div>
@@ -747,7 +804,7 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
               <b>📞 今の部屋で通話してる人（通話に参加しなくても見える）</b>
               <span class="chip">call_participants</span>
             </div>
-            <div class="list" id="activeCallUsersList">
+            <div class="list memberGrid" id="activeCallUsersList">
               <div class="hint">今は誰も通話してないよ</div>
             </div>
           
@@ -756,7 +813,7 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
               <b>👥 この部屋にいる人（入室してる人）</b>
               <span class="chip">room_members</span>
             </div>
-            <div class="list" id="roomMembersList">
+            <div class="list memberGrid" id="roomMembersList">
               <div class="hint">読み込み中…</div>
             </div>
             <div class="hint" style="margin-top:6px;">※ ここは「通話に参加してない人」も含むよ。枠主は名前を押すとKick/Banの対象に入る。</div>
