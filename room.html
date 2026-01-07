@@ -148,6 +148,9 @@
   font-size:12px;
 }
 .userBtn:hover{ background: rgba(255,255,255,.06); }
+.userLink{ cursor:pointer; }
+.userLink:hover{ text-decoration: underline; opacity:.95; }
+
 .nameText{
   overflow:hidden;
   text-overflow:ellipsis;
@@ -1182,6 +1185,22 @@ async function startMessagesRealtime(){
     .subscribe();
 }
 
+
+function goUserProfile(uid){
+  const id = String(uid || "").trim();
+  if (!id) return;
+
+  // profile.html は uid があると「相手閲覧モード」になる（profile(32)の実装）
+  const p = new URLSearchParams();
+  p.set("uid", id);
+  p.set("back", "room");
+  if (room) p.set("room", room);
+  // room_id があれば渡す（profile側が未使用でも害なし）
+  if (roomId) p.set("room_id", roomId);
+
+  location.href = "./profile.html?" + p.toString();
+}
+
 function fmtTime(iso){
   try{
     const d = new Date(iso);
@@ -1222,6 +1241,13 @@ async function loadMessages(){
       left.style.alignItems = "center";
       left.style.gap = "8px";
       left.innerHTML = `${avatarHtml(m.avatar_url, (m.name || ""), "sm")} <span class="nameText">${escapeHtml(m.name || "")}</span>${adminBadgeHtmlByUserId(m.user_id)}`;
+      // ★名前/アイコンを押すとプロフィールへ
+      left.classList.add("userLink");
+      left.title = "プロフィールを見る";
+      left.onclick = ()=>{
+        if (m.user_id) goUserProfile(m.user_id);
+      };
+
 
       // 右側（時刻 + 削除ボタン）
       const actions = document.createElement("div");
@@ -1535,6 +1561,11 @@ const list = (data || []).map(x=>({
       <div class="name">🎧 ${avatarHtml(p.avatar_url, p.name, "sm")} <span class="nameText">${escapeHtml(p.name)}</span>${adminBadgeHtmlByUserId(p.user_id)}</div>
       <div class="sub"><span class="badge good">通話中</span></div>
     `;
+     // ★名前/アイコンを押すとプロフィールへ
+     row.classList.add("userLink");
+     row.title = "プロフィールを見る";
+     row.onclick = ()=>{ goUserProfile(p.user_id); };
+
     box.appendChild(row);
   }
 }
@@ -1994,6 +2025,11 @@ async function refreshPresenceList(){
       <div class="name">${muted ? "🔇" : "🎤"} ${avatarHtml(p.avatar_url, nm, "sm")} <span class="nameText">${escapeHtml(nm)}</span></div>
       <div class="sub"><span class="badge ${muted ? "bad" : "good"}">${muted ? "ミュート" : "発話OK"}</span></div>
     `;
+     // ★名前/アイコンを押すとプロフィールへ
+     row.classList.add("userLink");
+     row.title = "プロフィールを見る";
+     row.onclick = ()=>{ goUserProfile(id); };
+
     box.appendChild(row);
 
     mutedMap.set(id, muted);
