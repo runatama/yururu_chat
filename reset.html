@@ -441,15 +441,18 @@ function log(...args){
 window.addEventListener("error", (e)=>log("JS ERROR:", e.message));
 window.addEventListener("unhandledrejection", (e)=>log("PROMISE ERROR:", e.reason));
 
-function setStatus(text, ok = true){
+function setStatus(text, ok = true) {
   const el = document.getElementById("status");
   const line = document.getElementById("statusLine");
-  el.textContent = text;
+  if (el) el.textContent = text;
 
-  line.classList.remove("ok","ng");
-  if (ok === true) line.classList.add("ok");
-  if (ok === false) line.classList.add("ng");
+  if (line){
+    line.classList.remove("ok", "ng");
+    if (ok === true) line.classList.add("ok");
+    if (ok === false) line.classList.add("ng");
+  }
 }
+
 
 function setPill(ok, text){
   const pill = document.getElementById("statePill");
@@ -660,4 +663,5 @@ initRecovery();
 </script>
 </body>
 </html>
+
 
