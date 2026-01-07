@@ -232,21 +232,24 @@
       padding-right: 44px; /* 👁 の分だけ右を空ける */
     }
     .eyeBtn{
-      position: absolute;
-      right: 8px;
-      top: 50%;
-      transform: translateY(-50%);
-      height: 30px;
-      width: 30px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,.08);
-      color: var(--text);
-      cursor: pointer;
-      font-size: 14px;
-      line-height: 1;
-      padding: 0;
-    }
+  position: absolute;
+  right: 8px;
+  top: 8px;                 /* ← 明示的に上から揃える */
+  height: calc(100% - 16px);/* ← inputの上下padding分を引く */
+  width: 32px;              /* 少し広めで当たり判定UP */
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.08);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;      /* ← 中央揃え（重要） */
+  justify-content: center;  /* ← 中央揃え（重要） */
+}
+
     .eyeBtn:hover{ filter: brightness(1.1); }
 
     .btnRow{
@@ -712,3 +715,4 @@ initRecovery();
 </script>
 </body>
 </html>
+
