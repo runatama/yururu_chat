@@ -118,6 +118,12 @@
     }
 
     #status{ margin-top:10px; font-size:12px; }
+    .statusRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 14px 0;}
+    .statusBadge{display:inline-flex;align-items:center;gap:8px;padding:7px 10px;border-radius:999px;border:1px solid var(--line);
+      background:rgba(255,255,255,.06);font-weight:900;font-size:12px;}
+    .dot{width:8px;height:8px;border-radius:50%;background:rgba(234,242,255,.75);}
+    .statusSub{font-size:12px;color:var(--muted);}
+
     .ok{ color:var(--good); }
     .ng{ color:var(--bad); }
   </style>
@@ -138,6 +144,10 @@
     <div id="avatarBox"></div>
 
     <div style="flex:1; min-width:260px;">
+      <div class="statusRow">
+        <div class="statusBadge" id="onlineBadge"><span class="dot" id="onlineDot"></span><span id="onlineStatus">--</span></div>
+        <div class="statusSub" id="onlineSub"></div>
+      </div>
       <div style="font-weight:900;margin-bottom:8px;">📝 表示名</div>
       <div class="row">
         <input id="displayName" placeholder="表示名（例: ゆるたま）" />
@@ -231,6 +241,56 @@ function clampBio(s){
   return t.slice(0,300);
 }
 
+function fmtJpDateTime(iso){
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n)=> String(n).padStart(2,"0");
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// 60秒間隔heartbeat想定：90秒以内ならオンライン表示
+const ONLINE_MS = 90 * 1000;
+function onlineBucket(lastSeenIso){
+  if (!lastSeenIso) return { label:"不明" };
+
+  const t = new Date(lastSeenIso).getTime();
+  if (isNaN(t)) return { label:"不明" };
+
+  const diff = Date.now() - t;
+  if (diff < 0) return { label:"オンライン" };
+
+  if (diff <= ONLINE_MS) return { label:"オンライン" };
+  if (diff <= 5*60*1000) return { label:"5分以内" };
+  if (diff <= 10*60*1000) return { label:"10分以内" };
+  if (diff <= 30*60*1000) return { label:"30分以内" };
+  if (diff <= 60*60*1000) return { label:"一時間以内" };
+  if (diff <= 3*60*60*1000) return { label:"三時間以内" };
+  if (diff <= 6*60*60*1000) return { label:"六時間以内" };
+  if (diff <= 12*60*60*1000) return { label:"十二時間以内" };
+  if (diff <= 24*60*60*1000) return { label:"二十四時間以内" };
+  if (diff <= 3*24*60*60*1000) return { label:"三日以内" };
+  if (diff <= 7*24*60*60*1000) return { label:"一週間以内" };
+  if (diff <= 14*24*60*60*1000) return { label:"二週間以内" };
+  if (diff <= 30*24*60*60*1000) return { label:"一カ月以内" };
+  return { label:"一カ月以上" };
+}
+
+function setOnlineUI(lastSeenIso){
+  const b = onlineBucket(lastSeenIso);
+  const statusEl = document.getElementById("onlineStatus");
+  const subEl = document.getElementById("onlineSub");
+  const dotEl = document.getElementById("onlineDot");
+
+  if (statusEl) statusEl.textContent = b.label;
+
+  const when = fmtJpDateTime(lastSeenIso);
+  if (subEl) subEl.textContent = when ? `最終: ${when}` : "";
+
+  if (dotEl) dotEl.style.opacity = (b.label === "オンライン") ? "1" : "0.5";
+}
+
+
 /* ================= auth ================= */
 async function signOut(){
   try{ await sb.auth.signOut(); }catch(e){ console.error(e); }
@@ -308,7 +368,7 @@ async function upsertPublicProfile(payload){
 async function loadPublicProfile(uid){
   const { data, error } = await sb
     .from("profiles")
-    .select("user_id, display_name, avatar_url, bio, updated_at")
+    .select("user_id, display_name, avatar_url, bio, updated_at, last_seen")
     .eq("user_id", uid)
     .maybeSingle();
   if (error) throw error;
@@ -327,7 +387,8 @@ async function syncPublicProfileFromAuth(){
     display_name: dn || null,
     avatar_url: avatarUrl || null,
     bio: bio || null,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    last_seen: new Date().toISOString()
   };
 
   try{
@@ -337,6 +398,20 @@ async function syncPublicProfileFromAuth(){
     // 失敗しても止めない（閲覧が一部できないだけ）
   }
 }
+
+async function heartbeatLastSeen(){
+  try{
+    if (!authUser?.id) return;
+    await sb.from("profiles").upsert({
+      user_id: authUser.id,
+      last_seen: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id" });
+  }catch(e){
+    console.error("heartbeatLastSeen error", e);
+  }
+}
+
 
 /* ================= UI ================= */
 function renderAvatarBy(displayName, url){
@@ -469,6 +544,11 @@ function goBack(){ location.replace(getBackUrl()); }
 (async()=>{
   if (!await requireLogin()) return;
 
+  // 自分が開いている間は最終オンラインを更新
+  heartbeatLastSeen();
+  setInterval(heartbeatLastSeen, 60_000);
+  document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) heartbeatLastSeen(); });
+
   viewUid = getUidFromUrl();
 
   // 相手閲覧モード：uid があり、かつ自分じゃない
@@ -485,6 +565,7 @@ function goBack(){ location.replace(getBackUrl()); }
       document.getElementById("bio").value = bio;
 
       renderAvatarBy(dn, av);
+      setOnlineUI(p?.last_seen);
 
       // 相手閲覧中はログアウトボタンは残す（好みで隠してもOK）
       setStatus("閲覧モード（相手のプロフィール）", true);
@@ -498,6 +579,7 @@ function goBack(){ location.replace(getBackUrl()); }
   // 自分編集モード
   setViewOnlyMode(false);
   refreshSelfUI();
+  setOnlineUI(new Date().toISOString());
 
   // 初回でもprofilesが作られるように同期
   await syncPublicProfileFromAuth();
