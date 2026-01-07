@@ -124,6 +124,27 @@
     .dot{width:8px;height:8px;border-radius:50%;background:rgba(234,242,255,.75);}
     .statusSub{font-size:12px;color:var(--muted);}
 
+    /* ===== online color buckets ===== */
+    .st-green{
+      background:rgba(74,222,128,.18);
+      border-color:rgba(74,222,128,.60);
+      color:#c8f7dc;
+    }
+    .st-yellow{
+      background:rgba(253,224,71,.18);
+      border-color:rgba(253,224,71,.60);
+      color:#fff3b0;
+    }
+    .st-gray{
+      background:rgba(255,255,255,.08);
+      border-color:rgba(255,255,255,.25);
+      color:#e5e7eb;
+    }
+    .dot-green{ background:#4ade80; }
+    .dot-yellow{ background:#fde047; }
+    .dot-gray{ background:#9ca3af; }
+
+
     .ok{ color:var(--good); }
     .ng{ color:var(--bad); }
   </style>
@@ -145,7 +166,7 @@
 
     <div style="flex:1; min-width:260px;">
       <div class="statusRow">
-        <div class="statusBadge" id="onlineBadge"><span class="dot" id="onlineDot"></span><span id="onlineStatus">--</span></div>
+        <div class="statusBadge st-gray" id="onlineBadge"><span class="dot dot-gray" id="onlineDot"></span><span id="onlineStatus">--</span></div>
         <div class="statusSub" id="onlineSub"></div>
       </div>
       <div style="font-weight:900;margin-bottom:8px;">📝 表示名</div>
@@ -252,28 +273,35 @@ function fmtJpDateTime(iso){
 // 60秒間隔heartbeat想定：90秒以内ならオンライン表示
 const ONLINE_MS = 90 * 1000;
 function onlineBucket(lastSeenIso){
-  if (!lastSeenIso) return { label:"不明" };
+  if (!lastSeenIso) return { label:"不明", color:"gray" };
 
   const t = new Date(lastSeenIso).getTime();
-  if (isNaN(t)) return { label:"不明" };
+  if (isNaN(t)) return { label:"不明", color:"gray" };
 
   const diff = Date.now() - t;
-  if (diff < 0) return { label:"オンライン" };
+  if (diff < 0) return { label:"オンライン", color:"green" };
 
-  if (diff <= ONLINE_MS) return { label:"オンライン" };
-  if (diff <= 5*60*1000) return { label:"5分以内" };
-  if (diff <= 10*60*1000) return { label:"10分以内" };
-  if (diff <= 30*60*1000) return { label:"30分以内" };
-  if (diff <= 60*60*1000) return { label:"一時間以内" };
-  if (diff <= 3*60*60*1000) return { label:"三時間以内" };
-  if (diff <= 6*60*60*1000) return { label:"六時間以内" };
-  if (diff <= 12*60*60*1000) return { label:"十二時間以内" };
-  if (diff <= 24*60*60*1000) return { label:"二十四時間以内" };
-  if (diff <= 3*24*60*60*1000) return { label:"三日以内" };
-  if (diff <= 7*24*60*60*1000) return { label:"一週間以内" };
-  if (diff <= 14*24*60*60*1000) return { label:"二週間以内" };
-  if (diff <= 30*24*60*60*1000) return { label:"一カ月以内" };
-  return { label:"一カ月以上" };
+  // ★ 5分以内はオンライン扱い（緑）
+  if (diff <= 5*60*1000) return { label:"オンライン", color:"green" };
+
+  // ここからは従来の細かい区分（表示だけ）
+  let label = "";
+  if (diff <= 10*60*1000) label = "10分以内";
+  else if (diff <= 30*60*1000) label = "30分以内";
+  else if (diff <= 60*60*1000) label = "一時間以内";
+  else if (diff <= 3*60*60*1000) label = "三時間以内";
+  else if (diff <= 6*60*60*1000) label = "六時間以内";
+  else if (diff <= 12*60*60*1000) label = "十二時間以内";
+  else if (diff <= 24*60*60*1000) label = "二十四時間以内";
+  else if (diff <= 3*24*60*60*1000) label = "三日以内";
+  else if (diff <= 7*24*60*60*1000) label = "一週間以内";
+  else if (diff <= 14*24*60*60*1000) label = "二週間以内";
+  else if (diff <= 30*24*60*60*1000) label = "一カ月以内";
+  else label = "一カ月以上";
+
+  // ★ 色分け：24時間以内は黄色、それ以上は灰色
+  const color = (diff <= 24*60*60*1000) ? "yellow" : "gray";
+  return { label, color };
 }
 
 function setOnlineUI(lastSeenIso){
@@ -281,13 +309,24 @@ function setOnlineUI(lastSeenIso){
   const statusEl = document.getElementById("onlineStatus");
   const subEl = document.getElementById("onlineSub");
   const dotEl = document.getElementById("onlineDot");
+  const badgeEl = document.getElementById("onlineBadge");
 
   if (statusEl) statusEl.textContent = b.label;
 
   const when = fmtJpDateTime(lastSeenIso);
   if (subEl) subEl.textContent = when ? `最終: ${when}` : "";
 
-  if (dotEl) dotEl.style.opacity = (b.label === "オンライン") ? "1" : "0.5";
+  const color = b.color || "gray";
+
+  if (badgeEl){
+    badgeEl.classList.remove("st-green","st-yellow","st-gray");
+    badgeEl.classList.add(color === "green" ? "st-green" : (color === "yellow" ? "st-yellow" : "st-gray"));
+  }
+  if (dotEl){
+    dotEl.classList.remove("dot-green","dot-yellow","dot-gray");
+    dotEl.classList.add(color === "green" ? "dot-green" : (color === "yellow" ? "dot-yellow" : "dot-gray"));
+    dotEl.style.opacity = "1";
+  }
 }
 
 
