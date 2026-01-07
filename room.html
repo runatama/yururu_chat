@@ -3183,6 +3183,17 @@ function safeKey(s){
   t = t.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
   return t || "room";
 }
+  
+function scrollToSection(id){
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  const y = el.getBoundingClientRect().top + window.pageYOffset - 80;
+  window.scrollTo({
+    top: y,
+    behavior: "smooth"
+  });
+}
 
 
 
@@ -3201,13 +3212,17 @@ function safeKey(s){
         <div class="navIcon">🗨️</div><div class="navLabel">ルーム</div>
       </button>
 
-      <button class="navBtn" type="button" onclick="scrollToSection('callSection')" aria-label="通話">
-        <div class="navIcon">🎧</div><div class="navLabel">通話</div>
-      </button>
+      <button class="navBtn" onclick="scrollToSection('callSection')">
+  <div class="navIcon">🎙️</div>
+  <div class="navLabel">通話</div>
+</button>
 
-      <button class="navBtn" type="button" onclick="scrollToSection('chatSection')" aria-label="チャット">
-        <div class="navIcon">💬</div><div class="navLabel">チャット</div>
-      </button>
+
+      <button class="navBtn" onclick="scrollToSection('chatSection')">
+  <div class="navIcon">💬</div>
+  <div class="navLabel">チャット</div>
+</button>
+
 
       <button class="navBtn" type="button" onclick="openSheet()" aria-label="設定">
         <div class="navIcon">⚙️</div><div class="navLabel">設定</div>
@@ -3235,3 +3250,4 @@ function safeKey(s){
 
 </body>
 </html>
+
