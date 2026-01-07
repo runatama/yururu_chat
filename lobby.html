@@ -517,6 +517,42 @@ function goUserProfile(uid){
 }
 
 
+/* ===================
+   🟢 Online Heartbeat（Lobby用）
+   profiles.last_seen を定期更新して「オンライン/最近」を判定できるようにする
+   =================== */
+let onlineHeartbeatTimer = null;
+
+async function heartbeatLastSeenLobby(){
+  try{
+    if (!authUser?.id) return;
+    await sb.from("profiles").upsert({
+      user_id: authUser.id,
+      last_seen: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id" });
+  }catch(e){
+    console.warn("heartbeatLastSeenLobby error", e);
+  }
+}
+
+function startOnlineHeartbeatLobby(){
+  // 二重起動防止
+  if (onlineHeartbeatTimer) return;
+
+  // 初回即更新
+  heartbeatLastSeenLobby();
+
+  // 60秒ごと更新
+  onlineHeartbeatTimer = setInterval(heartbeatLastSeenLobby, 60_000);
+
+  // タブ復帰時に即更新
+  document.addEventListener("visibilitychange", ()=>{
+    if (!document.hidden) heartbeatLastSeenLobby();
+  });
+}
+
+
 /* =================== 右上ユーザー表示 =================== */
 function setTopRightButtons(isLoggedIn){
   const soBtn = document.getElementById("signOutBtn");
@@ -1672,6 +1708,9 @@ function getPreferredAvatar(){
   }
 
   if (!(await requireLoginOrRedirect())) return;
+
+  // ★ ロビーにいる間も最終オンライン(last_seen)を更新
+  startOnlineHeartbeatLobby();
 
   // 前回の表示モード復元
   try{
