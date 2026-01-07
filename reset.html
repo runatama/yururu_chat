@@ -223,6 +223,32 @@
       box-shadow: 0 0 0 4px rgba(110,231,255,.12);
     }
 
+    /* ===== パスワード表示切替（追加） ===== */
+    .passWrap{
+      position: relative;
+      width: 100%;
+    }
+    .passWrap input{
+      padding-right: 44px; /* 👁 の分だけ右を空ける */
+    }
+    .eyeBtn{
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 30px;
+      width: 30px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0;
+    }
+    .eyeBtn:hover{ filter: brightness(1.1); }
+
     .btnRow{
       display:flex;
       gap:10px;
@@ -360,11 +386,22 @@
         <div class="row" style="margin-top:12px;">
           <div class="field">
             <label for="newPass">新しいパスワード</label>
-            <input id="newPass" type="password" placeholder="6文字以上（推奨8以上）" autocomplete="new-password" />
+
+            <!-- 表示/非表示トグル付き（追加） -->
+            <div class="passWrap">
+              <input id="newPass" type="password" placeholder="6文字以上（推奨8以上）" autocomplete="new-password" />
+              <button type="button" class="eyeBtn" onclick="togglePass('newPass', this)">👁</button>
+            </div>
           </div>
+
           <div class="field">
             <label for="newPass2">新しいパスワード（確認）</label>
-            <input id="newPass2" type="password" placeholder="もう一度入力" autocomplete="new-password" />
+
+            <!-- 表示/非表示トグル付き（追加） -->
+            <div class="passWrap">
+              <input id="newPass2" type="password" placeholder="もう一度入力" autocomplete="new-password" />
+              <button type="button" class="eyeBtn" onclick="togglePass('newPass2', this)">👁</button>
+            </div>
           </div>
         </div>
 
@@ -453,7 +490,6 @@ function setStatus(text, ok = true) {
   }
 }
 
-
 function setPill(ok, text){
   const pill = document.getElementById("statePill");
   const wrap = document.getElementById("statePillWrap");
@@ -464,6 +500,20 @@ function setPill(ok, text){
   dot.style.background = "rgba(255,255,255,.35)";
   if (ok === true){ wrap.classList.add("ok"); dot.style.background = "var(--good)"; }
   if (ok === false){ wrap.classList.add("ng"); dot.style.background = "var(--bad)"; }
+}
+
+/* =================== パスワード表示切替（追加） =================== */
+function togglePass(inputId, btn){
+  const input = document.getElementById(inputId);
+  if (!input) return;
+
+  if (input.type === "password"){
+    input.type = "text";
+    if (btn) btn.textContent = "🙈";
+  }else{
+    input.type = "password";
+    if (btn) btn.textContent = "👁";
+  }
 }
 
 function getUrlParam(name){
@@ -558,7 +608,6 @@ async function initRecovery(){
   const type = getUrlParam("type");
   log("initRecovery: type=", type);
 
-  // 重要：URLからセッションを確定
   // 重要：URLからセッションを確定（PKCE code / token 両対応）
   let session = null;
   try{
@@ -571,7 +620,7 @@ async function initRecovery(){
       session = data?.session || null;
     }else{
       // token/hash などの戻り
-　     const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
+      const { data, error } = await sb.auth.getSessionFromUrl({ storeSession: true });
       if (error) log("getSessionFromUrl error", error);
       session = data?.session || null;
     }
@@ -663,5 +712,3 @@ initRecovery();
 </script>
 </body>
 </html>
-
-
