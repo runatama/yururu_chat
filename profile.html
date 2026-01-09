@@ -978,6 +978,7 @@ function renderFriendUI(stateObj){
       setFriendLoading(false);
       await refreshFriendUI();
       await reloadFriends(true);
+      startRoomCreateNotifications();
     }
   }));
 
@@ -1021,6 +1022,7 @@ function renderFriendUI(stateObj){
         setFriendLoading(false);
         await refreshFriendUI();
         await reloadFriends(true);
+        startRoomCreateNotifications();
       }
     }));
     btns.appendChild(makeBtn("❌ 拒否", "btnDanger", async()=>{
@@ -1164,12 +1166,72 @@ async function startFriendRequestNotifications(){
         // accepted になったらフレンド欄リロード（自分画面のときだけ）
         if (newRow.status === "accepted" && !isViewOnly){
           await reloadFriends(true);
+          startRoomCreateNotifications();
         }
       }catch(e){
         console.error("UPDATE notify error", e);
       }
     })
     .subscribe(()=>{});
+}
+// ================= 部屋作成 通知 =================
+let roomNotifyChannel = null;
+
+async function startRoomCreateNotifications(){
+  if (!authUser?.id) return;
+
+  // フレンドUID一覧を取得
+  const friendUids = friendsCache.map(f => f.uid);
+  if (friendUids.length === 0) return;
+
+  // 既存チャンネルがあれば削除
+  if (roomNotifyChannel){
+    try{ await sb.removeChannel(roomNotifyChannel); }catch{}
+    roomNotifyChannel = null;
+  }
+
+  roomNotifyChannel = sb
+    .channel("room_create_notify_" + authUser.id)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "rooms"
+      },
+      async(payload)=>{
+        const r = payload?.new;
+        if (!r) return;
+
+        // フレンド以外は無視
+        if (!friendUids.includes(r.owner_id)) return;
+
+        // フレンド名を取得
+        let ownerName = "フレンド";
+        try{
+          const { data } = await sb
+            .from("profiles")
+            .select("display_name")
+            .eq("user_id", r.owner_id)
+            .maybeSingle();
+          if (data?.display_name) ownerName = data.display_name;
+        }catch{}
+
+        // 🔔 通知を出す
+        showToast({
+          title: "🏠 フレンドが部屋を作成！",
+          msg: `${ownerName} さんが「${r.room_name}」を作ったよ`,
+          onOpen: ()=>{
+            location.href =
+              `./room.html?room=${encodeURIComponent(r.room_name)}&room_id=${encodeURIComponent(r.id)}`;
+          }
+        });
+
+        // バッジ数も増やす（任意）
+        setNotifyBadge(pendingCount + 1);
+      }
+    )
+    .subscribe();
 }
 
 /* ================= Friends list (self only) ================= */
@@ -1279,6 +1341,7 @@ item.onclick = ()=>{
 
     setStatus("友達解除しました");
     await reloadFriends(true);
+    startRoomCreateNotifications();
   }catch(err){
     console.error(err);
     setStatus(err.message || "解除失敗", false);
@@ -1425,6 +1488,7 @@ function goBack(){ location.replace(getBackUrl()); }
     search.addEventListener("input", ()=> renderFriends());
   }
   await reloadFriends(true);
+  startRoomCreateNotifications();
 })();
 </script>
 
