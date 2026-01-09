@@ -1138,54 +1138,18 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
     .toastMsg{ font-size:12px; color:var(--muted); line-height:1.5; }
     .toastBtns{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
     
-/* ===== 🔔 通知UIを完全不透明に ===== */
+/* ===== 🔔 通知をロビーと同じ色に統一 ===== */
 
-/* 通知パネル本体 */
-#notifyPanel{
-  background: #0b1220 !important; /* プロフィールと同系色 */
-  border: 1px solid rgba(255,255,255,0.12) !important;
-  box-shadow: 0 18px 48px rgba(0,0,0,0.6) !important;
-  backdrop-filter: none !important;
-}
-
-/* ヘッダー */
-#notifyPanel .cardHeader{
-  background: #0d1a33 !important;
-  border-bottom: 1px solid rgba(255,255,255,0.12);
-}
-
-/* 本文 */
-#notifyPanel .cardBody{
-  background: #0b1220 !important;
-}
-
-/* 通知1件ずつのカード */
+/* 通知1件（白く見えてた四角） */
 #notifyPanel .nItem{
-  background: #111c33 !important;   /* ← 透けない */
-  border: 1px solid rgba(255,255,255,0.15);
-}
-
-/* トーストも不透明にしたい場合 */
-.toast{
-  background: #0b1220 !important;
-  border: 1px solid rgba(255,255,255,0.15);
-}
-/* ===== 🔔 通知の白い四角を消す ===== */
-
-/* 外枠カードを完全に無効化 */
-#notifyPanel{
-  background: none !important;
-  border: none !important;
+  background: rgba(7,12,24,.25) !important;   /* ← ロビーと同じ */
+  border: 1px solid rgba(255,255,255,.08) !important;
   box-shadow: none !important;
 }
 
-/* ヘッダー・ボディも消す */
-#notifyPanel .cardHeader,
-#notifyPanel .cardBody{
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
+/* 既読・未読どちらも同じベース色 */
+#notifyPanel .nItem:hover{
+  background: rgba(7,12,24,.35) !important;
 }
 
 
@@ -3993,6 +3957,7 @@ function scrollToSection(id){
 
 </body>
 </html>
+
 
 
 
