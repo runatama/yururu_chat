@@ -828,7 +828,23 @@ function initNotify(){
     .toastTitle{ font-weight:900; margin-bottom:4px; }
     .toastMsg{ font-size:12px; color:var(--muted); line-height:1.5; }
     .toastBtns{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-    
+    /* ===== 🔔 通知パネルを完全透明に ===== */
+#notifyPanel{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+/* 中の card も透明にする */
+#notifyPanel .card,
+#notifyPanel .cardHeader,
+#notifyPanel .cardBody{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 
 </style>
 
@@ -2260,6 +2276,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
