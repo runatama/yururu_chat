@@ -473,11 +473,21 @@ function setStatus(msg, ok=true){
 }
 function getBackUrl(){
   const p = new URLSearchParams(location.search);
+
+  // ルームから来た場合はルームに戻す（今まで通り）
   if (p.get("back")==="room" && p.get("room")){
     return "./room.html?room="+encodeURIComponent(p.get("room"));
   }
+
+  // ★ 自分プロフィールから相手プロフィールへ来た場合は、自分のプロフィールへ戻す
+  if (p.get("back")==="profile"){
+    return "./profile.html";
+  }
+
+  // デフォルトはロビー
   return "./lobby.html";
 }
+
 function getUidFromUrl(){
   const p = new URLSearchParams(location.search);
   return String(p.get("uid") || "").trim();
@@ -928,25 +938,53 @@ function renderFriendUI(stateObj){
   const s = stateObj?.state || "none";
 
   if (s === "friends"){
-    tag.textContent = "友達";
-    btns.appendChild(makeBtn("💔 友達解除", "btnDanger", async()=>{
-      try{
-        setFriendLoading(true);
-        const { error } = await sb.rpc("remove_friend", { target_uid: viewUid });
-        if (error) throw error;
-        setStatus("友達解除しました");
-      }catch(e){
-        console.error(e);
-        setStatus(e.message || "解除失敗", false);
-      }finally{
-        setFriendLoading(false);
-        await refreshFriendUI();
-        await reloadFriends(true);
-      }
-    }));
-    hint.textContent = "友達同士です。解除もできます。";
-    return;
-  }
+  tag.textContent = "友達";
+
+  // ★ DM（左）
+  btns.appendChild(makeBtn("💬 DM", "btnPrimary", async()=>{
+    try{
+      setFriendLoading(true);
+
+      // RPC: get_or_create_dm_room(target_uid) を使う（フレンド欄と同じ）
+      const { data, error } = await sb.rpc(
+        "get_or_create_dm_room",
+        { target_uid: viewUid }
+      );
+      if (error) throw error;
+
+      const roomId = data;
+      if (!roomId) throw new Error("roomId が取得できませんでした");
+
+      location.href = `./dm.html?room_id=${encodeURIComponent(roomId)}`;
+    }catch(e){
+      console.error(e);
+      setStatus(e.message || "DMを開始できません（RPC / RLS / dm.html）", false);
+    }finally{
+      setFriendLoading(false);
+    }
+  }));
+
+  // 💔 友達解除（右）
+  btns.appendChild(makeBtn("💔 友達解除", "btnDanger", async()=>{
+    try{
+      setFriendLoading(true);
+      const { error } = await sb.rpc("remove_friend", { target_uid: viewUid });
+      if (error) throw error;
+      setStatus("友達解除しました");
+    }catch(e){
+      console.error(e);
+      setStatus(e.message || "解除失敗", false);
+    }finally{
+      setFriendLoading(false);
+      await refreshFriendUI();
+      await reloadFriends(true);
+    }
+  }));
+
+  hint.textContent = "友達同士です。DMや解除ができます。";
+  return;
+}
+
 
   if (s === "outgoing"){
     tag.textContent = "申請中";
@@ -1175,7 +1213,7 @@ item.className = "fItem";
 
 // ←ここに追加
 item.onclick = ()=>{
-  location.href = `./profile.html?uid=${encodeURIComponent(f.uid)}`;
+  location.href = `./profile.html?uid=${encodeURIComponent(f.uid)}&back=profile`;
 };
 ;
 
