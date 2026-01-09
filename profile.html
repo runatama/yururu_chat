@@ -566,6 +566,12 @@ function addNotify(n){
   if (notifyInbox.some(x => x.id === item.id)) return;
 
   notifyInbox.unshift(item);
+
+  // ✅ 通知は最新10件まで保持（それ以上は古い順に自動削除）
+  if (notifyInbox.length > 10){
+    notifyInbox.length = 10;
+  }
+
   updateNotifyBadgeTotal();
 }
 
@@ -631,7 +637,7 @@ function openFriendInbox(){
   box.innerHTML = `
     <div style="flex:1;">
       <div class="toastTitle">🔔 通知一覧</div>
-      <div class="toastMsg" style="margin-bottom:8px;">未読：${notifyInbox.filter(x=>!x.read).length} 件</div>
+      <div class="toastMsg" style="margin-bottom:8px;">未読：${notifyInbox.filter(x=>!x.read).length} 件（最新10件を保持）</div>
       <div id="inboxList" style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow:auto;"></div>
       <div class="toastBtns" style="margin-top:10px;">
         <button class="toastSmallBtn" id="markAll">✅ 全部既読</button>
