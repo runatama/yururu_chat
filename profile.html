@@ -314,7 +314,44 @@
     .pillGreen{ border-color:rgba(74,222,128,.60); background:rgba(74,222,128,.16); color:#c8f7dc; }
     .pillYellow{ border-color:rgba(253,224,71,.60); background:rgba(253,224,71,.16); color:#fff3b0; }
     .pillGray{ border-color:rgba(255,255,255,.25); background:rgba(255,255,255,.06); color:#e5e7eb; }
-  </style>
+  
+/* ===== Notify UI: ロビー寄せ（不透明・スマホ見やすい） ===== */
+#notifyPanel{
+  background:none !important;
+  border:none !important;
+  box-shadow:none !important;
+}
+#notifyPanel .cardHeader,
+#notifyPanel .cardBody{
+  background:none !important;
+  border:none !important;
+  box-shadow:none !important;
+  padding:0 !important;
+}
+#notifyList .nItem{
+  background: rgba(7,12,24,.25) !important; /* ロビー系 */
+  border: 1px solid rgba(255,255,255,.08) !important;
+  border-radius: 16px !important;
+  box-shadow:none !important;
+}
+#notifyList .nItem:hover{
+  background: rgba(7,12,24,.35) !important;
+}
+#notifyList .nItem .btn{
+  border-radius: 14px !important;
+}
+/* スマホ：ボタンを下に回して押しやすく */
+@media (max-width: 560px){
+  #notifyList .nItem > div:first-child{
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  #notifyList .nItem .btn{
+    width: 100% !important;
+  }
+}
+
+</style>
 </head>
 
 <body>
@@ -653,10 +690,11 @@ function openFriendInbox(){
     list.innerHTML = "";
     for (const n of notifyInbox){
       const row = document.createElement("div");
-      row.style.border = "1px solid rgba(255,255,255,.10)";
+      row.className = "nItem";
+      row.style.border = ""; // CSSで統一
       row.style.borderRadius = "14px";
       row.style.padding = "10px";
-      row.style.background = n.read ? "rgba(255,255,255,.05)" : "rgba(110,231,255,.10)";
+      row.style.background = ""; // CSSで統一
       row.style.cursor = "pointer";
 
       let title = "";
