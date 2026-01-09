@@ -764,7 +764,27 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
       </div>
 
 
-      <div class="card" id="callSection">
+      
+      <!-- ===== friend invite ===== -->
+      <div class="card" id="inviteCard" style="display:none;">
+        <div class="cardHeader">
+          <b>📩 フレンド招待（この部屋へ）</b>
+          <span class="chip" id="inviteChip">Invite</span>
+        </div>
+        <div class="cardBody">
+          <div class="field" style="margin-bottom:10px;">
+            <label>フレンド検索（表示名）</label>
+            <input id="inviteSearch" type="text" placeholder="例：ゆるたま" />
+            <div class="hint">※ 招待は「相手のプロフィール通知」に届く想定（room_invites）。</div>
+          </div>
+
+          <div class="list" id="inviteList">
+            <div class="hint">読み込み中…</div>
+          </div>
+        </div>
+      </div>
+
+<div class="card" id="callSection">
         <div class="cardHeader">
           <b>🎙️ 音声通話（複数人）</b>
           <span class="chip">Call</span>
@@ -2978,6 +2998,11 @@ async function loadRoomMembersForUI(){
   }
 
   const arr = (data || []);
+
+  // 招待UIで「既に部屋にいる」を判定するため保持
+  try{ currentRoomUserIds = new Set(arr.map(x=>x.user_id)); }catch{}
+  try{ renderInviteFriends(); }catch{}
+
   if (arr.length === 0){
     box.innerHTML = `<div class="hint">今は誰もいないよ（または更新待ち）</div>`;
     return;
@@ -3029,6 +3054,155 @@ async function startRoomMembersRealtime(){
 }
 
 
+
+
+/* =================== フレンド招待（room_invites） =================== */
+let inviteFriendsCache = []; // [{uid, display_name, avatar_url}]
+let inviteFriendsLoadedOnce = false;
+let currentRoomUserIds = new Set(); // room_members（2分以内）を入れておく
+
+function otherUidFromFriendRow(row){
+  if (!row || !authUser?.id) return "";
+  if (row.user_a === authUser.id) return row.user_b || "";
+  if (row.user_b === authUser.id) return row.user_a || "";
+  return "";
+}
+
+function setupInviteUI(){
+  const card = document.getElementById("inviteCard");
+  const search = document.getElementById("inviteSearch");
+  if (card) card.style.display = ""; // とりあえず表示（中身は render で調整）
+  if (search){
+    search.addEventListener("input", ()=> renderInviteFriends());
+  }
+}
+
+async function loadInviteFriends(force=false){
+  if (!authUser?.id) return;
+  if (inviteFriendsLoadedOnce && !force) return;
+
+  const list = document.getElementById("inviteList");
+  if (list) list.innerHTML = `<div class="hint">読み込み中…</div>`;
+
+  try{
+    const { data: fr, error: ferr } = await sb
+      .from("friends")
+      .select("user_a, user_b")
+      .or(`user_a.eq.${authUser.id},user_b.eq.${authUser.id}`);
+    if (ferr) throw ferr;
+
+    const uids = (fr || []).map(otherUidFromFriendRow).filter(Boolean);
+    const unique = Array.from(new Set(uids));
+
+    if (unique.length === 0){
+      inviteFriendsCache = [];
+      inviteFriendsLoadedOnce = true;
+      renderInviteFriends();
+      return;
+    }
+
+    const { data: ps, error: perr } = await sb
+      .from("profiles")
+      .select("user_id, display_name, avatar_url")
+      .in("user_id", unique);
+    if (perr) throw perr;
+
+    const map = new Map();
+    (ps || []).forEach(p => map.set(p.user_id, p));
+
+    inviteFriendsCache = unique.map(uid=>{
+      const p = map.get(uid) || {};
+      return {
+        uid,
+        display_name: p.display_name || "（未設定）",
+        avatar_url: p.avatar_url || ""
+      };
+    });
+
+    inviteFriendsCache.sort((a,b)=> String(a.display_name).localeCompare(String(b.display_name), "ja"));
+    inviteFriendsLoadedOnce = true;
+    renderInviteFriends();
+  }catch(e){
+    console.error("loadInviteFriends error", e);
+    inviteFriendsCache = [];
+    inviteFriendsLoadedOnce = true;
+    const list2 = document.getElementById("inviteList");
+    if (list2) list2.innerHTML = `<div class="hint">フレンド一覧が取れません（friends / profiles のRLS確認）</div>`;
+  }
+}
+
+function renderInviteFriends(){
+  const list = document.getElementById("inviteList");
+  const q = String(document.getElementById("inviteSearch")?.value || "").trim().toLowerCase();
+  if (!list) return;
+
+  let arr = inviteFriendsCache.slice();
+  if (q){
+    arr = arr.filter(x => String(x.display_name || "").toLowerCase().includes(q));
+  }
+
+  if (arr.length === 0){
+    list.innerHTML = `<div class="hint">フレンドがいない（または検索に一致しない）</div>`;
+    return;
+  }
+
+  list.innerHTML = "";
+  for (const f of arr){
+    const inRoom = currentRoomUserIds.has(f.uid);
+    const row = document.createElement("div");
+    row.className = "memberItem";
+
+    row.innerHTML = `
+      ${avatarHtml(f.avatar_url, f.display_name, "", 0)}
+      <div class="memberMeta">
+        <div class="memberName">${escapeHtml(f.display_name)}</div>
+        <div class="memberSub">${inRoom ? "この部屋にいるよ" : "招待できます"}</div>
+      </div>
+      <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+        <button class="btn btnSmall ${inRoom ? "btnMuted" : "btnAccent2"}" ${inRoom ? "disabled" : ""} data-invite>📩 招待</button>
+      </div>
+    `;
+
+    row.querySelector("[data-invite]").onclick = async(e)=>{
+      e.stopPropagation();
+      if (inRoom) return;
+      await sendRoomInvite(f.uid, f.display_name);
+    };
+
+    // カード押したら相手プロフィールへ
+    row.onclick = ()=>{
+      location.href = `./profile.html?uid=${encodeURIComponent(f.uid)}&back=room&room=${encodeURIComponent(room||"")}&room_id=${encodeURIComponent(roomId||"")}&_r=${Date.now()}`;
+    };
+
+    list.appendChild(row);
+  }
+}
+
+async function sendRoomInvite(targetUid, targetName){
+  if (!authUser?.id) return;
+  if (!roomId) return alert("部屋情報がまだ準備中…");
+  if (!targetUid) return;
+
+  // 二重招待を避けたい場合：同じ(部屋,相手)の最新1件だけ、という制約をDB側でuniqueにしてもOK
+  try{
+    const { error } = await sb
+      .from("room_invites")
+      .insert({
+        room_id: roomId,
+        room_name: room || null,
+        from_user: authUser.id,
+        to_user: targetUid
+      });
+    if (error) throw error;
+
+    alert(`${targetName || "フレンド"} に招待を送りました！`);
+  }catch(e){
+    console.error("sendRoomInvite error", e);
+    alert("招待の送信に失敗: " + (e?.message || "unknown"));
+  }
+}
+
+
 /* =================== 起動 =================== */
 /* =================== 起動 =================== */
 (async ()=>{
@@ -3070,6 +3244,11 @@ async function startRoomMembersRealtime(){
     }
 
     roomId = row.id;
+
+    // 👇 招待UI準備（フレンド一覧をロード）
+    try{ setupInviteUI(); }catch{}
+    try{ await loadInviteFriends(true); }catch{}
+
     roomOwnerId = row.owner_id || "";
     isOwner = (roomOwnerId && roomOwnerId === myUid());
 
