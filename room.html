@@ -1170,6 +1170,23 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
   background: #0b1220 !important;
   border: 1px solid rgba(255,255,255,0.15);
 }
+/* ===== 🔔 通知の白い四角を消す ===== */
+
+/* 外枠カードを完全に無効化 */
+#notifyPanel{
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* ヘッダー・ボディも消す */
+#notifyPanel .cardHeader,
+#notifyPanel .cardBody{
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
 
 
 </style>
@@ -3976,6 +3993,7 @@ function scrollToSection(id){
 
 </body>
 </html>
+
 
 
 
