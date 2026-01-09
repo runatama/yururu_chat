@@ -449,6 +449,17 @@ let frChannel = null;
 let pendingCount = 0;
 const shownToastIds = new Set();
 
+
+// 🔔 バッジ表示用（pendingCount とは別）
+let badgeCount = 0;
+
+function getUnreadOtherCount(){
+  return notifyInbox.filter(n => !n.read && n.type !== "friend_request").length;
+}
+function updateNotifyBadgeTotal(){
+  // pending（申請中） + その他未読（部屋など）
+  setNotifyBadge(pendingCount + getUnreadOtherCount());
+}
 // =============== notify inbox ===============
 let notifyInbox = []; // [{id,type,from_uid,from_name,room_id,room_name,created_at,read}]
 
@@ -537,17 +548,38 @@ function showToast({title, msg, onOpen, onAllowNotify}){
   setTimeout(()=>{ try{ el.remove(); }catch{} }, 8000);
 }
 
+
+/* ================= notify inbox (add) ================= */
+function addNotify(n){
+  const item = {
+    id: String(n.id || (crypto?.randomUUID ? crypto.randomUUID() : (Date.now()+"_"+Math.random()))),
+    type: String(n.type || "unknown"),
+    from_uid: String(n.from_uid || ""),
+    from_name: String(n.from_name || "誰か"),
+    room_id: n.room_id ? String(n.room_id) : "",
+    room_name: n.room_name ? String(n.room_name) : "",
+    created_at: n.created_at ? String(n.created_at) : new Date().toISOString(),
+    read: false
+  };
+
+  // 重複防止
+  if (notifyInbox.some(x => x.id === item.id)) return;
+
+  notifyInbox.unshift(item);
+  updateNotifyBadgeTotal();
+}
+
 /* ================= notify badge ================= */
 function setNotifyBadge(n){
-  pendingCount = Math.max(0, Number(n||0));
-  const b = document.getElementById("notifyBadge");
+  badgeCount = Math.max(0, Number(n||0));
+const b = document.getElementById("notifyBadge");
   if (!b) return;
-  if (pendingCount <= 0){
+  if (badgeCount <= 0){
     b.style.display = "none";
     b.textContent = "0";
   }else{
     b.style.display = "inline-flex";
-    b.textContent = String(pendingCount);
+    b.textContent = String(badgeCount);
   }
 }
 async function requestBrowserNotifyPermission(){
@@ -646,7 +678,7 @@ function openFriendInbox(){
 
       row.onclick = ()=>{
         n.read = true;
-        setNotifyBadge(notifyInbox.filter(x=>!x.read).length);
+        updateNotifyBadgeTotal();
 
         // 種類ごとに開く先を分ける
         if (n.type === "friend_request" && n.from_uid){
@@ -668,12 +700,12 @@ function openFriendInbox(){
 
   box.querySelector("#markAll").onclick = ()=>{
     notifyInbox.forEach(x=> x.read = true);
-    setNotifyBadge(0);
+    updateNotifyBadgeTotal();
     render();
   };
   box.querySelector("#clearRead").onclick = ()=>{
     notifyInbox = notifyInbox.filter(x=>!x.read);
-    setNotifyBadge(notifyInbox.filter(x=>!x.read).length);
+    updateNotifyBadgeTotal();
     render();
   };
   box.querySelector("#closeInbox").onclick = ()=> box.remove();
@@ -1197,7 +1229,8 @@ async function refreshPendingCount(){
       .eq("to_user", authUser.id)
       .eq("status", "pending");
     if (error) throw error;
-    setNotifyBadge(count || 0);
+    pendingCount = Number(count || 0);
+    updateNotifyBadgeTotal();
   }catch(e){
     console.error("refreshPendingCount error", e);
   }
@@ -1228,7 +1261,8 @@ async function startFriendRequestNotifications(){
         if (!r) return;
         if (r.status !== "pending") return;
 
-        setNotifyBadge(pendingCount + 1);
+        pendingCount = pendingCount + 1;
+        updateNotifyBadgeTotal();
 
         if (shownToastIds.has(r.id)) return;
         shownToastIds.add(r.id);
@@ -1241,6 +1275,14 @@ async function startFriendRequestNotifications(){
             .maybeSingle();
           if (data?.display_name) fromName = String(data.display_name);
         }catch{}
+
+        addNotify({
+          id: "fr_" + r.id,
+          type: "friend_request",
+          from_uid: r.from_user,
+          from_name: fromName,
+          created_at: new Date().toISOString()
+        });
 
         showToast({
           title: "🤝 フレンド申請が来た！",
@@ -1273,8 +1315,8 @@ async function startFriendRequestNotifications(){
         const wasPending = oldRow.status === "pending";
         const isPending = newRow.status === "pending";
 
-        if (wasPending && !isPending) setNotifyBadge(pendingCount - 1);
-        if (!wasPending && isPending) setNotifyBadge(pendingCount + 1);
+        if (wasPending && !isPending){ pendingCount = Math.max(0, pendingCount - 1); updateNotifyBadgeTotal(); }
+        if (!wasPending && isPending){ pendingCount = pendingCount + 1; updateNotifyBadgeTotal(); }
 
         // accepted になったらフレンド欄リロード（自分画面のときだけ）
         if (newRow.status === "accepted" && !isViewOnly){
@@ -1331,6 +1373,16 @@ async function startRoomCreateNotifications(){
         }catch{}
 
         // 🔔 通知を出す
+        addNotify({
+          id: "room_" + r.id,
+          type: "friend_room",
+          from_uid: r.owner_id,
+          from_name: ownerName,
+          room_id: r.id,
+          room_name: r.room_name,
+          created_at: new Date().toISOString()
+        });
+
         showToast({
           title: "🏠 フレンドが部屋を作成！",
           msg: `${ownerName} さんが「${r.room_name}」を作ったよ`,
@@ -1340,8 +1392,8 @@ async function startRoomCreateNotifications(){
           }
         });
 
-        // バッジ数も増やす（任意）
-        setNotifyBadge(pendingCount + 1);
+        // バッジ（pending + その他未読）
+        updateNotifyBadgeTotal();
       }
     )
     .subscribe();
