@@ -1,0 +1,307 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ゆるるチャット - DM</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg1: #0b1220;
+            --bg2: #0a1a2a;
+            --line: rgba(255,255,255,.10);
+            --text: #eaf2ff;
+            --muted: rgba(234,242,255,.65);
+            --accent: #6ee7ff;
+            --accent2: #a78bfa;
+            --card: rgba(255,255,255,.06);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui,-apple-system,"Noto Sans JP",sans-serif;
+            color: var(--text);
+            background: linear-gradient(180deg,var(--bg1),var(--bg2));
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top {
+            padding: 14px 14px;
+            border-bottom: 1px solid var(--line);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0,0,0,.18);
+        }
+
+        .btn {
+            cursor: pointer;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,.08);
+            color: var(--text);
+            padding: 10px 12px;
+            font-weight: 900;
+        }
+
+        .btnPrimary {
+            border: none;
+            background: linear-gradient(135deg,var(--accent),var(--accent2));
+            color: #08131f;
+        }
+
+        .wrap {
+            max-width: 860px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            gap: 10px;
+        }
+
+        .log {
+            flex: 1;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,.04);
+            border-radius: 18px;
+            padding: 12px;
+            overflow: auto;
+        }
+
+        .msg {
+            margin: 8px 0;
+            display: flex;
+        }
+
+        .bubble {
+            max-width: min(520px, 86%);
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,.06);
+            border-radius: 16px;
+            padding: 10px 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .me {
+            justify-content: flex-end;
+        }
+
+            .me .bubble {
+                background: rgba(110,231,255,.10);
+                border-color: rgba(110,231,255,.25);
+            }
+
+        .meta {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .composer {
+            display: flex;
+            gap: 10px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,.04);
+            border-radius: 18px;
+            padding: 10px;
+        }
+
+        textarea {
+            flex: 1;
+            padding: 10px 12px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: rgba(0,0,0,.25);
+            color: var(--text);
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        #status {
+            font-size: 12px;
+            color: var(--muted);
+            padding: 0 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="top">
+        <div style="font-weight:900;">💬 個人チャット</div>
+        <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn" onclick="goBack()">⬅ 戻る</button>
+            <button class="btn" onclick="signOut()">🚪 ログアウト</button>
+        </div>
+    </div>
+
+    <div class="wrap">
+        <div id="status">読み込み中…</div>
+        <div class="log" id="log"></div>
+
+        <div class="composer">
+            <textarea id="text" placeholder="メッセージ…"></textarea>
+            <button class="btn btnPrimary" onclick="send()">送信</button>
+        </div>
+    </div>
+
+    <script>
+const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM"; // ←他ページと同じ anon key に
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth:{ flowType:"pkce", persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+});
+
+let authUser = null;
+let roomId = "";
+let ch = null;
+let lastMessageId = 0;
+
+function esc(s){
+  return String(s||"")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+function setStatus(t){ document.getElementById("status").textContent = t; }
+function getRoomId(){
+  const p = new URLSearchParams(location.search);
+  return String(p.get("room_id") || "").trim();
+}
+function goBack(){
+  // 直前が profile なら戻れるし、ダメなら lobby
+  history.length > 1 ? history.back() : location.replace("./lobby.html");
+}
+async function signOut(){
+  try{ await sb.auth.signOut(); }catch(e){}
+  location.replace("./login.html");
+}
+
+async function requireLogin(){
+  const { data: ses } = await sb.auth.getSession();
+  if (!ses?.session){ location.replace("./login.html"); return false; }
+  const { data: u } = await sb.auth.getUser();
+  if (!u?.user){ location.replace("./login.html"); return false; }
+  authUser = u.user;
+  return true;
+}
+
+function appendMsg(m){
+  const log = document.getElementById("log");
+  const isMe = (m.sender_id === authUser.id);
+  const div = document.createElement("div");
+  div.className = "msg" + (isMe ? " me" : "");
+  div.innerHTML = `
+    <div class="bubble">
+      ${esc(m.body)}
+      <div class="meta">${esc(new Date(m.created_at).toLocaleString())}</div>
+    </div>
+  `;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  lastMessageId = Math.max(lastMessageId, Number(m.id||0));
+}
+
+async function loadLatest(limit=80){
+  setStatus("読み込み中…");
+  document.getElementById("log").innerHTML = "";
+
+  const { data, error } = await sb
+    .from("dm_messages")
+    .select("id, room_id, sender_id, body, created_at")
+    .eq("room_id", roomId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  if (error){
+    console.error(error);
+    setStatus("読み込み失敗（RLS or room_id不正）");
+    return;
+  }
+
+  for (const m of (data||[])) appendMsg(m);
+
+  // 既読更新（任意）
+  try{ await sb.rpc("dm_mark_read", { p_room_id: roomId, p_last_id: lastMessageId }); }catch{}
+
+  setStatus("OK");
+}
+
+async function send(){
+  const ta = document.getElementById("text");
+  const body = String(ta.value||"").trim();
+  if (!body) return;
+
+  ta.value = "";
+
+  const { data, error } = await sb
+    .from("dm_messages")
+    .insert({ room_id: roomId, sender_id: authUser.id, body })
+    .select("id, room_id, sender_id, body, created_at")
+    .single();
+
+  if (error){
+    console.error(error);
+    setStatus("送信失敗（RLS/メンバー判定）");
+    ta.value = body;
+    return;
+  }
+
+  // 自分の分は即反映（Realtimeも来るけど二重を避けたいならここは省略してもOK）
+  appendMsg(data);
+
+  // 既読更新
+  try{ await sb.rpc("dm_mark_read", { p_room_id: roomId, p_last_id: lastMessageId }); }catch{}
+}
+
+async function startRealtime(){
+  if (ch){
+    try{ await sb.removeChannel(ch); }catch{}
+    ch = null;
+  }
+  ch = sb.channel("dm_" + roomId)
+    .on("postgres_changes", {
+      event:"INSERT",
+      schema:"public",
+      table:"dm_messages",
+      filter:`room_id=eq.${roomId}`
+    }, (payload)=>{
+      const m = payload?.new;
+      if (!m) return;
+
+      // 自分が append 済みなら重複防止
+      if (Number(m.id||0) <= lastMessageId) return;
+
+      appendMsg(m);
+
+      // 既読更新（画面開いてるなら）
+      sb.rpc("dm_mark_read", { p_room_id: roomId, p_last_id: lastMessageId }).catch(()=>{});
+    })
+    .subscribe();
+}
+
+(async()=>{
+  roomId = getRoomId();
+  if (!roomId){
+    setStatus("room_id が無いよ");
+    return;
+  }
+  if (!await requireLogin()) return;
+
+  await loadLatest();
+  await startRealtime();
+})();
+    </script>
+</body>
+</html>
