@@ -6,7 +6,458 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ゆるるチャット - Room</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+/* ===================== Notify (same as profile) ===================== */
+let frChannel = null;
+let roomNotifyChannel = null;
+let inviteNotifyChannel = null;
+let pendingCount = 0;
+const shownToastIds = new Set();
+
+let notifyInbox = []; // max 10, localStorage
+function inboxKey(){
+  return authUser?.id ? ("notify_inbox_" + authUser.id) : "notify_inbox_anon";
+}
+function loadNotifyInbox(){
+  try{
+    const raw = localStorage.getItem(inboxKey());
+    if (!raw) { notifyInbox = []; return; }
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) notifyInbox = arr.slice(0,10);
+    else notifyInbox = [];
+  }catch{ notifyInbox = []; }
+}
+function saveNotifyInbox(){
+  try{
+    localStorage.setItem(inboxKey(), JSON.stringify(notifyInbox.slice(0,10)));
+  }catch{}
+}
+
+function setNotifyBadge(n){
+  const el = document.getElementById("notifyBadge");
+  if (!el) return;
+  const num = Math.max(0, Number(n||0)|0);
+  if (num <= 0){
+    el.style.display = "none";
+    el.textContent = "";
+  }else{
+    el.style.display = "inline-flex";
+    el.textContent = String(Math.min(99, num));
+  }
+}
+
+function unreadOtherCount(){
+  return notifyInbox.filter(n => !n.read && n.type !== "friend_request").length;
+}
+function updateNotifyBadgeTotal(){
+  setNotifyBadge(pendingCount + unreadOtherCount());
+}
+
+function addNotify(item){
+  if (!item) return;
+  // 同じIDは二重追加しない
+  if (item.id && notifyInbox.some(x => x.id === item.id)) return;
+  notifyInbox.unshift({
+    id: item.id || ("local_" + Date.now() + "_" + Math.random()),
+    type: item.type || "other",
+    title: item.title || "通知",
+    msg: item.msg || "",
+    from_uid: item.from_uid || null,
+    from_name: item.from_name || null,
+    room_id: item.room_id || null,
+    room_name: item.room_name || null,
+    created_at: item.created_at || new Date().toISOString(),
+    read: !!item.read
+  });
+  // 10個まで保持。それ以上は古いのを削除
+  if (notifyInbox.length > 10) notifyInbox = notifyInbox.slice(0,10);
+  saveNotifyInbox();
+  updateNotifyBadgeTotal();
+}
+
+function markAllRead(){
+  notifyInbox = notifyInbox.map(n => ({...n, read:true}));
+  saveNotifyInbox();
+  updateNotifyBadgeTotal();
+  renderNotifyPanel();
+}
+function markOneRead(id){
+  notifyInbox = notifyInbox.map(n => n.id === id ? ({...n, read:true}) : n);
+  saveNotifyInbox();
+  updateNotifyBadgeTotal();
+  renderNotifyPanel();
+}
+
+function showToast({title, msg, onOpen, onAllowNotify}){
+  const wrap = document.getElementById("toastWrap");
+  if (!wrap) return;
+
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.innerHTML = `
+    <div class="toastHead">
+      <div class="toastTitle">${escapeHtml(title||"通知")}</div>
+      <button class="toastClose" aria-label="close">×</button>
+    </div>
+    <div class="toastBody">${escapeHtml(msg||"")}</div>
+    <div class="toastBtns">
+      ${onOpen ? `<button class="btn btnPrimary" data-open>開く</button>` : ``}
+      ${onAllowNotify ? `<button class="btn btnGhost" data-allow>通知ON</button>` : ``}
+      <button class="btn btnGhost" data-close>閉じる</button>
+    </div>
+  `;
+
+  const close = ()=>{ try{ el.remove(); }catch{} };
+
+  el.querySelector(".toastClose").onclick = close;
+  el.querySelector("[data-close]").onclick = close;
+
+  const openBtn = el.querySelector("[data-open]");
+  if (openBtn && onOpen){
+    openBtn.onclick = ()=>{ try{ onOpen(); }finally{ close(); } };
+  }
+
+  const allowBtn = el.querySelector("[data-allow]");
+  if (allowBtn && onAllowNotify){
+    allowBtn.onclick = async()=>{
+      try{ await onAllowNotify(); }catch{}
+      close();
+    };
+  }
+
+  wrap.prepend(el);
+
+  // 12秒で自動消し
+  setTimeout(close, 12000);
+}
+
+async function requestBrowserNotifyPermission(){
+  try{
+    if (!("Notification" in window)) return false;
+    if (Notification.permission === "granted") return true;
+    if (Notification.permission === "denied") return false;
+    const res = await Notification.requestPermission();
+    return res === "granted";
+  }catch{ return false; }
+}
+
+function pushBrowserNotify(title, body){
+  try{
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    new Notification(title, { body });
+  }catch{}
+}
+
+/* ====== 通知パネル（超簡易） ====== */
+function toggleNotifyPanel(){
+  const panel = document.getElementById("notifyPanel");
+  if (!panel) return;
+  const open = panel.style.display !== "block";
+  panel.style.display = open ? "block" : "none";
+  if (open) renderNotifyPanel();
+}
+function renderNotifyPanel(){
+  const panel = document.getElementById("notifyPanel");
+  const list = document.getElementById("notifyList");
+  if (!panel || !list) return;
+
+  // 新しい順
+  const arr = notifyInbox.slice().sort((a,b)=> (b.created_at||"").localeCompare(a.created_at||""));
+
+  if (arr.length === 0){
+    list.innerHTML = `<div class="hint">通知はまだありません</div>`;
+    return;
+  }
+
+  list.innerHTML = arr.map(n=>{
+    const unread = !n.read;
+    const dot = unread ? "●" : "";
+    return `
+      <div class="nItem" style="padding:10px 10px;border:1px solid rgba(255,255,255,.10);border-radius:14px;background:rgba(255,255,255,.04);margin-bottom:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <div style="font-weight:900;font-size:13px;">
+            ${dot} ${escapeHtml(n.title||"通知")}
+          </div>
+          <button class="btn" style="padding:6px 10px;border-radius:12px;" onclick="markOneRead('${String(n.id).replace(/'/g,"\'")}')">既読</button>
+        </div>
+        <div style="margin-top:6px;color:rgba(234,242,255,.82);font-size:13px;line-height:1.4;">
+          ${escapeHtml(n.msg||"")}
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+          ${n.from_uid ? `<button class="btn" style="padding:7px 10px;border-radius:12px;" onclick="location.href='./profile.html?uid=${encodeURIComponent(n.from_uid)}'">相手</button>` : ``}
+          ${(n.room_id && n.room_name) ? `<button class="btn btnPrimary" style="padding:7px 10px;border-radius:12px;" onclick="location.href='./room.html?room=${encodeURIComponent(n.room_name)}&room_id=${encodeURIComponent(n.room_id)}'">部屋へ</button>` : ``}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+/* ====== friend_requests: pending数 初期取得＋Realtime ====== */
+async function refreshPendingCount(){
+  if (!authUser?.id) return;
+  try{
+    const { count, error } = await sb
+      .from("friend_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("to_user", authUser.id)
+      .eq("status", "pending");
+    if (error) throw error;
+    pendingCount = count || 0;
+    updateNotifyBadgeTotal();
+  }catch(e){
+    console.error("refreshPendingCount error", e);
+  }
+}
+
+async function startFriendRequestNotifications(){
+  if (!authUser?.id) return;
+
+  await refreshPendingCount();
+
+  try{
+    if (frChannel){
+      await sb.removeChannel(frChannel);
+      frChannel = null;
+    }
+  }catch(e){
+    console.error("removeChannel error", e);
+  }
+
+  frChannel = sb.channel("fr_notify_" + authUser.id)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "friend_requests",
+      filter: `to_user=eq.${authUser.id}`
+    }, async(payload)=>{
+      try{
+        const r = payload?.new;
+        if (!r) return;
+        if (r.status !== "pending") return;
+
+        pendingCount = pendingCount + 1;
+        updateNotifyBadgeTotal();
+
+        if (shownToastIds.has("fr_"+r.id)) return;
+        shownToastIds.add("fr_"+r.id);
+
+        let fromName = "誰か";
+        try{
+          const { data } = await sb.from("profiles")
+            .select("display_name")
+            .eq("user_id", r.from_user)
+            .maybeSingle();
+          if (data?.display_name) fromName = String(data.display_name);
+        }catch{}
+
+        // inbox保存（見ても消えない）
+        addNotify({
+          id: "fr_" + r.id,
+          type: "friend_request",
+          title: "🤝 フレンド申請",
+          msg: `${fromName} さんから申請が届いたよ`,
+          from_uid: r.from_user,
+          from_name: fromName,
+          created_at: new Date().toISOString(),
+          read: false
+        });
+
+        showToast({
+          title: "🤝 フレンド申請が来た！",
+          msg: `${fromName} さんから申請が届いたよ`,
+          onOpen: ()=>{
+            location.href = `./profile.html?uid=${encodeURIComponent(r.from_user)}`;
+          },
+          onAllowNotify: async()=>{
+            const ok = await requestBrowserNotifyPermission();
+            if (typeof setStatus === "function"){
+              setStatus(ok ? "ブラウザ通知をONにしました" : "ブラウザ通知が許可されませんでした", ok);
+            }
+          }
+        });
+
+        pushBrowserNotify("ゆるるチャット", `${fromName} さんからフレンド申請が届いたよ`);
+      }catch(e){
+        console.error("INSERT notify error", e);
+      }
+    })
+    .on("postgres_changes", {
+      event: "UPDATE",
+      schema: "public",
+      table: "friend_requests",
+      filter: `to_user=eq.${authUser.id}`
+    }, async(payload)=>{
+      try{
+        const oldRow = payload?.old;
+        const newRow = payload?.new;
+        if (!oldRow || !newRow) return;
+
+        const wasPending = oldRow.status === "pending";
+        const isPending = newRow.status === "pending";
+
+        if (wasPending && !isPending) pendingCount = Math.max(0, pendingCount - 1);
+        if (!wasPending && isPending) pendingCount = pendingCount + 1;
+        updateNotifyBadgeTotal();
+      }catch(e){
+        console.error("UPDATE notify error", e);
+      }
+    })
+    .subscribe(()=>{});
+}
+
+/* ====== friends UID一覧（部屋作成通知用） ====== */
+let friendUidsCache = [];
+async function loadFriendUids(){
+  if (!authUser?.id) return [];
+  try{
+    // friends テーブル（user_a, user_b）前提
+    const { data, error } = await sb
+      .from("friends")
+      .select("user_a,user_b")
+      .or(`user_a.eq.${authUser.id},user_b.eq.${authUser.id}`);
+    if (error) throw error;
+
+    const uids = [];
+    for (const row of (data||[])){
+      if (row.user_a === authUser.id) uids.push(row.user_b);
+      else uids.push(row.user_a);
+    }
+    friendUidsCache = Array.from(new Set(uids.filter(Boolean)));
+  }catch(e){
+    console.error("loadFriendUids error", e);
+    friendUidsCache = [];
+  }
+  return friendUidsCache;
+}
+
+/* ====== rooms INSERT（フレンドが部屋作成） ====== */
+async function startRoomCreateNotifications(){
+  if (!authUser?.id) return;
+  const friendUids = await loadFriendUids();
+  if (friendUids.length === 0) return;
+
+  if (roomNotifyChannel){
+    try{ await sb.removeChannel(roomNotifyChannel); }catch{}
+    roomNotifyChannel = null;
+  }
+
+  roomNotifyChannel = sb
+    .channel("room_create_notify_" + authUser.id)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "rooms"
+    }, async(payload)=>{
+      const r = payload?.new;
+      if (!r) return;
+      if (!friendUids.includes(r.owner_id)) return;
+
+      let ownerName = "フレンド";
+      try{
+        const { data } = await sb
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", r.owner_id)
+          .maybeSingle();
+        if (data?.display_name) ownerName = data.display_name;
+      }catch{}
+
+      addNotify({
+        id: "room_" + r.id,
+        type: "room_create",
+        title: "🏠 部屋が作成された",
+        msg: `${ownerName} さんが「${r.room_name}」を作ったよ`,
+        from_uid: r.owner_id,
+        from_name: ownerName,
+        room_id: r.id,
+        room_name: r.room_name,
+        created_at: new Date().toISOString(),
+        read: false
+      });
+
+      showToast({
+        title: "🏠 フレンドが部屋を作成！",
+        msg: `${ownerName} さんが「${r.room_name}」を作ったよ`,
+        onOpen: ()=>{
+          location.href = `./room.html?room=${encodeURIComponent(r.room_name)}&room_id=${encodeURIComponent(r.id)}`;
+        }
+      });
+
+      pushBrowserNotify("ゆるるチャット", `${ownerName} さんが部屋「${r.room_name}」を作成`);
+    })
+    .subscribe();
+}
+
+/* ====== room_invites（招待） ====== */
+async function startRoomInviteNotifications(){
+  if (!authUser?.id) return;
+
+  if (inviteNotifyChannel){
+    try{ await sb.removeChannel(inviteNotifyChannel); }catch{}
+    inviteNotifyChannel = null;
+  }
+
+  inviteNotifyChannel = sb
+    .channel("room_invite_notify_" + authUser.id)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "room_invites",
+      filter: `to_user=eq.${authUser.id}`
+    }, async(payload)=>{
+      const inv = payload?.new;
+      if (!inv) return;
+
+      if (shownToastIds.has("inv_"+inv.id)) return;
+      shownToastIds.add("inv_"+inv.id);
+
+      let fromName = "フレンド";
+      try{
+        const { data } = await sb
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", inv.from_user)
+          .maybeSingle();
+        if (data?.display_name) fromName = data.display_name;
+      }catch{}
+
+      addNotify({
+        id: "inv_" + inv.id,
+        type: "room_invite",
+        title: "📩 部屋招待",
+        msg: `${fromName} さんから「${inv.room_name}」に招待が来たよ`,
+        from_uid: inv.from_user,
+        from_name: fromName,
+        room_id: inv.room_id,
+        room_name: inv.room_name,
+        created_at: new Date().toISOString(),
+        read: false
+      });
+
+      showToast({
+        title: "📩 部屋招待が来た！",
+        msg: `${fromName} さんから「${inv.room_name}」に招待が来たよ`,
+        onOpen: ()=>{
+          location.href = `./room.html?room=${encodeURIComponent(inv.room_name)}&room_id=${encodeURIComponent(inv.room_id)}`;
+        }
+      });
+
+      pushBrowserNotify("ゆるるチャット", `${fromName} さんから部屋招待「${inv.room_name}」`);
+    })
+    .subscribe();
+}
+
+/* ====== 初期化（ログイン後） ====== */
+function initNotify(){
+  loadNotifyInbox();
+  updateNotifyBadgeTotal();
+  startFriendRequestNotifications();
+  startRoomCreateNotifications();
+  startRoomInviteNotifications();
+}
+
+</script>
 
   <style>
     :root{
@@ -654,7 +1105,89 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
   .topActions .btn span{ display:none; }
 }
 
-  </style>
+  
+/* ====== Notify (same as profile) ====== */
+.notifyBtn{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,10);
+  background: rgba(255,255,255,04);
+  cursor:pointer;
+  color:var(--muted);
+  font-size:12px;
+}
+.notifyBtn:hover{ background: rgba(255,255,255,06); }
+.badge{
+  position:absolute;
+  top:-6px;
+  right:-6px;
+  min-width:18px;
+  height:18px;
+  padding:0 6px;
+  border-radius:999px;
+  background: rgba(255,107,107,.95);
+  color:#fff;
+  font-weight:900;
+  font-size:11px;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(255,255,255,.25);
+}
+.toastWrap{
+  position:fixed;
+  right:12px;
+  bottom:12px;
+  z-index:9999;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  max-width:min(420px, calc(100vw - 24px));
+}
+.toast{
+  background: linear-gradient(180deg, rgba(255,255,255,10), rgba(255,255,255,06));
+  border:1px solid rgba(255,255,255,14);
+  border-radius:16px;
+  box-shadow: 0 18px 48px rgba(0,0,0,.35);
+  overflow:hidden;
+}
+.toastHead{
+  padding:10px 12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  border-bottom:1px solid rgba(255,255,255,10);
+}
+.toastTitle{ font-weight:900; font-size:13px; }
+.toastClose{
+  border:none;
+  background:transparent;
+  color:rgba(234,242,255,.75);
+  cursor:pointer;
+  font-size:16px;
+  padding:2px 6px;
+}
+.toastBody{ padding:10px 12px; color:rgba(234,242,255,.88); font-size:13px; line-height:1.45; }
+.toastBtns{
+  padding:10px 12px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  border-top:1px solid rgba(255,255,255,10);
+  background: rgba(0,0,0,.10);
+}
+.toastBtns .btn{ padding:8px 10px; border-radius:12px; font-size:12px; }
+.toastBtns .btnPrimary{ background: linear-gradient(180deg, rgba(120,167,255,.95), rgba(166,139,255,.80)); border:1px solid rgba(255,255,255,.12); color:#091221; font-weight:900; }
+.toastBtns .btnGhost{ background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); color:rgba(234,242,255,.9); }
+.toastBtns .btnDanger{ background: rgba(255,107,107,.18); border:1px solid rgba(255,107,107,.35); color:#ffd5d5; }
+
+</style>
 </head>
 
 <body>
@@ -667,12 +1200,26 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
           <span id="subTitle">Room</span>
         </div>
       </div>
+    <div id="notifyPanel" class="card" style="display:none; position:absolute; right:14px; top:64px; width:min(520px, calc(100vw - 28px)); z-index:9998;">
+      <div class="cardHeader" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <b>🔔 通知</b>
+        <div style="display:flex; gap:8px;">
+          <button class="btn" onclick="markAllRead()">全部既読</button>
+          <button class="btn" onclick="toggleNotifyPanel()">閉じる</button>
+        </div>
+      </div>
+      <div class="cardBody" style="padding:12px 12px;">
+        <div id="notifyList"></div>
+      </div>
+    </div>
+
 
       <div class="topActions">
         <button class="userBtn" id="userPill" type="button" onclick="goProfile()">未ログイン</button>
         <button class="btn primary" onclick="goLobby()">🏠 ロビーへ</button>
         <button class="btn danger" onclick="doLogout()">🚪 ログアウト</button>
       </div>
+    <button class="notifyBtn" id="notifyBtn" onclick="toggleNotifyPanel()">🔔<span class="badge" id="notifyBadge"></span></button>
     </div>
   </div>
 
@@ -1078,6 +1625,7 @@ const IMAGE_PLACEHOLDER = "[image]";
 
 /* ===== 状態 ===== */
 let authUser = null;
+  try{ initNotify(); }catch(e){ console.warn("initNotify fail", e); }
 let room = "";
 let roomId = "";
 let roomOwnerId = "";
@@ -3426,6 +3974,10 @@ function scrollToSection(id){
       </div>
     </div>
   </div>
+
+
+<!-- トースト置き場（通知） -->
+<div class="toastWrap" id="toastWrap"></div>
 
 </body>
 </html>
