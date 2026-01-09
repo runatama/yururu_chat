@@ -828,22 +828,39 @@ function initNotify(){
     .toastTitle{ font-weight:900; margin-bottom:4px; }
     .toastMsg{ font-size:12px; color:var(--muted); line-height:1.5; }
     .toastBtns{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-    /* ===== 🔔 通知パネルを完全透明に ===== */
+    /* ===== 🔔 通知UIを完全不透明に ===== */
+
+/* 通知パネル本体 */
 #notifyPanel{
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
+  background: #0b1220 !important; /* プロフィールと同系色 */
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  box-shadow: 0 18px 48px rgba(0,0,0,0.6) !important;
   backdrop-filter: none !important;
 }
 
-/* 中の card も透明にする */
-#notifyPanel .card,
-#notifyPanel .cardHeader,
-#notifyPanel .cardBody{
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
+/* ヘッダー */
+#notifyPanel .cardHeader{
+  background: #0d1a33 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
 }
+
+/* 本文 */
+#notifyPanel .cardBody{
+  background: #0b1220 !important;
+}
+
+/* 通知1件ずつのカード */
+#notifyPanel .nItem{
+  background: #111c33 !important;   /* ← 透けない */
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+/* トーストも不透明にしたい場合 */
+.toast{
+  background: #0b1220 !important;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
 
 
 </style>
@@ -2276,6 +2293,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
