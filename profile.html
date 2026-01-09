@@ -1183,7 +1183,9 @@ function renderFriends(){
         <div class="fNameRow">
           <div class="fName">${escapeHtml(f.display_name || "（未設定）")}</div>
           <span class="pill ${pill.cls}">
-            <span style="width:7px;height:7px;border-radius:50%;background:${pill.cls==="pillGreen"?"#4ade80":(pill.cls==="pillYellow"?"#fde047":"#9ca3af")};display:inline-block;"></span>
+            <span style="width:7px;height:7px;border-radius:50%;background:${
+              pill.cls==="pillGreen" ? "#4ade80" : (pill.cls==="pillYellow" ? "#fde047" : "#9ca3af")
+            };display:inline-block;"></span>
             ${escapeHtml(pill.text)}
           </span>
         </div>
@@ -1191,14 +1193,42 @@ function renderFriends(){
       </div>
       <div class="fBtns">
         <button class="btn" data-open>👤 開く</button>
+        <button class="btn btnPrimary" data-dm>💬 DM</button>
         <button class="btn btnDanger" data-remove>💔 解除</button>
       </div>
     `;
 
+    // 👤 相手プロフィールへ
     item.querySelector("[data-open]").onclick = ()=>{
       location.href = `./profile.html?uid=${encodeURIComponent(f.uid)}`;
     };
 
+    // 💬 DM開始（DMルーム取得/作成 → dm.htmlへ）
+    item.querySelector("[data-dm]").onclick = async()=>{
+      try{
+        // 連打防止
+        item.querySelector("[data-dm]").disabled = true;
+
+        // RPC: get_or_create_dm_room(target_uid) が存在する前提
+        const { data, error } = await sb.rpc(
+          "get_or_create_dm_room",
+          { target_uid: f.uid }
+        );
+        if (error) throw error;
+
+        const roomId = data; // uuid
+        if (!roomId) throw new Error("roomId が取得できませんでした");
+
+        location.href = `./dm.html?room_id=${encodeURIComponent(roomId)}`;
+      }catch(e){
+        console.error(e);
+        setStatus(e.message || "DMを開始できません（RPC / RLS / フレンド判定）", false);
+      }finally{
+        try{ item.querySelector("[data-dm]").disabled = false; }catch{}
+      }
+    };
+
+    // 💔 友達解除
     item.querySelector("[data-remove]").onclick = async()=>{
       if (!confirm("友達解除する？（戻せないよ）")) return;
       try{
@@ -1218,6 +1248,7 @@ function renderFriends(){
     grid.appendChild(item);
   }
 }
+
 
 async function reloadFriends(force=false){
   if (isViewOnly) return;
