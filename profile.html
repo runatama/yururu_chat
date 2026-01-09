@@ -448,6 +448,7 @@ let isViewOnly = false;
 let frChannel = null;
 let pendingCount = 0;
 const shownToastIds = new Set();
+const inviteToastIds = new Set();
 
 
 // 🔔 バッジ表示用（pendingCount とは別）
@@ -666,6 +667,9 @@ function openFriendInbox(){
       }else if (n.type === "friend_room"){
         title = "🏠 部屋作成";
         msg = `${n.from_name} さんが「${n.room_name}」を作成`;
+      }else if (n.type === "room_invite"){
+        title = "📩 部屋招待";
+        msg = `${n.from_name} さんから「${n.room_name}」に招待されたよ`;
       }else{
         title = "🔔 通知";
         msg = `${n.from_name}：${n.type}`;
@@ -692,6 +696,10 @@ function openFriendInbox(){
           return;
         }
         if (n.type === "friend_room" && n.room_id){
+          location.href = `./room.html?room_id=${encodeURIComponent(n.room_id)}&room=${encodeURIComponent(n.room_name||"")}`;
+          return;
+        }
+        if (n.type === "room_invite" && n.room_id){
           location.href = `./room.html?room_id=${encodeURIComponent(n.room_id)}&room=${encodeURIComponent(n.room_name||"")}`;
           return;
         }
@@ -1405,6 +1413,84 @@ async function startRoomCreateNotifications(){
     .subscribe();
 }
 
+
+// ================= 部屋招待 通知（room_invites） =================
+let inviteChannel = null;
+
+async function startRoomInviteNotifications(){
+  if (!authUser?.id) return;
+
+  try{
+    if (inviteChannel){
+      await sb.removeChannel(inviteChannel);
+      inviteChannel = null;
+    }
+  }catch(e){
+    console.error("remove inviteChannel error", e);
+  }
+
+  inviteChannel = sb
+    .channel("room_invite_notify_" + authUser.id)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "room_invites",
+      filter: `to_user=eq.${authUser.id}`
+    }, async(payload)=>{
+      try{
+        const r = payload?.new;
+        if (!r) return;
+
+        // 二重トースト防止
+        const key = String(r.id);
+        if (inviteToastIds.has(key)) return;
+        inviteToastIds.add(key);
+
+        // 招待者名
+        let fromName = "誰か";
+        try{
+          const { data } = await sb.from("profiles")
+            .select("display_name")
+            .eq("user_id", r.from_user)
+            .maybeSingle();
+          if (data?.display_name) fromName = String(data.display_name);
+        }catch{}
+
+        const roomName = String(r.room_name || "（部屋）");
+
+        // 一覧に追加（最新10件キープは addNotify がやる）
+        addNotify({
+          id: "invite_" + r.id,
+          type: "room_invite",
+          from_uid: r.from_user,
+          from_name: fromName,
+          room_id: r.room_id,
+          room_name: roomName,
+          created_at: new Date().toISOString()
+        });
+
+        // トースト
+        showToast({
+          title: "📩 部屋招待が来た！",
+          msg: `${fromName} さんから「${roomName}」に招待されたよ`,
+          onOpen: ()=>{
+            location.href = `./room.html?room_id=${encodeURIComponent(r.room_id)}&room=${encodeURIComponent(roomName)}`;
+          },
+          onAllowNotify: async()=>{
+            const ok = await requestBrowserNotifyPermission();
+            setStatus(ok ? "ブラウザ通知をONにしました" : "ブラウザ通知が許可されませんでした", ok);
+          }
+        });
+
+        // ブラウザ通知（許可されてる時だけ）
+        pushBrowserNotify("ゆるるチャット", `${fromName} さんから部屋招待：${roomName}`);
+      }catch(e){
+        console.error("room_invites INSERT notify error", e);
+      }
+    })
+    .subscribe();
+}
+
 /* ================= Friends list (self only) ================= */
 function otherUidFromFriendRow(row){
   if (!row) return "";
@@ -1609,6 +1695,7 @@ function goBack(){ location.replace(getBackUrl()); }
 
   // notify
   startFriendRequestNotifications();
+  startRoomInviteNotifications();
 
   viewUid = getUidFromUrl();
 
