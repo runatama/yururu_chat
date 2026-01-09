@@ -449,6 +449,10 @@ let frChannel = null;
 let pendingCount = 0;
 const shownToastIds = new Set();
 
+// =============== notify inbox ===============
+let notifyInbox = []; // [{id,type,from_uid,from_name,room_id,room_name,created_at,read}]
+
+
 /* =============== friends state =============== */
 let friendsCache = []; // [{uid, display_name, avatar_url, last_seen, online_hidden}]
 let friendsLoadedOnce = false;
@@ -558,16 +562,125 @@ function pushBrowserNotify(title, body){
   if (Notification.permission !== "granted") return;
   try{ new Notification(title, { body }); }catch(e){ console.error("Notification error", e); }
 }
-function openFriendInbox(){
-  showToast({
-    title:"🔔 通知",
-    msg:`申請（pending）が ${pendingCount} 件あります。相手プロフィールで承認できます。`,
-    onAllowNotify: async()=>{
-      const ok = await requestBrowserNotifyPermission();
-      setStatus(ok ? "ブラウザ通知をONにしました" : "ブラウザ通知が許可されませんでした", ok);
-    }
-  });
+function fmtTime(iso){
+  try{
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const dd = String(d.getDate()).padStart(2,"0");
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mm = String(d.getMinutes()).padStart(2,"0");
+    return `${y}/${m}/${dd} ${hh}:${mm}`;
+  }catch{ return ""; }
 }
+
+function openFriendInbox(){
+  // 空なら案内
+  if (notifyInbox.length === 0){
+    showToast({
+      title:"🔔 通知",
+      msg:"まだ通知はありません",
+      onAllowNotify: async()=>{
+        const ok = await requestBrowserNotifyPermission();
+        setStatus(ok ? "ブラウザ通知をONにしました" : "ブラウザ通知が許可されませんでした", ok);
+      }
+    });
+    return;
+  }
+
+  // 一覧をトーストで“固定表示”っぽく見せる（今あるtoastを流用）
+  const wrap = document.getElementById("toastWrap");
+  if (!wrap) return;
+
+  const box = document.createElement("div");
+  box.className = "toast";
+  box.style.width = "min(520px, calc(100vw - 28px))";
+  box.innerHTML = `
+    <div style="flex:1;">
+      <div class="toastTitle">🔔 通知一覧</div>
+      <div class="toastMsg" style="margin-bottom:8px;">未読：${notifyInbox.filter(x=>!x.read).length} 件</div>
+      <div id="inboxList" style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow:auto;"></div>
+      <div class="toastBtns" style="margin-top:10px;">
+        <button class="toastSmallBtn" id="markAll">✅ 全部既読</button>
+        <button class="toastSmallBtn" id="clearRead">🧹 既読を消す</button>
+        <button class="toastSmallBtn" id="closeInbox">閉じる</button>
+      </div>
+    </div>
+  `;
+
+  const list = box.querySelector("#inboxList");
+  const render = ()=>{
+    list.innerHTML = "";
+    for (const n of notifyInbox){
+      const row = document.createElement("div");
+      row.style.border = "1px solid rgba(255,255,255,.10)";
+      row.style.borderRadius = "14px";
+      row.style.padding = "10px";
+      row.style.background = n.read ? "rgba(255,255,255,.05)" : "rgba(110,231,255,.10)";
+      row.style.cursor = "pointer";
+
+      let title = "";
+      let msg = "";
+      if (n.type === "friend_request"){
+        title = "🤝 フレンド申請";
+        msg = `${n.from_name} さんから申請`;
+      }else if (n.type === "friend_room"){
+        title = "🏠 部屋作成";
+        msg = `${n.from_name} さんが「${n.room_name}」を作成`;
+      }else{
+        title = "🔔 通知";
+        msg = `${n.from_name}：${n.type}`;
+      }
+
+      row.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:10px;">
+          <div style="font-weight:900;">${escapeHtml(title)}</div>
+          <div style="font-size:12px;opacity:.7;">${escapeHtml(fmtTime(n.created_at))}</div>
+        </div>
+        <div style="font-size:12px;opacity:.85;margin-top:4px;">${escapeHtml(msg)}</div>
+        <div style="font-size:12px;opacity:.7;margin-top:6px;">
+          ${n.read ? "既読" : "未読"} ・ ${escapeHtml(n.from_name)}
+        </div>
+      `;
+
+      row.onclick = ()=>{
+        n.read = true;
+        setNotifyBadge(notifyInbox.filter(x=>!x.read).length);
+
+        // 種類ごとに開く先を分ける
+        if (n.type === "friend_request" && n.from_uid){
+          location.href = `./profile.html?uid=${encodeURIComponent(n.from_uid)}`;
+          return;
+        }
+        if (n.type === "friend_room" && n.room_id){
+          location.href = `./room.html?room_id=${encodeURIComponent(n.room_id)}&room=${encodeURIComponent(n.room_name||"")}`;
+          return;
+        }
+        render();
+      };
+
+      list.appendChild(row);
+    }
+  };
+
+  render();
+
+  box.querySelector("#markAll").onclick = ()=>{
+    notifyInbox.forEach(x=> x.read = true);
+    setNotifyBadge(0);
+    render();
+  };
+  box.querySelector("#clearRead").onclick = ()=>{
+    notifyInbox = notifyInbox.filter(x=>!x.read);
+    setNotifyBadge(notifyInbox.filter(x=>!x.read).length);
+    render();
+  };
+  box.querySelector("#closeInbox").onclick = ()=> box.remove();
+
+  wrap.appendChild(box);
+};
+
 
 /* ================= online logic ================= */
 function onlineBucket(lastSeenIso){
