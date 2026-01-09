@@ -1053,7 +1053,8 @@ const sb = supabase.createClient(
 
 /* =================== 状態 =================== */
 let authUser = null;
-  try{ initNotify(); }catch(e){ console.warn("initNotify fail", e); }
+let notifyStarted = false;
+
 let roomsChannel = null;
 let callParticipantsChannel = null;
 let postsChannel = null;
