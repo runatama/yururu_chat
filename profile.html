@@ -57,8 +57,14 @@
       display:inline-flex;
       align-items:center;
       gap:8px;
+      user-select:none;
     }
     .btn:hover{ filter:brightness(1.1); }
+    .btn:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+      filter:none;
+    }
     .btnPrimary{
       background:linear-gradient(135deg, var(--accent), var(--accent2));
       color:#08131f;
@@ -145,9 +151,33 @@
     .dot-yellow{ background:#fde047; }
     .dot-gray{ background:#9ca3af; }
 
-
     .ok{ color:var(--good); }
     .ng{ color:var(--bad); }
+
+    /* ===== friend ui ===== */
+    .miniCard{
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.05);
+      border-radius:16px;
+      padding:12px;
+      margin-top:10px;
+    }
+    .miniTitle{
+      font-weight:900;
+      margin-bottom:8px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .tag{
+      font-size:12px;
+      font-weight:900;
+      padding:5px 9px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      color:var(--text);
+    }
   </style>
 </head>
 
@@ -170,6 +200,14 @@
         <div class="statusBadge st-gray" id="onlineBadge"><span class="dot dot-gray" id="onlineDot"></span><span id="onlineStatus">--</span></div>
         <div class="statusSub" id="onlineSub"></div>
       </div>
+
+      <!-- ★ 相手閲覧時だけ出す：ゆる友UI -->
+      <div class="miniCard" id="friendCard" style="display:none;">
+        <div class="miniTitle">🤝 ゆる友 <span class="tag" id="friendTag">--</span></div>
+        <div class="row" id="friendBtns"></div>
+        <div class="hint" id="friendHint" style="margin-top:6px;"></div>
+      </div>
+
       <div style="font-weight:900;margin-bottom:8px;">📝 表示名</div>
       <div class="row">
         <input id="displayName" placeholder="表示名（例: ゆるたま）" />
@@ -199,7 +237,6 @@
         ・他端末でも即反映されます
       </div>
 
-      
       <div style="height:14px;"></div>
 
       <div style="font-weight:900;margin-bottom:8px;">🕶️ オンライン状況</div>
@@ -223,7 +260,7 @@
 <script>
 /* ================= Supabase ================= */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM"; // ← 念のため差し替え推奨（今のままでも動く）
 
 const sb = supabase.createClient(
   SUPABASE_URL,
@@ -279,16 +316,7 @@ function clampBio(s){
   return t.slice(0,300);
 }
 
-function fmtJpDateTime(iso){
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
-  const pad = (n)=> String(n).padStart(2,"0");
-  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// 60秒間隔heartbeat想定：90秒以内ならオンライン表示
-const ONLINE_MS = 90 * 1000;
+// 60秒間隔heartbeat想定：5分以内オンライン扱い（緑）
 function onlineBucket(lastSeenIso){
   if (!lastSeenIso) return { label:"不明", color:"gray" };
 
@@ -297,11 +325,8 @@ function onlineBucket(lastSeenIso){
 
   const diff = Date.now() - t;
   if (diff < 0) return { label:"オンライン", color:"green" };
-
-  // ★ 5分以内はオンライン扱い（緑）
   if (diff <= 5*60*1000) return { label:"オンライン", color:"green" };
 
-  // ここからは従来の細かい区分（表示だけ）
   let label = "";
   if (diff <= 10*60*1000) label = "10分以内";
   else if (diff <= 30*60*1000) label = "30分以内";
@@ -316,7 +341,6 @@ function onlineBucket(lastSeenIso){
   else if (diff <= 30*24*60*60*1000) label = "一カ月以内";
   else label = "一カ月以上";
 
-  // ★ 色分け：24時間以内は黄色、それ以上は灰色
   const color = (diff <= 24*60*60*1000) ? "yellow" : "gray";
   return { label, color };
 }
@@ -326,7 +350,6 @@ function setOnlineUI(lastSeenOrObj){
   const dotEl = document.getElementById("onlineDot");
   const badgeEl = document.getElementById("onlineBadge");
 
-  // lastSeenOrObj に {online_hidden:true} が来たら非公開表示
   const hidden = (typeof lastSeenOrObj === "object" && lastSeenOrObj) ? !!lastSeenOrObj.online_hidden : false;
   const lastSeenIso = (typeof lastSeenOrObj === "string") ? lastSeenOrObj : (lastSeenOrObj?.last_seen || "");
 
@@ -358,7 +381,6 @@ function setOnlineUI(lastSeenOrObj){
     dotEl.style.opacity = "1";
   }
 }
-
 
 /* ================= auth ================= */
 async function signOut(){
@@ -465,15 +487,12 @@ async function syncPublicProfileFromAuth(){
     await upsertPublicProfile(payload);
   }catch(e){
     console.error("syncPublicProfileFromAuth error", e);
-    // 失敗しても止めない（閲覧が一部できないだけ）
   }
 }
 
 async function heartbeatLastSeen(){
   try{
     if (!authUser?.id) return;
-
-    // 非公開中は更新しない
     if (!!(authUser?.user_metadata?.online_hidden)) return;
 
     await sb.from("profiles").upsert({
@@ -486,7 +505,6 @@ async function heartbeatLastSeen(){
     console.error("heartbeatLastSeen error", e);
   }
 }
-
 
 /* ================= UI ================= */
 function renderAvatarBy(displayName, url){
@@ -501,18 +519,15 @@ function renderAvatarBy(displayName, url){
 function setViewOnlyMode(on){
   isViewOnly = !!on;
 
-  // 入力類
   document.getElementById("displayName").disabled = isViewOnly;
   document.getElementById("bio").disabled = isViewOnly;
   document.getElementById("avatarFile").disabled = isViewOnly;
 
-  // ボタン類（相手閲覧時は隠す）
   document.getElementById("saveNameBtn").style.display = isViewOnly ? "none" : "";
   document.getElementById("saveBioBtn").style.display  = isViewOnly ? "none" : "";
   document.getElementById("uploadBtn").style.display   = isViewOnly ? "none" : "";
   document.getElementById("removeBtn").style.display   = isViewOnly ? "none" : "";
 
-  // プライバシー設定（本人のみ）
   const privacyBtn = document.getElementById("savePrivacyBtn");
   const privacyChk = document.getElementById("hideOnline");
   if (privacyBtn) privacyBtn.style.display = isViewOnly ? "none" : "";
@@ -539,7 +554,6 @@ async function savePrivacy(){
 
   const hide = !!document.getElementById("hideOnline")?.checked;
 
-  // 1) auth metadata 更新（本人設定）
   const { data, error } = await sb.auth.updateUser({
     data:{ online_hidden: hide }
   });
@@ -547,31 +561,26 @@ async function savePrivacy(){
 
   authUser = data.user;
 
-  // 2) profiles にも反映（公開プロフィール側の設定）
   try{
     await sb.from("profiles").upsert({
       user_id: authUser.id,
       online_hidden: hide,
       updated_at: new Date().toISOString(),
-      // OFFにした瞬間は「今オンライン」にしたいので last_seen も更新
       ...(hide ? {} : { last_seen: new Date().toISOString() })
     }, { onConflict: "user_id" });
   }catch(e){
     console.error("savePrivacy profiles upsert error", e);
   }
 
-  // UI更新
   if (hide){
     setOnlineUI({ online_hidden: true });
     setStatus("オンライン状況を非公開にしました");
   }else{
-    // 解除したら即オンライン更新
     await heartbeatLastSeen();
     setOnlineUI({ last_seen: new Date().toISOString(), online_hidden: !!(authUser?.user_metadata?.online_hidden) });
     setStatus("オンライン状況の非公開を解除しました");
   }
 }
-
 
 /* ================= save (self) ================= */
 async function saveAll(){
@@ -582,7 +591,6 @@ async function saveAll(){
 
   const bio = clampBio(document.getElementById("bio").value);
 
-  // 1) 自分のUI用（auth metadata）も更新
   const { data, error } = await sb.auth.updateUser({
     data:{ display_name: dn, bio: bio }
   });
@@ -591,9 +599,7 @@ async function saveAll(){
   authUser = data.user;
   refreshSelfUI();
 
-  // 2) 公開プロフィール（profiles）へ同期
   await syncPublicProfileFromAuth();
-
   setStatus("保存しました！");
 }
 
@@ -611,10 +617,7 @@ async function uploadAvatar(){
 
   const { error: upErr } = await sb.storage
     .from(AVATAR_BUCKET)
-    .upload(path, file, {
-      upsert: false,
-      cacheControl: "0"
-    });
+    .upload(path, file, { upsert:false, cacheControl:"0" });
   if (upErr) return setStatus(upErr.message, false);
 
   const { data } = sb.storage.from(AVATAR_BUCKET).getPublicUrl(path);
@@ -622,23 +625,17 @@ async function uploadAvatar(){
 
   const now = Date.now();
   const { data: ud, error } = await sb.auth.updateUser({
-    data: {
-      custom_avatar_url: url,
-      custom_avatar_ver: now
-    }
+    data: { custom_avatar_url: url, custom_avatar_ver: now }
   });
   if (error) return setStatus(error.message, false);
 
-  // 念押しで最新 user_metadata を取り直す
   const { data: uu } = await sb.auth.getUser();
   authUser = uu?.user || ud.user;
 
   document.getElementById("avatarFile").value = "";
   refreshSelfUI();
 
-  // 公開プロフィールも同期
   await syncPublicProfileFromAuth();
-
   setStatus("画像を更新しました！");
 }
 
@@ -646,20 +643,188 @@ async function removeAvatar(){
   if (isViewOnly) return;
 
   const { data, error } = await sb.auth.updateUser({
-    data:{
-      custom_avatar_url:"",
-      custom_avatar_ver: Date.now()
-    }
+    data:{ custom_avatar_url:"", custom_avatar_ver: Date.now() }
   });
   if (error) return setStatus(error.message,false);
 
   authUser = data.user;
   refreshSelfUI();
 
-  // 公開プロフィールも同期
   await syncPublicProfileFromAuth();
-
   setStatus("削除しました");
+}
+
+/* ================= ゆる友（Friend） ================= */
+
+function el(id){ return document.getElementById(id); }
+
+function setFriendLoading(on){
+  const box = el("friendBtns");
+  if (!box) return;
+  [...box.querySelectorAll("button")].forEach(b=> b.disabled = !!on);
+}
+
+async function getFriendState(targetUid){
+  const me = authUser?.id;
+  if (!me || !targetUid) return { state:"none" };
+
+  // 1) friends ある？
+  {
+    const { data, error } = await sb
+      .from("friends")
+      .select("id")
+      .or(`and(user_a.eq.${me},user_b.eq.${targetUid}),and(user_a.eq.${targetUid},user_b.eq.${me})`)
+      .limit(1);
+    if (error) throw error;
+    if (data && data.length) return { state:"friends" };
+  }
+
+  // 2) pending request ある？（方向両方）
+  {
+    const { data, error } = await sb
+      .from("friend_requests")
+      .select("id, from_user, to_user, status")
+      .eq("status","pending")
+      .or(`and(from_user.eq.${me},to_user.eq.${targetUid}),and(from_user.eq.${targetUid},to_user.eq.${me})`)
+      .limit(1);
+    if (error) throw error;
+
+    const r = data && data[0];
+    if (!r) return { state:"none" };
+
+    if (r.from_user === me) return { state:"outgoing", req_id: r.id };
+    return { state:"incoming", req_id: r.id };
+  }
+}
+
+function renderFriendUI(stateObj){
+  const card = el("friendCard");
+  const tag  = el("friendTag");
+  const btns = el("friendBtns");
+  const hint = el("friendHint");
+
+  if (!card || !tag || !btns || !hint) return;
+
+  card.style.display = "";
+  btns.innerHTML = "";
+  hint.textContent = "";
+
+  const makeBtn = (text, cls, onClick)=>{
+    const b = document.createElement("button");
+    b.className = "btn " + (cls||"");
+    b.textContent = text;
+    b.onclick = onClick;
+    return b;
+  };
+
+  const s = stateObj?.state || "none";
+
+  if (s === "friends"){
+    tag.textContent = "友達";
+    btns.appendChild(makeBtn("💔 友達解除", "btnDanger", async()=>{
+      try{
+        setFriendLoading(true);
+        const { error } = await sb.rpc("remove_friend", { target_uid: viewUid });
+        if (error) throw error;
+        setStatus("友達解除しました");
+      }catch(e){
+        console.error(e);
+        setStatus(e.message || "解除失敗", false);
+      }finally{
+        setFriendLoading(false);
+        await refreshFriendUI();
+      }
+    }));
+    hint.textContent = "友達同士です。解除もできます。";
+    return;
+  }
+
+  if (s === "outgoing"){
+    tag.textContent = "申請中";
+    btns.appendChild(makeBtn("⏳ 申請中（取り消す）", "btnDanger", async()=>{
+      try{
+        setFriendLoading(true);
+        const { error } = await sb.rpc("cancel_friend_request", { req_id: stateObj.req_id });
+        if (error) throw error;
+        setStatus("申請を取り消しました");
+      }catch(e){
+        console.error(e);
+        setStatus(e.message || "取消失敗", false);
+      }finally{
+        setFriendLoading(false);
+        await refreshFriendUI();
+      }
+    }));
+    hint.textContent = "相手が承認するまで待ちです。";
+    return;
+  }
+
+  if (s === "incoming"){
+    tag.textContent = "承認待ち";
+    btns.appendChild(makeBtn("✅ 承認", "btnPrimary", async()=>{
+      try{
+        setFriendLoading(true);
+        const { error } = await sb.rpc("accept_friend_request", { req_id: stateObj.req_id });
+        if (error) throw error;
+        setStatus("ゆる友になりました！");
+      }catch(e){
+        console.error(e);
+        setStatus(e.message || "承認失敗", false);
+      }finally{
+        setFriendLoading(false);
+        await refreshFriendUI();
+      }
+    }));
+    btns.appendChild(makeBtn("❌ 拒否", "btnDanger", async()=>{
+      try{
+        setFriendLoading(true);
+        const { error } = await sb.rpc("reject_friend_request", { req_id: stateObj.req_id });
+        if (error) throw error;
+        setStatus("申請を拒否しました");
+      }catch(e){
+        console.error(e);
+        setStatus(e.message || "拒否失敗", false);
+      }finally{
+        setFriendLoading(false);
+        await refreshFriendUI();
+      }
+    }));
+    hint.textContent = "相手から申請が来ています。";
+    return;
+  }
+
+  // none
+  tag.textContent = "未登録";
+  btns.appendChild(makeBtn("🤝 ゆる友申請", "btnPrimary", async()=>{
+    try{
+      setFriendLoading(true);
+      const { error } = await sb.rpc("send_friend_request", { to_uid: viewUid });
+      if (error) throw error;
+      setStatus("申請を送りました！");
+    }catch(e){
+      console.error(e);
+      setStatus(e.message || "申請失敗", false);
+    }finally{
+      setFriendLoading(false);
+      await refreshFriendUI();
+    }
+  }));
+  hint.textContent = "ゆる友になると、今後フレンド限定機能を追加できます。";
+}
+
+async function refreshFriendUI(){
+  if (!viewUid || viewUid === authUser?.id) return;
+  try{
+    const st = await getFriendState(viewUid);
+    renderFriendUI(st);
+  }catch(e){
+    console.error("refreshFriendUI error", e);
+    // UIは出したままにして軽く表示
+    const card = el("friendCard");
+    if (card) card.style.display = "";
+    if (el("friendTag")) el("friendTag").textContent = "不明";
+    if (el("friendHint")) el("friendHint").textContent = "ゆる友状態の取得に失敗（RLSやRPCを確認してね）";
+  }
 }
 
 /* ================= init ================= */
@@ -668,17 +833,16 @@ function goBack(){ location.replace(getBackUrl()); }
 (async()=>{
   if (!await requireLogin()) return;
 
-  // 自分が開いている間は最終オンラインを更新
   heartbeatLastSeen();
   setInterval(heartbeatLastSeen, 60_000);
   document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) heartbeatLastSeen(); });
 
   viewUid = getUidFromUrl();
 
-  // 相手閲覧モード：uid があり、かつ自分じゃない
+  // 相手閲覧モード
   if (viewUid && viewUid !== authUser.id){
     setViewOnlyMode(true);
-    // 相手のprofilesを表示
+
     try{
       const p = await loadPublicProfile(viewUid);
       const dn = String(p?.display_name || "（未設定）");
@@ -691,7 +855,9 @@ function goBack(){ location.replace(getBackUrl()); }
       renderAvatarBy(dn, av);
       setOnlineUI({ last_seen: p?.last_seen, online_hidden: !!p?.online_hidden });
 
-      // 相手閲覧中はログアウトボタンは残す（好みで隠してもOK）
+      // ★ ゆる友UI
+      await refreshFriendUI();
+
       setStatus("閲覧モード（相手のプロフィール）", true);
     }catch(e){
       console.error(e);
@@ -705,7 +871,10 @@ function goBack(){ location.replace(getBackUrl()); }
   refreshSelfUI();
   setOnlineUI(new Date().toISOString());
 
-  // 初回でもprofilesが作られるように同期
+  // 自分のときは友達カード非表示
+  const fc = document.getElementById("friendCard");
+  if (fc) fc.style.display = "none";
+
   await syncPublicProfileFromAuth();
 })();
 </script>
