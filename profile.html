@@ -58,6 +58,7 @@
       align-items:center;
       gap:8px;
       user-select:none;
+      position:relative;
     }
     .btn:hover{ filter:brightness(1.1); }
     .btn:disabled{
@@ -178,6 +179,73 @@
       background:rgba(255,255,255,.06);
       color:var(--text);
     }
+
+    /* ===== notification ===== */
+    .badgeCount{
+      position:absolute;
+      top:-6px;
+      right:-6px;
+      min-width:18px;
+      height:18px;
+      padding:0 6px;
+      border-radius:999px;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      font-size:12px;
+      font-weight:900;
+      color:#08131f;
+      background:linear-gradient(135deg, var(--accent), var(--accent2));
+      box-shadow:0 10px 24px rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.25);
+    }
+
+    .toastWrap{
+      position:fixed;
+      right:14px;
+      bottom:14px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      z-index:9999;
+      pointer-events:none;
+    }
+    .toast{
+      pointer-events:auto;
+      width:min(380px, calc(100vw - 28px));
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(15,26,44,.92);
+      box-shadow:var(--shadow);
+      padding:12px 12px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      animation:toastIn .18s ease-out;
+    }
+    @keyframes toastIn{
+      from{ transform:translateY(8px); opacity:0; }
+      to{ transform:translateY(0); opacity:1; }
+    }
+    .toastTitle{ font-weight:900; margin-bottom:4px; }
+    .toastMsg{ font-size:12px; color:var(--muted); line-height:1.5; }
+    .toastBtns{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .toastSmallBtn{
+      pointer-events:auto;
+      cursor:pointer;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.08);
+      color:var(--text);
+      padding:8px 10px;
+      font-weight:900;
+      font-size:12px;
+    }
+    .toastSmallBtnPrimary{
+      background:linear-gradient(135deg, var(--accent), var(--accent2));
+      color:#08131f;
+      border:none;
+    }
   </style>
 </head>
 
@@ -186,6 +254,11 @@
 <div class="topbar">
   <h2>👤 プロフィール</h2>
   <div class="row">
+    <!-- 🔔通知ボタン -->
+    <button class="btn" id="notifyBtn" onclick="openFriendInbox()">🔔 通知
+      <span class="badgeCount" id="notifyBadge">0</span>
+    </button>
+
     <button class="btn" onclick="goBack()">⬅ 戻る</button>
     <button class="btn btnDanger" id="logoutBtn" onclick="signOut()">🚪 ログアウト</button>
   </div>
@@ -257,10 +330,13 @@
   </div>
 </div>
 
+<!-- トースト置き場 -->
+<div class="toastWrap" id="toastWrap"></div>
+
 <script>
 /* ================= Supabase ================= */
 const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM"; // ← 念のため差し替え推奨（今のままでも動く）
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
 
 const sb = supabase.createClient(
   SUPABASE_URL,
@@ -279,8 +355,13 @@ const AVATAR_BUCKET = "avatar-images";
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 let authUser = null;
-let viewUid = "";       // URLで指定された uid（相手閲覧）
-let isViewOnly = false; // 相手閲覧モードか？
+let viewUid = "";
+let isViewOnly = false;
+
+/* =============== notify state =============== */
+let frChannel = null;
+let pendingCount = 0;
+const shownToastIds = new Set(); // 同じ申請を二重表示しない
 
 /* ================= util ================= */
 function escapeHtml(s){
@@ -316,10 +397,92 @@ function clampBio(s){
   return t.slice(0,300);
 }
 
-// 60秒間隔heartbeat想定：5分以内オンライン扱い（緑）
+function showToast({title, msg, onOpen, onAllowNotify}){
+  const wrap = document.getElementById("toastWrap");
+  if (!wrap) return;
+
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.innerHTML = `
+    <div style="flex:1;">
+      <div class="toastTitle">${escapeHtml(title||"通知")}</div>
+      <div class="toastMsg">${escapeHtml(msg||"")}</div>
+      <div class="toastBtns" id="tb"></div>
+    </div>
+  `;
+
+  const tb = el.querySelector("#tb");
+
+  const addBtn = (text, cls, fn)=>{
+    const b = document.createElement("button");
+    b.className = "toastSmallBtn " + (cls||"");
+    b.textContent = text;
+    b.onclick = ()=>{
+      try{ fn && fn(); }catch(e){ console.error(e); }
+      // 押したら消す
+      el.remove();
+    };
+    tb.appendChild(b);
+  };
+
+  if (onOpen) addBtn("開く", "toastSmallBtnPrimary", onOpen);
+  if (onAllowNotify) addBtn("ブラウザ通知ON", "", onAllowNotify);
+
+  addBtn("閉じる", "", ()=>{});
+  wrap.appendChild(el);
+
+  // 8秒で自動消し
+  setTimeout(()=>{ try{ el.remove(); }catch{} }, 8000);
+}
+
+function setNotifyBadge(n){
+  pendingCount = Math.max(0, Number(n||0));
+  const b = document.getElementById("notifyBadge");
+  if (!b) return;
+  if (pendingCount <= 0){
+    b.style.display = "none";
+    b.textContent = "0";
+  }else{
+    b.style.display = "inline-flex";
+    b.textContent = String(pendingCount);
+  }
+}
+
+async function requestBrowserNotifyPermission(){
+  if (!("Notification" in window)) return false;
+  if (Notification.permission === "granted") return true;
+  if (Notification.permission === "denied") return false;
+
+  const p = await Notification.requestPermission();
+  return p === "granted";
+}
+
+function pushBrowserNotify(title, body){
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  try{
+    new Notification(title, { body });
+  }catch(e){
+    console.error("Notification error", e);
+  }
+}
+
+function openFriendInbox(){
+  // いったん profile 内で “受信申請一覧” を見たいならここでalertでもいい
+  // 将来的に friends.html を作るならそこへ飛ばすのがおすすめ
+  showToast({
+    title:"🔔 通知",
+    msg:`申請（pending）が ${pendingCount} 件あります。相手プロフィールで承認できます。`,
+    onAllowNotify: async()=>{
+      const ok = await requestBrowserNotifyPermission();
+      setStatus(ok ? "ブラウザ通知をONにしました" : "ブラウザ通知が許可されませんでした", ok);
+    }
+  });
+}
+
+/* ================= online logic ================= */
 function onlineBucket(lastSeenIso){
   if (!lastSeenIso) return { label:"不明", color:"gray" };
-
   const t = new Date(lastSeenIso).getTime();
   if (isNaN(t)) return { label:"不明", color:"gray" };
 
@@ -401,7 +564,7 @@ async function requireLogin(){
   }
   authUser = u.user;
 
-  // Googleログイン対策（custom_avatar方式）※元コード維持
+  // Googleログイン対策（custom_avatar方式）
   const um = authUser.user_metadata || {};
   const legacyUrl = String(um.avatar_url || "").trim();
   const legacyVer = String(um.avatar_ver ?? "").trim();
@@ -655,7 +818,6 @@ async function removeAvatar(){
 }
 
 /* ================= ゆる友（Friend） ================= */
-
 function el(id){ return document.getElementById(id); }
 
 function setFriendLoading(on){
@@ -668,7 +830,7 @@ async function getFriendState(targetUid){
   const me = authUser?.id;
   if (!me || !targetUid) return { state:"none" };
 
-  // 1) friends ある？
+  // friends ある？
   {
     const { data, error } = await sb
       .from("friends")
@@ -679,7 +841,7 @@ async function getFriendState(targetUid){
     if (data && data.length) return { state:"friends" };
   }
 
-  // 2) pending request ある？（方向両方）
+  // pending request ある？（方向両方）
   {
     const { data, error } = await sb
       .from("friend_requests")
@@ -819,12 +981,125 @@ async function refreshFriendUI(){
     renderFriendUI(st);
   }catch(e){
     console.error("refreshFriendUI error", e);
-    // UIは出したままにして軽く表示
     const card = el("friendCard");
     if (card) card.style.display = "";
     if (el("friendTag")) el("friendTag").textContent = "不明";
-    if (el("friendHint")) el("friendHint").textContent = "ゆる友状態の取得に失敗（RLSやRPCを確認してね）";
+    if (el("friendHint")) el("friendHint").textContent = "ゆる友状態の取得に失敗（RLSやRealtime/RPCを確認）";
   }
+}
+
+/* ================= 通知：pending数を初期取得 ================= */
+async function refreshPendingCount(){
+  if (!authUser?.id) return;
+  try{
+    const { count, error } = await sb
+      .from("friend_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("to_user", authUser.id)
+      .eq("status", "pending");
+    if (error) throw error;
+    setNotifyBadge(count || 0);
+  }catch(e){
+    console.error("refreshPendingCount error", e);
+  }
+}
+
+/* ================= 通知：Realtime購読 ================= */
+async function startFriendRequestNotifications(){
+  if (!authUser?.id) return;
+
+  // 初期の件数を反映
+  await refreshPendingCount();
+
+  // 既存チャンネルがあれば切る
+  try{
+    if (frChannel){
+      await sb.removeChannel(frChannel);
+      frChannel = null;
+    }
+  }catch(e){
+    console.error("removeChannel error", e);
+  }
+
+  // INSERT：自分宛(to_user)の申請が来たら通知
+  frChannel = sb.channel("fr_notify_" + authUser.id)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "friend_requests",
+      filter: `to_user=eq.${authUser.id}`
+    }, async(payload)=>{
+      try{
+        const r = payload?.new;
+        if (!r) return;
+        if (r.status !== "pending") return;
+
+        // バッジ+1
+        setNotifyBadge(pendingCount + 1);
+
+        // 二重表示防止
+        if (shownToastIds.has(r.id)) return;
+        shownToastIds.add(r.id);
+
+        // 送信者の表示名を取る（失敗してもOK）
+        let fromName = "誰か";
+        try{
+          const { data } = await sb.from("profiles")
+            .select("display_name")
+            .eq("user_id", r.from_user)
+            .maybeSingle();
+          if (data?.display_name) fromName = String(data.display_name);
+        }catch{}
+
+        // トースト通知
+        showToast({
+          title: "🤝 フレンド申請が来た！",
+          msg: `${fromName} さんから申請が届いたよ`,
+          onOpen: ()=>{
+            // 受信者が承認するのは「相手プロフィール画面」なので飛ばす
+            location.href = `./profile.html?uid=${encodeURIComponent(r.from_user)}`;
+          },
+          onAllowNotify: async()=>{
+            const ok = await requestBrowserNotifyPermission();
+            setStatus(ok ? "ブラウザ通知をONにしました" : "ブラウザ通知が許可されませんでした", ok);
+          }
+        });
+
+        // ブラウザ通知（許可されてる場合のみ）
+        pushBrowserNotify("ゆるるチャット", `${fromName} さんからフレンド申請が届いたよ`);
+      }catch(e){
+        console.error("INSERT notify error", e);
+      }
+    })
+    .on("postgres_changes", {
+      event: "UPDATE",
+      schema: "public",
+      table: "friend_requests",
+      filter: `to_user=eq.${authUser.id}`
+    }, (payload)=>{
+      // pending → accepted/rejected/canceled になったらバッジを調整
+      try{
+        const oldRow = payload?.old;
+        const newRow = payload?.new;
+        if (!oldRow || !newRow) return;
+
+        const wasPending = oldRow.status === "pending";
+        const isPending = newRow.status === "pending";
+
+        if (wasPending && !isPending){
+          setNotifyBadge(pendingCount - 1);
+        }
+        if (!wasPending && isPending){
+          setNotifyBadge(pendingCount + 1);
+        }
+      }catch(e){
+        console.error("UPDATE notify error", e);
+      }
+    })
+    .subscribe((status)=>{
+      // 必要ならログ
+      // console.log("frChannel status:", status);
+    });
 }
 
 /* ================= init ================= */
@@ -833,9 +1108,13 @@ function goBack(){ location.replace(getBackUrl()); }
 (async()=>{
   if (!await requireLogin()) return;
 
+  // last_seen
   heartbeatLastSeen();
   setInterval(heartbeatLastSeen, 60_000);
   document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) heartbeatLastSeen(); });
+
+  // ★ 通知を開始（自分がログインしたら）
+  startFriendRequestNotifications();
 
   viewUid = getUidFromUrl();
 
@@ -855,9 +1134,7 @@ function goBack(){ location.replace(getBackUrl()); }
       renderAvatarBy(dn, av);
       setOnlineUI({ last_seen: p?.last_seen, online_hidden: !!p?.online_hidden });
 
-      // ★ ゆる友UI
       await refreshFriendUI();
-
       setStatus("閲覧モード（相手のプロフィール）", true);
     }catch(e){
       console.error(e);
@@ -871,7 +1148,6 @@ function goBack(){ location.replace(getBackUrl()); }
   refreshSelfUI();
   setOnlineUI(new Date().toISOString());
 
-  // 自分のときは友達カード非表示
   const fc = document.getElementById("friendCard");
   if (fc) fc.style.display = "none";
 
