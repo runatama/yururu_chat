@@ -39,10 +39,10 @@ function setNotifyBadge(n){
   if (!el) return;
   const num = Math.max(0, Number(n||0)|0);
   if (num <= 0){
-    el.style.display = "none";
+    el.classList.remove("isOn");
     el.textContent = "";
   }else{
-    el.style.display = "inline-flex";
+    el.classList.add("isOn");
     el.textContent = String(Math.min(99, num));
   }
 }
@@ -689,7 +689,7 @@ function initNotify(){
       align-items:center;
       justify-content:space-between;
       gap:10px;
-      background: rgba(7,12,24,.35);
+      background: rgba(7,12,24,.55);
       border:1px solid rgba(255,255,255,.08);
       padding:10px 12px;
       border-radius: 16px;
@@ -823,7 +823,7 @@ function initNotify(){
       padding:10px 12px;
       border-radius:16px;
       border:1px solid rgba(255,255,255,.08);
-      background: rgba(7,12,24,.25);
+      background: rgba(7,12,24,.45);
     }
     .listItem .name{
       font-size:13px;
@@ -871,7 +871,7 @@ function initNotify(){
       display:flex;
       flex-direction:column;
       gap:10px;
-      background: rgba(7,12,24,.25);
+      background: rgba(7,12,24,.45);
       border-radius: var(--radius2);
       border:1px solid rgba(255,255,255,.08);
     }
@@ -963,7 +963,7 @@ function initNotify(){
       align-items:center;
       justify-content:space-between;
       gap:10px;
-      background: rgba(7,12,24,.35);
+      background: rgba(7,12,24,.55);
       border:1px solid rgba(255,255,255,.08);
       padding:10px 12px;
       border-radius: 16px;
@@ -1001,7 +1001,7 @@ function initNotify(){
       gap:10px;
     }
     .audioWrap{
-      background: rgba(7,12,24,.35);
+      background: rgba(7,12,24,.55);
       border:1px solid rgba(255,255,255,.08);
       border-radius: 18px;
       padding:12px;
@@ -1284,6 +1284,35 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
 
 
 
+
+/* ===== 🔔 Notify button & badge ===== */
+.notifyBtn{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:10px 12px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.06);
+}
+.notifyBadge{
+  display:none;
+  align-items:center;
+  justify-content:center;
+  min-width:18px;
+  height:18px;
+  padding:0 6px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:900;
+  line-height:1;
+  color:var(--text);
+  border:1px solid rgba(255,255,255,.20);
+  background:rgba(255,255,255,.14);
+}
+.notifyBadge.isOn{ display:inline-flex; }
+
 </style>
 
 <script>
@@ -1326,7 +1355,7 @@ window.toggleNotifyPanel = window.toggleNotifyPanel || function(){
         <button class="btn primary" onclick="goLobby()">🏠 ロビーへ</button>
         <button class="btn danger" onclick="doLogout()">🚪 ログアウト</button>
       </div>
-    <button class="btn notifyBtn" id="notifyBtn" onclick="toggleNotifyPanel()">🔔<span class="badge" id="notifyBadge"></span></button>
+    <button class="btn notifyBtn" id="notifyBtn" onclick="toggleNotifyPanel()">🔔<span class="notifyBadge" id="notifyBadge"></span></button>
     </div>
   </div>
 
@@ -1953,7 +1982,7 @@ async function requireLoginOrRedirect(){
     return false;
   }
 
-  // ★重要：refreshSession は詰まることがあるので、失敗しても続行
+  // ★重要：refreshSession は詰まることがあるので、失敗しても続行（ロビーと同じ方針）
   try{
     const t = Promise.race([
       sb.auth.refreshSession(),
@@ -1967,16 +1996,8 @@ async function requireLoginOrRedirect(){
   if (uErr) log("getUser error", uErr);
 
   authUser = u?.user || sessionUser;
-
-  // ✅ ここ！ return の前に置く
-  if (authUser && !notifyStarted){
-    initNotify();
-    notifyStarted = true;
-  }
-
   return true;
 }
-
   
 async function startSubOwnersRealtime(){
   if (!roomId) return;
@@ -4097,7 +4118,6 @@ function scrollToSection(id){
 
 </body>
 </html>
-
 
 
 
