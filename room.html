@@ -1264,6 +1264,23 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
   box-shadow: var(--shadow);
 }
 .notifyBtn:hover{ filter:brightness(1.1); }
+/* ===== 🔔 Notify 背景を濃くする ===== */
+#notifyPanel{
+  background: #060b18 !important;
+}
+
+#notifyPanel .nItem{
+  background: rgba(7,12,24,.7) !important;
+}
+
+#notifyPanel .nItem:hover{
+  background: rgba(7,12,24,.9) !important;
+}
+
+#notifyPanel .nItem.unread{
+  background: rgba(10,20,40,.9) !important;
+  outline: 1px solid rgba(110,231,255,.25);
+}
 
 
 
@@ -4072,6 +4089,7 @@ function scrollToSection(id){
 
 </body>
 </html>
+
 
 
 
