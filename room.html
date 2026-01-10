@@ -1232,6 +1232,82 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
     justify-content:flex-start;
   }
 }
+/* ===============================
+   🔔 Notify UI（Lobbyと完全一致）
+   =============================== */
+
+/* 外枠は使わない（白い四角防止） */
+#notifyPanel{
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* ヘッダー・ボディも無効化 */
+#notifyPanel .cardHeader,
+#notifyPanel .cardBody{
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* 通知リスト全体（Lobbyの.listと同じ） */
+#notifyList .list{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 通知1件（Lobbyの.listItem完全再現） */
+#notifyList .nItem{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(7,12,24,.25);   /* ← Lobbyと同じ色 */
+
+  box-shadow: none !important;
+}
+
+/* hover */
+#notifyList .nItem:hover{
+  background: rgba(7,12,24,.35);
+}
+
+/* 未読ドット */
+.notifyDot{
+  color: var(--accent);
+  font-size: 10px;
+}
+
+/* 右側アクション */
+.notifyActions{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ===============================
+   📱 スマホ最適化（Lobbyと同じ）
+   =============================== */
+@media (max-width: 560px){
+  #notifyList .nItem{
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .notifyActions{
+    width: 100%;
+  }
+
+  .notifyActions .btn{
+    width: 100%;
+  }
+}
 
 </style>
 
@@ -4038,6 +4114,7 @@ function scrollToSection(id){
 
 </body>
 </html>
+
 
 
 
