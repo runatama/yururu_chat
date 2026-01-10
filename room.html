@@ -1146,168 +1146,93 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
     .toastMsg{ font-size:12px; color:var(--muted); line-height:1.5; }
     .toastBtns{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
     
-/* ===== 🔔 通知をロビーと同じ色に統一 ===== */
-
-/* 通知1件（白く見えてた四角） */
-#notifyPanel .nItem{
-  background: rgba(7,12,24,.25) !important;   /* ← ロビーと同じ */
-  border: 1px solid rgba(255,255,255,.08) !important;
-  box-shadow: none !important;
-}
-
-/* 既読・未読どちらも同じベース色 */
-#notifyPanel .nItem:hover{
-  background: rgba(7,12,24,.35) !important;
-}
-
-
-
-
-/* ===== 🔔 Notify: ロビーと同じ見た目＋スマホ最適化 ===== */
-#notifyPanel{
-  background: var(--bg1) !important;
-  border:1px solid rgba(255,255,255,.10) !important;
-  box-shadow: var(--shadow) !important;
-}
-#notifyPanel .cardHeader{
-  background: rgba(7,12,24,.35) !important;
-  border-bottom:1px solid rgba(255,255,255,.10) !important;
-}
-#notifyPanel .cardBody{ background: transparent !important; }
-
-/* 通知リストはロビー/ルームの listItem をそのまま使う */
-#notifyPanel .notifyList{ margin:0; }
-#notifyPanel .nItem{
-  background: rgba(7,12,24,.25) !important;  /* ロビーの listItem と同系 */
-  border:1px solid rgba(255,255,255,.08) !important;
-  box-shadow:none !important;
-  align-items:flex-start;
-}
-#notifyPanel .nItem:hover{ background: rgba(7,12,24,.35) !important; }
-#notifyPanel .nItem.unread{ outline:1px solid rgba(110,231,255,.18); }
-
-.notifyDot{
-  color: var(--accent);
-  font-size:12px;
-  line-height:1;
-  flex:0 0 auto;
-}
-.titleText{
-  min-width:0;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  display:block;
-  max-width: 40vw;
-}
-
-/* 右側ボタン */
-.notifyActions{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-  justify-content:flex-end;
-  align-items:center;
-  flex:0 0 auto;
-}
-.notifyActions .btn{ padding:8px 10px; border-radius:12px; font-size:12px; }
-
-/* スマホ：通知パネルを画面幅いっぱい＆ボタンを下へ */
-@media (max-width: 560px){
-  #notifyPanel{
-    right:10px !important;
-    left:10px !important;
-    top:64px !important;
-    width: auto !important;
-    max-height: calc(100vh - 88px);
-    overflow:auto;
-  }
-  #notifyPanel .nItem{
-    flex-direction:column;
-    align-items:stretch;
-    gap:10px;
-  }
-  .titleText{ max-width: 100%; }
-  .notifyActions{
-    justify-content:flex-start;
-  }
-}
 /* ===============================
-   🔔 Notify UI（Lobbyと完全一致）
+   🔔 Notify（ロビーと同じ見た目 + スマホ最適化）
+   ※重複CSSは全部消してこれだけ残す
    =============================== */
 
-/* 外枠は使わない（白い四角防止） */
+/* 白い四角（外枠カード）を消す */
 #notifyPanel{
   background: none !important;
   border: none !important;
   box-shadow: none !important;
 }
 
-/* ヘッダー・ボディも無効化 */
+/* cardのヘッダー/ボディも外枠化しない */
 #notifyPanel .cardHeader,
 #notifyPanel .cardBody{
   background: none !important;
   border: none !important;
+  box-shadow: none !important;
   padding: 0 !important;
 }
 
-/* 通知リスト全体（Lobbyの.listと同じ） */
-#notifyList .list{
+/* 通知1件 = ロビーのlistItemっぽく */
+#notifyPanel .nItem{
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* 通知1件（Lobbyの.listItem完全再現） */
-#notifyList .nItem{
-  display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
 
   padding: 10px 12px;
   border-radius: 16px;
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(7,12,24,.25);   /* ← Lobbyと同じ色 */
 
+  background: rgba(7,12,24,.25) !important;  /* ← ロビーと同じ */
+  border: 1px solid rgba(255,255,255,.08) !important;
   box-shadow: none !important;
 }
 
-/* hover */
-#notifyList .nItem:hover{
-  background: rgba(7,12,24,.35);
+#notifyPanel .nItem:hover{
+  background: rgba(7,12,24,.35) !important;
 }
 
-/* 未読ドット */
+/* 未読のちょい強調（ロビー寄りの薄さ） */
+#notifyPanel .nItem.unread{
+  outline: 1px solid rgba(110,231,255,.18);
+}
+
+/* ドット */
 .notifyDot{
   color: var(--accent);
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1;
 }
 
-/* 右側アクション */
+/* タイトル文字のはみ出し防止 */
+.titleText{
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+/* 右側ボタン */
 .notifyActions{
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 /* ===============================
-   📱 スマホ最適化（Lobbyと同じ）
+   📱 スマホ最適化
    =============================== */
 @media (max-width: 560px){
-  #notifyList .nItem{
+  #notifyPanel .nItem{
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
   }
-
   .notifyActions{
-    width: 100%;
+    justify-content: flex-start;
   }
-
   .notifyActions .btn{
     width: 100%;
   }
 }
+
 
 </style>
 
@@ -4114,6 +4039,7 @@ function scrollToSection(id){
 
 </body>
 </html>
+
 
 
 
