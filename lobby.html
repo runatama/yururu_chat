@@ -942,6 +942,9 @@ function initNotify(){
     justify-content:flex-start;
   }
 }
+/* ===== 🔔 通知横の「変な〇」対策：空バッジは出さない ===== */
+#notifyBadge{ display:none; }          /* 初期状態は絶対消す */
+#notifyBadge:empty{ display:none !important; }
 
 </style>
 
@@ -2374,6 +2377,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
