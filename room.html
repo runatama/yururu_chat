@@ -1249,6 +1249,21 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
 #notifyBadge:empty {
   display: none !important;
 }
+/* 右上の🔔ボタン：Chromeデフォルト(白四角)を殺す */
+.notifyBtn{
+  appearance: none;
+  -webkit-appearance: none;
+
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+
+  border-radius:14px;
+  padding:10px 14px;
+  font-weight:700;
+  box-shadow: var(--shadow);
+}
+.notifyBtn:hover{ filter:brightness(1.1); }
 
 
 
@@ -1294,7 +1309,7 @@ window.toggleNotifyPanel = window.toggleNotifyPanel || function(){
         <button class="btn primary" onclick="goLobby()">🏠 ロビーへ</button>
         <button class="btn danger" onclick="doLogout()">🚪 ログアウト</button>
       </div>
-    <button class="notifyBtn" id="notifyBtn" onclick="toggleNotifyPanel()">🔔<span class="badge" id="notifyBadge"></span></button>
+    <button class="btn notifyBtn" id="notifyBtn" onclick="toggleNotifyPanel()">🔔<span class="badge" id="notifyBadge"></span></button>
     </div>
   </div>
 
@@ -4057,6 +4072,7 @@ function scrollToSection(id){
 
 </body>
 </html>
+
 
 
 
