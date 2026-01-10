@@ -38,10 +38,10 @@ function setNotifyBadge(n){
   if (!el) return;
   const num = Math.max(0, Number(n||0)|0);
   if (num <= 0){
-    el.style.display = "none";
+    el.classList.remove("isOn");
     el.textContent = "";
   }else{
-    el.style.display = "inline-flex";
+    el.classList.add("isOn");
     el.textContent = String(Math.min(99, num));
   }
 }
@@ -880,7 +880,7 @@ function initNotify(){
   box-shadow: var(--shadow) !important;
 }
 #notifyPanel .cardHeader{
-  background: rgba(7,12,24,.35) !important;
+  background: rgba(7,12,24,.55) !important;
   border-bottom:1px solid rgba(255,255,255,.10) !important;
 }
 #notifyPanel .cardBody{ background: transparent !important; }
@@ -888,12 +888,12 @@ function initNotify(){
 /* 通知リストはロビー/ルームの listItem をそのまま使う */
 #notifyPanel .notifyList{ margin:0; }
 #notifyPanel .nItem{
-  background: rgba(7,12,24,.25) !important;  /* ロビーの listItem と同系 */
+  background: rgba(7,12,24,.45) !important;  /* ロビーの listItem と同系 */
   border:1px solid rgba(255,255,255,.08) !important;
   box-shadow:none !important;
   align-items:flex-start;
 }
-#notifyPanel .nItem:hover{ background: rgba(7,12,24,.35) !important; }
+#notifyPanel .nItem:hover{ background: rgba(7,12,24,.55) !important; }
 #notifyPanel .nItem.unread{ outline:1px solid rgba(110,231,255,.18); }
 
 .notifyDot{
@@ -942,9 +942,35 @@ function initNotify(){
     justify-content:flex-start;
   }
 }
-/* ===== 🔔 通知横の「変な〇」対策：空バッジは出さない ===== */
-#notifyBadge{ display:none; }          /* 初期状態は絶対消す */
-#notifyBadge:empty{ display:none !important; }
+
+
+/* ===== 🔔 Notify button & badge ===== */
+.notifyBtn{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:10px 12px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.06);
+}
+.notifyBadge{
+  display:none;
+  align-items:center;
+  justify-content:center;
+  min-width:18px;
+  height:18px;
+  padding:0 6px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:900;
+  line-height:1;
+  color:var(--text);
+  border:1px solid rgba(255,255,255,.20);
+  background:rgba(255,255,255,.14);
+}
+.notifyBadge.isOn{ display:inline-flex; }
 
 </style>
 
@@ -966,7 +992,7 @@ window.toggleNotifyPanel = window.toggleNotifyPanel || function(){
   <div class="userBox">
     <button class="userPill" id="userNamePill" type="button" onclick="goProfile()">未ログイン</button>
     <span class="userText" id="userMailText"></span>
-    <button class="notifyBtn" id="notifyBtn" onclick="toggleNotifyPanel()">🔔<span class="badge" id="notifyBadge"></span></button>
+    <button class="notifyBtn" id="notifyBtn" onclick="toggleNotifyPanel()">🔔<span class="notifyBadge" id="notifyBadge"></span></button>
       <button class="btnDanger" onclick="signOut()" id="signOutBtn" style="display:none;">ログアウト</button>
   </div>
 </div>
