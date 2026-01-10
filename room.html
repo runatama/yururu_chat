@@ -1146,92 +1146,107 @@ body{ padding-bottom: 78px; } /* ナビの分だけ下に余白 */
     .toastMsg{ font-size:12px; color:var(--muted); line-height:1.5; }
     .toastBtns{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
     
-/* ===============================
-   🔔 Notify（ロビーと同じ見た目 + スマホ最適化）
-   ※重複CSSは全部消してこれだけ残す
-   =============================== */
+/* ===== 🔔 Notify: ロビーと同じ見た目に統一（最終版） ===== */
 
-/* 白い四角（外枠カード）を消す */
+/* 通知パネル本体（ロビーのカードと同じ） */
 #notifyPanel{
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03)) !important; /* .card と同系 */
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow) !important;
+
+  /* ここは好み：ガラス風をやめてロビーと合わせる */
+  backdrop-filter: none !important;
 }
 
-/* cardのヘッダー/ボディも外枠化しない */
-#notifyPanel .cardHeader,
+/* ヘッダー（ロビーの上部UIに寄せる） */
+#notifyPanel .cardHeader{
+  background: rgba(255,255,255,.06) !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+
+/* 本文（透けすぎ防止しつつロビーと同じ） */
 #notifyPanel .cardBody{
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
+  background: transparent !important;
 }
 
-/* 通知1件 = ロビーのlistItemっぽく */
+/* 通知リスト全体 */
+#notifyPanel .notifyList{ margin:0 !important; }
+
+/* 通知1件（ロビーの listItem と同系のカード） */
 #notifyPanel .nItem{
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-
-  padding: 10px 12px;
-  border-radius: 16px;
-
-  background: rgba(7,12,24,.25) !important;  /* ← ロビーと同じ */
+  background: rgba(255,255,255,.06) !important;
   border: 1px solid rgba(255,255,255,.08) !important;
+  border-radius: 16px !important;
   box-shadow: none !important;
+  align-items: flex-start !important;
 }
-
 #notifyPanel .nItem:hover{
-  background: rgba(7,12,24,.35) !important;
+  background: rgba(110,231,255,.10) !important; /* ロビーの hover っぽく */
 }
-
-/* 未読のちょい強調（ロビー寄りの薄さ） */
 #notifyPanel .nItem.unread{
-  outline: 1px solid rgba(110,231,255,.18);
+  outline: 1px solid rgba(110,231,255,.18) !important;
 }
 
-/* ドット */
+/* 未読ドット */
 .notifyDot{
-  color: var(--accent);
-  font-size: 12px;
-  line-height: 1;
+  color: var(--accent) !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  flex: 0 0 auto !important;
 }
 
-/* タイトル文字のはみ出し防止 */
+/* タイトル */
 .titleText{
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
+  min-width:0 !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+  display:block !important;
+  max-width: 40vw !important;
 }
 
 /* 右側ボタン */
 .notifyActions{
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: center;
+  display:flex !important;
+  gap:8px !important;
+  flex-wrap:wrap !important;
+  justify-content:flex-end !important;
+  align-items:center !important;
+  flex:0 0 auto !important;
+}
+.notifyActions .btn{
+  padding:8px 10px !important;
+  border-radius:12px !important;
+  font-size:12px !important;
 }
 
-/* ===============================
-   📱 スマホ最適化
-   =============================== */
-@media (max-width: 560px){
-  #notifyPanel .nItem{
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-  .notifyActions{
-    justify-content: flex-start;
-  }
-  .notifyActions .btn{
-    width: 100%;
-  }
+/* トーストもロビーと同系色に（任意） */
+.toast{
+  background: rgba(15,26,44,.92) !important;  /* いまのロビー配色と馴染む */
+  border: 1px solid var(--line) !important;
+  box-shadow: var(--shadow) !important;
 }
+
+/* スマホ最適化 */
+@media (max-width: 560px){
+  #notifyPanel{
+    right:10px !important;
+    left:10px !important;
+    top:64px !important;
+    width:auto !important;
+    max-height: calc(100vh - 88px) !important;
+    overflow:auto !important;
+  }
+  #notifyPanel .nItem{
+    flex-direction:column !important;
+    align-items:stretch !important;
+    gap:10px !important;
+  }
+  .titleText{ max-width:100% !important; }
+  .notifyActions{ justify-content:flex-start !important; }
+}
+
 
 
 </style>
@@ -4039,6 +4054,7 @@ function scrollToSection(id){
 
 </body>
 </html>
+
 
 
 
