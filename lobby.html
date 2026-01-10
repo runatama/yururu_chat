@@ -1286,6 +1286,7 @@ async function requireLoginOrRedirect(){
   return false;
 }
 
+
 /* =================== ログアウト =================== */
 function clearSupabaseLocalStorage(){
   try{
@@ -2338,6 +2339,8 @@ function getPreferredAvatar(){
 
   // ★ ロビーにいる間も最終オンライン(last_seen)を更新
   startOnlineHeartbeatLobby();
+// ✅ ログイン済み & authUser 確定後に呼ぶ
+initNotify();
 
   // 前回の表示モード復元
   try{
@@ -2377,6 +2380,7 @@ function getPreferredAvatar(){
 
 </body>
 </html>
+
 
 
 
