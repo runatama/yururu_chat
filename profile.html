@@ -329,13 +329,13 @@
   padding:0 !important;
 }
 #notifyList .nItem{
-  background: rgba(7,12,24,.25) !important; /* ロビー系 */
+  background: rgba(7,12,24,.45) !important; /* ロビー系 */
   border: 1px solid rgba(255,255,255,.08) !important;
   border-radius: 16px !important;
   box-shadow:none !important;
 }
 #notifyList .nItem:hover{
-  background: rgba(7,12,24,.35) !important;
+  background: rgba(7,12,24,.55) !important;
 }
 #notifyList .nItem .btn{
   border-radius: 14px !important;
@@ -351,6 +351,35 @@
   }
 }
 
+
+/* ===== 🔔 Notify button & badge ===== */
+.notifyBtn{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:10px 12px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.06);
+}
+.notifyBadge{
+  display:none;
+  align-items:center;
+  justify-content:center;
+  min-width:18px;
+  height:18px;
+  padding:0 6px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:900;
+  line-height:1;
+  color:var(--text);
+  border:1px solid rgba(255,255,255,.20);
+  background:rgba(255,255,255,.14);
+}
+.notifyBadge.isOn{ display:inline-flex; }
+
 </style>
 </head>
 
@@ -360,9 +389,7 @@
   <h2>👤 プロフィール</h2>
   <div class="row">
     <!-- 🔔通知ボタン -->
-    <button class="btn" id="notifyBtn" onclick="openFriendInbox()">🔔 通知
-      <span class="badgeCount" id="notifyBadge">0</span>
-    </button>
+    <button class="notifyBtn" id="notifyBtn" onclick="toggleNotifyPanel()" type="button">🔔<span class="notifyBadge" id="notifyBadge"></span></button>
 
     <button class="btn" onclick="goBack()">⬅ 戻る</button>
     <button class="btn btnDanger" id="logoutBtn" onclick="signOut()">🚪 ログアウト</button>
@@ -481,25 +508,463 @@ let authUser = null;
 let viewUid = "";
 let isViewOnly = false;
 
-/* =============== notify state =============== */
+/* ===================== Notify (same as profile) ===================== */
 let frChannel = null;
+let roomNotifyChannel = null;
+let inviteNotifyChannel = null;
 let pendingCount = 0;
 const shownToastIds = new Set();
-const inviteToastIds = new Set();
 
+let notifyInbox = []; // max 10, localStorage
+function inboxKey(){
+  return authUser?.id ? ("notify_inbox_" + authUser.id) : "notify_inbox_anon";
+}
+function loadNotifyInbox(){
+  try{
+    const raw = localStorage.getItem(inboxKey());
+    if (!raw) { notifyInbox = []; return; }
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) notifyInbox = arr.slice(0,10);
+    else notifyInbox = [];
+  }catch{ notifyInbox = []; }
+}
+function saveNotifyInbox(){
+  try{
+    localStorage.setItem(inboxKey(), JSON.stringify(notifyInbox.slice(0,10)));
+  }catch{}
+}
 
-// 🔔 バッジ表示用（pendingCount とは別）
-let badgeCount = 0;
+function setNotifyBadge(n){
+  const el = document.getElementById("notifyBadge");
+  if (!el) return;
+  const num = Math.max(0, Number(n||0)|0);
+  if (num <= 0){
+    el.classList.remove("isOn");
+    el.textContent = "";
+  }else{
+    el.classList.add("isOn");
+    el.textContent = String(Math.min(99, num));
+  }
+}
 
-function getUnreadOtherCount(){
+function unreadOtherCount(){
   return notifyInbox.filter(n => !n.read && n.type !== "friend_request").length;
 }
 function updateNotifyBadgeTotal(){
-  // pending（申請中） + その他未読（部屋など）
-  setNotifyBadge(pendingCount + getUnreadOtherCount());
+  setNotifyBadge(pendingCount + unreadOtherCount());
 }
-// =============== notify inbox ===============
-let notifyInbox = []; // [{id,type,from_uid,from_name,room_id,room_name,created_at,read}]
+
+function addNotify(item){
+  if (!item) return;
+  // 同じIDは二重追加しない
+  if (item.id && notifyInbox.some(x => x.id === item.id)) return;
+  notifyInbox.unshift({
+    id: item.id || ("local_" + Date.now() + "_" + Math.random()),
+    type: item.type || "other",
+    title: item.title || "通知",
+    msg: item.msg || "",
+    from_uid: item.from_uid || null,
+    from_name: item.from_name || null,
+    room_id: item.room_id || null,
+    room_name: item.room_name || null,
+    created_at: item.created_at || new Date().toISOString(),
+    read: !!item.read
+  });
+  // 10個まで保持。それ以上は古いのを削除
+  if (notifyInbox.length > 10) notifyInbox = notifyInbox.slice(0,10);
+  saveNotifyInbox();
+  updateNotifyBadgeTotal();
+}
+
+function markAllRead(){
+  notifyInbox = notifyInbox.map(n => ({...n, read:true}));
+  saveNotifyInbox();
+  updateNotifyBadgeTotal();
+  renderNotifyPanel();
+}
+function markOneRead(id){
+  notifyInbox = notifyInbox.map(n => n.id === id ? ({...n, read:true}) : n);
+  saveNotifyInbox();
+  updateNotifyBadgeTotal();
+  renderNotifyPanel();
+}
+
+function showToast({title, msg, onOpen, onAllowNotify}){
+  const wrap = document.getElementById("toastWrap");
+  if (!wrap) return;
+
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.innerHTML = `
+    <div class="toastHead">
+      <div class="toastTitle">${escapeHtml(title||"通知")}</div>
+      <button class="toastClose" aria-label="close">×</button>
+    </div>
+    <div class="toastBody">${escapeHtml(msg||"")}</div>
+    <div class="toastBtns">
+      ${onOpen ? `<button class="btn btnPrimary" data-open>開く</button>` : ``}
+      ${onAllowNotify ? `<button class="btn btnGhost" data-allow>通知ON</button>` : ``}
+      <button class="btn btnGhost" data-close>閉じる</button>
+    </div>
+  `;
+
+  const close = ()=>{ try{ el.remove(); }catch{} };
+
+  el.querySelector(".toastClose").onclick = close;
+  el.querySelector("[data-close]").onclick = close;
+
+  const openBtn = el.querySelector("[data-open]");
+  if (openBtn && onOpen){
+    openBtn.onclick = ()=>{ try{ onOpen(); }finally{ close(); } };
+  }
+
+  const allowBtn = el.querySelector("[data-allow]");
+  if (allowBtn && onAllowNotify){
+    allowBtn.onclick = async()=>{
+      try{ await onAllowNotify(); }catch{}
+      close();
+    };
+  }
+
+  wrap.prepend(el);
+
+  // 12秒で自動消し
+  setTimeout(close, 12000);
+}
+
+async function requestBrowserNotifyPermission(){
+  try{
+    if (!("Notification" in window)) return false;
+    if (Notification.permission === "granted") return true;
+    if (Notification.permission === "denied") return false;
+    const res = await Notification.requestPermission();
+    return res === "granted";
+  }catch{ return false; }
+}
+
+function pushBrowserNotify(title, body){
+  try{
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    new Notification(title, { body });
+  }catch{}
+}
+
+/* ====== 通知パネル（超簡易） ====== */
+function toggleNotifyPanel(){
+  const panel = document.getElementById("notifyPanel");
+  if (!panel) return;
+  const open = panel.style.display !== "block";
+  panel.style.display = open ? "block" : "none";
+  if (open) renderNotifyPanel();
+}
+function renderNotifyPanel(){
+  const panel = document.getElementById("notifyPanel");
+  const list = document.getElementById("notifyList");
+  if (!panel || !list) return;
+
+  // 新しい順
+  const arr = notifyInbox.slice().sort((a,b)=> (b.created_at||"").localeCompare(a.created_at||""));
+
+  if (arr.length === 0){
+    list.innerHTML = `<div class="hint">通知はまだありません</div>`;
+    return;
+  }
+
+  list.innerHTML = `<div class="list notifyList">` + arr.map(n=>{
+    const unread = !n.read;
+    const dot = unread ? `<span class="notifyDot">●</span>` : ``;
+
+    const safeId = String(n.id).replace(/'/g,"\\'");
+    const hasProfile = !!n.from_uid;
+    const hasRoom = (n.room_id && n.room_name);
+
+    return `
+      <div class="listItem nItem ${unread ? "unread" : ""}">
+        <div class="name" style="min-width:0;">
+          <div class="listMain" style="min-width:0;">
+            <div class="listTitle" style="display:flex;align-items:center;gap:8px;min-width:0;">
+              ${dot}<span class="titleText">${escapeHtml(n.title||"通知")}</span>
+            </div>
+            <div class="listSub" style="white-space:normal;line-height:1.4;margin-top:4px;">
+              ${escapeHtml(n.msg||"")}
+            </div>
+          </div>
+        </div>
+
+        <div class="notifyActions">
+          <button class="btn btnMuted" onclick="markOneRead('${safeId}')">既読</button>
+          ${hasProfile ? `<button class="btn btnMuted" onclick="location.href='./profile.html?uid=${encodeURIComponent(n.from_uid)}'">相手</button>` : ``}
+          ${hasRoom ? `<button class="btn btnPrimary" onclick="location.href='./room.html?room=${encodeURIComponent(n.room_name)}&room_id=${encodeURIComponent(n.room_id)}'">部屋へ</button>` : ``}
+        </div>
+      </div>
+    `;
+  }).join("") + `</div>`;
+}
+
+/* ====== friend_requests: pending数 初期取得＋Realtime ====== */
+async function refreshPendingCount(){
+  if (!authUser?.id) return;
+  try{
+    const { count, error } = await sb
+      .from("friend_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("to_user", authUser.id)
+      .eq("status", "pending");
+    if (error) throw error;
+    pendingCount = count || 0;
+    updateNotifyBadgeTotal();
+  }catch(e){
+    console.error("refreshPendingCount error", e);
+  }
+}
+
+async function startFriendRequestNotifications(){
+  if (!authUser?.id) return;
+
+  await refreshPendingCount();
+
+  try{
+    if (frChannel){
+      await sb.removeChannel(frChannel);
+      frChannel = null;
+    }
+  }catch(e){
+    console.error("removeChannel error", e);
+  }
+
+  frChannel = sb.channel("fr_notify_" + authUser.id)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "friend_requests",
+      filter: `to_user=eq.${authUser.id}`
+    }, async(payload)=>{
+      try{
+        const r = payload?.new;
+        if (!r) return;
+        if (r.status !== "pending") return;
+
+        pendingCount = pendingCount + 1;
+        updateNotifyBadgeTotal();
+
+        if (shownToastIds.has("fr_"+r.id)) return;
+        shownToastIds.add("fr_"+r.id);
+
+        let fromName = "誰か";
+        try{
+          const { data } = await sb.from("profiles")
+            .select("display_name")
+            .eq("user_id", r.from_user)
+            .maybeSingle();
+          if (data?.display_name) fromName = String(data.display_name);
+        }catch{}
+
+        // inbox保存（見ても消えない）
+        addNotify({
+          id: "fr_" + r.id,
+          type: "friend_request",
+          title: "🤝 フレンド申請",
+          msg: `${fromName} さんから申請が届いたよ`,
+          from_uid: r.from_user,
+          from_name: fromName,
+          created_at: new Date().toISOString(),
+          read: false
+        });
+
+        showToast({
+          title: "🤝 フレンド申請が来た！",
+          msg: `${fromName} さんから申請が届いたよ`,
+          onOpen: ()=>{
+            location.href = `./profile.html?uid=${encodeURIComponent(r.from_user)}`;
+          },
+          onAllowNotify: async()=>{
+            const ok = await requestBrowserNotifyPermission();
+            if (typeof setStatus === "function"){
+              setStatus(ok ? "ブラウザ通知をONにしました" : "ブラウザ通知が許可されませんでした", ok);
+            }
+          }
+        });
+
+        pushBrowserNotify("ゆるるチャット", `${fromName} さんからフレンド申請が届いたよ`);
+      }catch(e){
+        console.error("INSERT notify error", e);
+      }
+    })
+    .on("postgres_changes", {
+      event: "UPDATE",
+      schema: "public",
+      table: "friend_requests",
+      filter: `to_user=eq.${authUser.id}`
+    }, async(payload)=>{
+      try{
+        const oldRow = payload?.old;
+        const newRow = payload?.new;
+        if (!oldRow || !newRow) return;
+
+        const wasPending = oldRow.status === "pending";
+        const isPending = newRow.status === "pending";
+
+        if (wasPending && !isPending) pendingCount = Math.max(0, pendingCount - 1);
+        if (!wasPending && isPending) pendingCount = pendingCount + 1;
+        updateNotifyBadgeTotal();
+      }catch(e){
+        console.error("UPDATE notify error", e);
+      }
+    })
+    .subscribe(()=>{});
+}
+
+/* ====== friends UID一覧（部屋作成通知用） ====== */
+let friendUidsCache = [];
+async function loadFriendUids(){
+  if (!authUser?.id) return [];
+  try{
+    // friends テーブル（user_a, user_b）前提
+    const { data, error } = await sb
+      .from("friends")
+      .select("user_a,user_b")
+      .or(`user_a.eq.${authUser.id},user_b.eq.${authUser.id}`);
+    if (error) throw error;
+
+    const uids = [];
+    for (const row of (data||[])){
+      if (row.user_a === authUser.id) uids.push(row.user_b);
+      else uids.push(row.user_a);
+    }
+    friendUidsCache = Array.from(new Set(uids.filter(Boolean)));
+  }catch(e){
+    console.error("loadFriendUids error", e);
+    friendUidsCache = [];
+  }
+  return friendUidsCache;
+}
+
+/* ====== rooms INSERT（フレンドが部屋作成） ====== */
+async function startRoomCreateNotifications(){
+  if (!authUser?.id) return;
+  const friendUids = await loadFriendUids();
+  if (friendUids.length === 0) return;
+
+  if (roomNotifyChannel){
+    try{ await sb.removeChannel(roomNotifyChannel); }catch{}
+    roomNotifyChannel = null;
+  }
+
+  roomNotifyChannel = sb
+    .channel("room_create_notify_" + authUser.id)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "rooms"
+    }, async(payload)=>{
+      const r = payload?.new;
+      if (!r) return;
+      if (!friendUids.includes(r.owner_id)) return;
+
+      let ownerName = "フレンド";
+      try{
+        const { data } = await sb
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", r.owner_id)
+          .maybeSingle();
+        if (data?.display_name) ownerName = data.display_name;
+      }catch{}
+
+      addNotify({
+        id: "room_" + r.id,
+        type: "room_create",
+        title: "🏠 部屋が作成された",
+        msg: `${ownerName} さんが「${r.room_name}」を作ったよ`,
+        from_uid: r.owner_id,
+        from_name: ownerName,
+        room_id: r.id,
+        room_name: r.room_name,
+        created_at: new Date().toISOString(),
+        read: false
+      });
+
+      showToast({
+        title: "🏠 フレンドが部屋を作成！",
+        msg: `${ownerName} さんが「${r.room_name}」を作ったよ`,
+        onOpen: ()=>{
+          location.href = `./room.html?room=${encodeURIComponent(r.room_name)}&room_id=${encodeURIComponent(r.id)}`;
+        }
+      });
+
+      pushBrowserNotify("ゆるるチャット", `${ownerName} さんが部屋「${r.room_name}」を作成`);
+    })
+    .subscribe();
+}
+
+/* ====== room_invites（招待） ====== */
+async function startRoomInviteNotifications(){
+  if (!authUser?.id) return;
+
+  if (inviteNotifyChannel){
+    try{ await sb.removeChannel(inviteNotifyChannel); }catch{}
+    inviteNotifyChannel = null;
+  }
+
+  inviteNotifyChannel = sb
+    .channel("room_invite_notify_" + authUser.id)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "room_invites",
+      filter: `to_user=eq.${authUser.id}`
+    }, async(payload)=>{
+      const inv = payload?.new;
+      if (!inv) return;
+
+      if (shownToastIds.has("inv_"+inv.id)) return;
+      shownToastIds.add("inv_"+inv.id);
+
+      let fromName = "フレンド";
+      try{
+        const { data } = await sb
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", inv.from_user)
+          .maybeSingle();
+        if (data?.display_name) fromName = data.display_name;
+      }catch{}
+
+      addNotify({
+        id: "inv_" + inv.id,
+        type: "room_invite",
+        title: "📩 部屋招待",
+        msg: `${fromName} さんから「${inv.room_name}」に招待が来たよ`,
+        from_uid: inv.from_user,
+        from_name: fromName,
+        room_id: inv.room_id,
+        room_name: inv.room_name,
+        created_at: new Date().toISOString(),
+        read: false
+      });
+
+      showToast({
+        title: "📩 部屋招待が来た！",
+        msg: `${fromName} さんから「${inv.room_name}」に招待が来たよ`,
+        onOpen: ()=>{
+          location.href = `./room.html?room=${encodeURIComponent(inv.room_name)}&room_id=${encodeURIComponent(inv.room_id)}`;
+        }
+      });
+
+      pushBrowserNotify("ゆるるチャット", `${fromName} さんから部屋招待「${inv.room_name}」`);
+    })
+    .subscribe();
+}
+
+/* ====== 初期化（ログイン後） ====== */
+function initNotify(){
+  loadNotifyInbox();
+  updateNotifyBadgeTotal();
+  startFriendRequestNotifications();
+  startRoomCreateNotifications();
+  startRoomInviteNotifications();
+}
 
 
 /* =============== friends state =============== */
@@ -1725,6 +2190,9 @@ function goBack(){ location.replace(getBackUrl()); }
 
 (async()=>{
   if (!await requireLogin()) return;
+
+  // ✅ ログイン済み & authUser 確定後に呼ぶ
+  initNotify();
 
   // last_seen
   heartbeatLastSeen();
