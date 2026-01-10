@@ -379,6 +379,38 @@
   background:rgba(255,255,255,.14);
 }
 .notifyBadge.isOn{ display:inline-flex; }
+/* ===== 🔔 ロビー通知：背景をしっかり濃くする ===== */
+
+/* 通知パネル全体 */
+#notifyPanel{
+  background: rgba(6,11,24,.96) !important;   /* ← かなり濃い */
+  border: 1px solid rgba(255,255,255,.12) !important;
+  box-shadow: 0 18px 48px rgba(0,0,0,.65) !important;
+  backdrop-filter: none !important;
+}
+
+/* ヘッダー */
+#notifyPanel .cardHeader{
+  background: rgba(10,20,40,.96) !important;
+  border-bottom: 1px solid rgba(255,255,255,.12) !important;
+}
+
+/* 通知1件ずつ */
+#notifyPanel .nItem{
+  background: rgba(10,20,40,.85) !important;  /* ← ここ重要 */
+  border: 1px solid rgba(255,255,255,.14) !important;
+}
+
+/* ホバー */
+#notifyPanel .nItem:hover{
+  background: rgba(10,20,40,.95) !important;
+}
+
+/* 未読はさらに強調 */
+#notifyPanel .nItem.unread{
+  background: rgba(15,30,60,.95) !important;
+  outline: 1px solid rgba(110,231,255,.35);
+}
 
 </style>
 </head>
