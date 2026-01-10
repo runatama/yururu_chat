@@ -1953,7 +1953,7 @@ async function requireLoginOrRedirect(){
     return false;
   }
 
-  // ★重要：refreshSession は詰まることがあるので、失敗しても続行（ロビーと同じ方針）
+  // ★重要：refreshSession は詰まることがあるので、失敗しても続行
   try{
     const t = Promise.race([
       sb.auth.refreshSession(),
@@ -1967,8 +1967,16 @@ async function requireLoginOrRedirect(){
   if (uErr) log("getUser error", uErr);
 
   authUser = u?.user || sessionUser;
+
+  // ✅ ここ！ return の前に置く
+  if (authUser && !notifyStarted){
+    initNotify();
+    notifyStarted = true;
+  }
+
   return true;
 }
+
   
 async function startSubOwnersRealtime(){
   if (!roomId) return;
@@ -4089,6 +4097,7 @@ function scrollToSection(id){
 
 </body>
 </html>
+
 
 
 
