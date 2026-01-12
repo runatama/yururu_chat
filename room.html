@@ -3990,22 +3990,29 @@ async function sendRoomInvite(targetUid, targetName){
 
     // 認証状態が変わったら表示更新（セッション切れ対応）
     sb.auth.onAuthStateChange(async (event, session)=> {
-      const sessionUser = session?.user || null;
-      if (!sessionUser){
-        authUser = null;
-        updateTop();
-        location.href = "./login.html";
-        return;
-      }
+  const sessionUser = session?.user || null;
+  if (!sessionUser){
+    authUser = null;
+    updateTop();
+    location.href = "./login.html";
+    return;
+  }
 
-      const { data: u, error: uErr } = await sb.auth.getUser();
-      if (uErr) log("getUser error", uErr);
+  const { data: u, error: uErr } = await sb.auth.getUser();
+  if (uErr) log("getUser error", uErr);
 
-      authUser = u?.user || sessionUser;
+  authUser = u?.user || sessionUser;
 
-      await reloadName();
-      updateTop();
-    });
+  await reloadName();
+  updateTop();
+
+  // ★ここを追加！！
+  if (!notifyStarted){
+    notifyStarted = true;
+    initNotify();
+  }
+});
+
 
     log("ready room=", room, "roomId=", roomId);
   }catch(e){
@@ -4125,6 +4132,7 @@ function scrollToSection(id){
 
 </body>
 </html>
+
 
 
 
