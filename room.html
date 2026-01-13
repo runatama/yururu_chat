@@ -3901,6 +3901,7 @@ async function sendRoomInvite(targetUid, targetName){
   try{
     if (!(await requireLoginOrRedirect())) return;
 
+    initNotify();
 　　startOnlineHeartbeatRoom();
     
     await reloadName();
@@ -4132,6 +4133,7 @@ function scrollToSection(id){
 
 </body>
 </html>
+
 
 
 
