@@ -2498,6 +2498,9 @@ let myMicGain = 1.0;          // 0.0-1.0（UIは1-100）
 
 let micMuted = false;
 
+let callMode = "talk"; // "talk" | "listen"
+function isListener(){ return callMode === "listen"; }
+
 const pcs = new Map();        // peerId -> RTCPeerConnection
 const mutedMap = new Map();   // peerId -> muted(boolean)
 const makingOffer = new Map(); // peerId -> boolean
@@ -2575,6 +2578,15 @@ async function startCallChannels(){
 }
 
 async function safeTrackPresence(){
+  await callPresenceChannel.track({
+  user_id: myUid(),
+  name,
+  avatar_url: myAvatarUrl,
+  muted: micMuted,
+  listener: isListener(),   // ← これを追加
+  joined_at: new Date().toISOString()
+});
+
   try{
     if (!callPresenceChannel) return;
     await callPresenceChannel.track({
@@ -2950,8 +2962,11 @@ function stopHeartbeat(){
 }
 
 /* ===== メイン操作 ===== */
-async function joinCall(){
+async function joinCall(mode){
   if (joiningCall || joinedCall) return;
+
+  callMode = (mode === "listen") ? "listen" : "talk";
+
   joiningCall = true;
   setJoinBtn(false);
 
@@ -2960,20 +2975,26 @@ async function joinCall(){
     await ensureAudioContextRunning();
     await startCallChannels();
 
-    if (!localStream){
-      localStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
+    // ★ リスナーはマイク取得しない（スマホ許可も出ない）
+    if (isListener()){
+      micMuted = true; // 表示上もミュート固定にする
+      // localStream は作らない（nullのまま）
+    }else{
+      if (!localStream){
+        localStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
+      }
+      buildProcessedMicStreamIfNeeded();
+      applyMicGain();
+
+      // ミュート反映
+      try{
+        for (const t of localStream.getAudioTracks()){
+          t.enabled = !micMuted;
+        }
+      }catch{}
     }
 
-    buildProcessedMicStreamIfNeeded();
-    applyMicGain();
-
-    // ミュート反映
-    try{
-      for (const t of localStream.getAudioTracks()){
-        t.enabled = !micMuted;
-      }
-    }catch{}
-
+    // 送信トラック（ある時だけ）を付ける
     attachTracksToAllPCs();
 
     // 既に居る人へ hello + PC 用意
@@ -2992,7 +3013,7 @@ async function joinCall(){
 
     joinedCall = true;
     setMuteBtn();
-    setCallState("通話に参加中");
+    setCallState(isListener() ? "🎧 リスナー参加中" : "通話に参加中");
     setReady(true, "通話準備OK");
   }catch(e){
     log("joinCall error", e);
@@ -3055,6 +3076,8 @@ async function leaveCall(){
 }
 
 async function toggleMute(){
+  if (isListener()) return; // リスナーはミュート固定
+  
   micMuted = !micMuted;
   setMuteBtn();
 
