@@ -2937,7 +2937,7 @@ async function refreshPresenceList(){
   box.innerHTML = "";
 
   const st = callPresenceChannel?.presenceState?.() || {};
-  const ids = Object.keys(st).filter(id => id && id !== myUid());
+  const ids = Object.keys(st).filter(id => id);
 
   if (ids.length === 0){
     box.innerHTML = "<div class='hint'>未接続</div>";
@@ -2950,15 +2950,27 @@ async function refreshPresenceList(){
     const muted = !!p.muted;
     const listener = !!p.listener;
 
+    const isMe = (id === myUid());
+    const nameLabel = isMe ? `${nm}（あなた）` : nm;
+
     const icon = listener ? "🎧" : (muted ? "🔇" : "🎤");
-    const badgeText = listener ? "聞く専" : (muted ? "ミュート" : "発話OK");
-    const badgeClass = listener ? "good" : (muted ? "bad" : "good");
+
+    // 通話状態（必ず表示）
+    const callBadgeText  = listener ? "リスナー" : "通話中";
+    const callBadgeClass = listener ? "warn" : "good";
+
+    // マイク状態（リスナーはマイク無しなので表示しない）
+    const micBadgeText  = muted ? "ミュート" : "発話OK";
+    const micBadgeClass = muted ? "bad" : "good";
 
     const row = document.createElement("div");
     row.className = "listItem";
     row.innerHTML = `
-      <div class="name">${icon} ${avatarHtml(p.avatar_url, nm, "sm")} <span class="nameText">${escapeHtml(nm)}</span></div>
-      <div class="sub"><span class="badge ${badgeClass}">${badgeText}</span></div>
+      <div class="name">${icon} ${avatarHtml(p.avatar_url, nameLabel, "sm")} <span class="nameText">${escapeHtml(nameLabel)}</span></div>
+      <div class="sub">
+        <span class="badge ${callBadgeClass}">${callBadgeText}</span>
+        ${listener ? "" : ('<span class="badge ' + micBadgeClass + '" style="margin-left:6px;">' + micBadgeText + '</span>')}
+      </div>
     `;
      // ★名前/アイコンを押すとプロフィールへ
      row.classList.add("userLink");
