@@ -1474,7 +1474,8 @@ window.toggleNotifyPanel = window.toggleNotifyPanel || function(){
         </div>
         <div class="cardBody">
           <div class="callTop">
-            <button class="btn btnSmall primary btnAccent2" onclick="joinCall()" id="joinBtn">通話に参加（開始）</button>
+            <button class="btn btnSmall primary btnAccent2" onclick="joinCall('talk')" id="joinBtn">🎤 話して参加</button>
+            <button class="btn btnSmall btnAccent2" onclick="joinCall('listen')" id="listenBtn">🎧 聞く専で参加</button>
             <button class="btn btnSmall btnMuted" onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
             <button class="btn btnSmall danger" onclick="leaveCall()" id="leaveBtn">通話退出</button>
           </div>
@@ -2526,12 +2527,27 @@ function setCallState(text){
   if (el) el.textContent = text;
 }
 function setJoinBtn(enabled){
-  const b = document.getElementById("joinBtn");
-  if (b) b.disabled = !enabled;
+  const b1 = document.getElementById("joinBtn");
+  if (b1) b1.disabled = !enabled;
+  const b2 = document.getElementById("listenBtn");
+  if (b2) b2.disabled = !enabled;
 }
 function setMuteBtn(){
   const b = document.getElementById("muteBtn");
-  if (b) b.textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
+  if (!b) return;
+  if (joinedCall && isListener()){
+    b.textContent = "ミュート: 固定(聞く専)";
+    b.disabled = true;
+    return;
+  }
+  b.disabled = false;
+  b.textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
+}
+function setMicGainEnabled(){
+  const r = document.getElementById("micGain");
+  if (!r) return;
+  // 聞く専のときはマイク自体を取得しないので無効化
+  r.disabled = (joinedCall && isListener());
 }
 function getIsPolite(peerId){
   // Perfect Negotiation: UUIDの大小で固定（必ず片方だけがpolite）
@@ -2578,15 +2594,6 @@ async function startCallChannels(){
 }
 
 async function safeTrackPresence(){
-  await callPresenceChannel.track({
-  user_id: myUid(),
-  name,
-  avatar_url: myAvatarUrl,
-  muted: micMuted,
-  listener: isListener(),   // ← これを追加
-  joined_at: new Date().toISOString()
-});
-
   try{
     if (!callPresenceChannel) return;
     await callPresenceChannel.track({
@@ -2594,6 +2601,7 @@ async function safeTrackPresence(){
       name,
       avatar_url: myAvatarUrl,
       muted: micMuted,
+      listener: isListener(),
       joined_at: new Date().toISOString()
     });
   }catch(e){
@@ -2919,12 +2927,17 @@ async function refreshPresenceList(){
     const p = st[id]?.[0] || {};
     const nm = p.name || id;
     const muted = !!p.muted;
+    const listener = !!p.listener;
+
+    const icon = listener ? "🎧" : (muted ? "🔇" : "🎤");
+    const badgeText = listener ? "聞く専" : (muted ? "ミュート" : "発話OK");
+    const badgeClass = listener ? "good" : (muted ? "bad" : "good");
 
     const row = document.createElement("div");
     row.className = "listItem";
     row.innerHTML = `
-      <div class="name">${muted ? "🔇" : "🎤"} ${avatarHtml(p.avatar_url, nm, "sm")} <span class="nameText">${escapeHtml(nm)}</span></div>
-      <div class="sub"><span class="badge ${muted ? "bad" : "good"}">${muted ? "ミュート" : "発話OK"}</span></div>
+      <div class="name">${icon} ${avatarHtml(p.avatar_url, nm, "sm")} <span class="nameText">${escapeHtml(nm)}</span></div>
+      <div class="sub"><span class="badge ${badgeClass}">${badgeText}</span></div>
     `;
      // ★名前/アイコンを押すとプロフィールへ
      row.classList.add("userLink");
@@ -3013,6 +3026,7 @@ async function joinCall(mode){
 
     joinedCall = true;
     setMuteBtn();
+    setMicGainEnabled();
     setCallState(isListener() ? "🎧 リスナー参加中" : "通話に参加中");
     setReady(true, "通話準備OK");
   }catch(e){
@@ -3073,6 +3087,7 @@ async function leaveCall(){
   setCallState("未接続（必要なら通話に参加を押してね）");
   setReady(true, "待機中");
   setMuteBtn();
+  setMicGainEnabled();
 }
 
 async function toggleMute(){
