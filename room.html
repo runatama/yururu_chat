@@ -2447,10 +2447,23 @@ const list = (data || []).map(x=>({
   for (const p of uniq){
     const row = document.createElement("div");
     row.className = "listItem";
-    row.innerHTML = `
-      <div class="name">🎧 ${avatarHtml(p.avatar_url, p.name, "sm")} <span class="nameText">${escapeHtml(p.name)}</span>${adminBadgeHtmlByUserId(p.user_id)}</div>
-      <div class="sub"><span class="badge good">通話中</span></div>
-    `;
+    const isMe = p.user_id === myUid();
+　　const isListenerUser = isMe && isListener();
+
+row.innerHTML = `
+  <div class="name">
+    ${isListenerUser ? "🎧" : "🎤"}
+    ${avatarHtml(p.avatar_url, p.name, "sm")}
+    <span class="nameText">${escapeHtml(p.name)}</span>
+    ${adminBadgeHtmlByUserId(p.user_id)}
+  </div>
+  <div class="sub">
+    <span class="badge ${isListenerUser ? "warn" : "good"}">
+      ${isListenerUser ? "リスナー" : "通話中"}
+    </span>
+  </div>
+`;
+
      // ★名前/アイコンを押すとプロフィールへ
      row.classList.add("userLink");
      row.title = "プロフィールを見る";
@@ -2601,7 +2614,7 @@ async function safeTrackPresence(){
       name,
       avatar_url: myAvatarUrl,
       muted: micMuted,
-      listener: isListener(),
+      const isListenerUser = !!p.listener;
       joined_at: new Date().toISOString()
     });
   }catch(e){
@@ -4171,6 +4184,7 @@ function scrollToSection(id){
 
 </body>
 </html>
+
 
 
 
