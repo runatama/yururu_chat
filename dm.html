@@ -1,307 +1,392 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ゆるるチャット - DM</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        :root {
-            --bg1: #0b1220;
-            --bg2: #0a1a2a;
-            --line: rgba(255,255,255,.10);
-            --text: #eaf2ff;
-            --muted: rgba(234,242,255,.65);
-            --accent: #6ee7ff;
-            --accent2: #a78bfa;
-            --card: rgba(255,255,255,.06);
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ゆるるチャット - DM</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-        * {
-            box-sizing: border-box;
-        }
+  <style>
+    :root{
+      --bg1:#0b1220;
+      --bg2:#0a1a2a;
+      --line:rgba(255,255,255,.10);
+      --text:#eaf2ff;
+      --muted:rgba(234,242,255,.65);
+      --accent:#6ee7ff;
+      --accent2:#a78bfa;
+      --card:rgba(255,255,255,.06);
+      --good:#34d399;
+      --warn:#fbbf24;
+      --bad:#ff6b6b;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;
+      color:var(--text);
+      background:linear-gradient(180deg,var(--bg1),var(--bg2));
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+    }
+    .top{
+      padding:14px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      background:rgba(0,0,0,.18);
+    }
+    .wrap{
+      max-width:860px;
+      width:100%;
+      margin:0 auto;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      flex:1;
+      gap:10px;
+    }
+    .btn{
+      cursor:pointer;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.08);
+      color:var(--text);
+      padding:10px 12px;
+      font-weight:900;
+    }
+    .btnPrimary{
+      border:none;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:#08131f;
+    }
+    .danger{
+      border-color:rgba(255,107,107,.35);
+      background:rgba(255,107,107,.12);
+    }
+    .hint{ font-size:12px; color:rgba(234,242,255,.55); }
+    #status{ font-size:12px; color:var(--muted); padding:0 2px; }
 
-        body {
-            margin: 0;
-            font-family: system-ui,-apple-system,"Noto Sans JP",sans-serif;
-            color: var(--text);
-            background: linear-gradient(180deg,var(--bg1),var(--bg2));
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
+    /* chat */
+    .log{
+      flex:1;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      border-radius:18px;
+      padding:12px;
+      overflow:auto;
+    }
+    .msg{ margin:8px 0; display:flex; }
+    .me{ justify-content:flex-end; }
+    .bubble{
+      max-width:min(520px,86%);
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      border-radius:16px;
+      padding:10px 12px;
+      line-height:1.5;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }
+    .me .bubble{
+      background:rgba(110,231,255,.10);
+      border-color:rgba(110,231,255,.25);
+    }
+    .meta{ font-size:12px; color:var(--muted); margin-top:6px; }
+    .msgImg{
+      margin-top:8px;
+      width:100%;
+      max-width:520px;
+      border-radius:16px;
+      border:1px solid var(--line);
+    }
+    .expired{
+      margin-top:8px;
+      font-size:13px;
+      color:rgba(234,242,255,.55);
+      border:1px dashed rgba(255,255,255,.18);
+      background:rgba(255,255,255,.04);
+      padding:10px 12px;
+      border-radius:14px;
+    }
 
-        .top {
-            padding: 14px 14px;
-            border-bottom: 1px solid var(--line);
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            justify-content: space-between;
-            background: rgba(0,0,0,.18);
-        }
+    .composer{
+      display:flex;
+      gap:10px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      border-radius:18px;
+      padding:10px;
+      align-items:flex-end;
+      flex-wrap:wrap;
+    }
+    textarea{
+      flex:1;
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+      color:var(--text);
+      resize:none;
+      min-height:44px;
+      max-height:120px;
+      font-family:inherit;
+    }
 
-        .btn {
-            cursor: pointer;
-            border-radius: 14px;
-            border: 1px solid var(--line);
-            background: rgba(255,255,255,.08);
-            color: var(--text);
-            padding: 10px 12px;
-            font-weight: 900;
-        }
+    /* call */
+    .card{
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      border-radius:18px;
+      overflow:hidden;
+    }
+    .cardHeader{
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      background:rgba(255,255,255,.03);
+    }
+    .chip{
+      font-size:12px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      color:var(--muted);
+      background:rgba(255,255,255,.04);
+    }
+    .cardBody{ padding:12px 14px; }
 
-        .btnPrimary {
-            border: none;
-            background: linear-gradient(135deg,var(--accent),var(--accent2));
-            color: #08131f;
-        }
+    .callTop{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .rangeRow{
+      margin-top:10px;
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(7,12,24,.30);
+      border-radius:16px;
+      padding:10px 12px;
+    }
+    .rangeRow .label{
+      font-size:12px;
+      color:var(--muted);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:10px;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    input[type="range"]{ width:100%; accent-color:var(--accent); }
+    .divider{ height:1px; background:rgba(255,255,255,.08); margin:12px 0; }
 
-        .wrap {
-            max-width: 860px;
-            width: 100%;
-            margin: 0 auto;
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-            gap: 10px;
-        }
+    .grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      align-items:start;
+    }
+    @media (max-width:720px){
+      .grid{ grid-template-columns:1fr; }
+    }
+    .list{ display:flex; flex-direction:column; gap:8px; }
+    .listItem{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(255,255,255,.04);
+      border-radius:14px;
+      padding:8px 10px;
+      font-size:13px;
+    }
+    .badge{
+      padding:3px 8px;
+      border-radius:999px;
+      font-size:11px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.05);
+      color:rgba(234,242,255,.80);
+      font-weight:900;
+    }
+    .badge.good{ border-color:rgba(52,211,153,.35); background:rgba(52,211,153,.12); }
+    .badge.warn{ border-color:rgba(251,191,36,.35); background:rgba(251,191,36,.12); }
+    .badge.bad{ border-color:rgba(255,107,107,.35); background:rgba(255,107,107,.12); }
 
-        .log {
-            flex: 1;
-            border: 1px solid var(--line);
-            background: rgba(255,255,255,.04);
-            border-radius: 18px;
-            padding: 12px;
-            overflow: auto;
-        }
-
-        .msg {
-            margin: 8px 0;
-            display: flex;
-        }
-
-        .bubble {
-            max-width: min(520px, 86%);
-            border: 1px solid var(--line);
-            background: rgba(255,255,255,.06);
-            border-radius: 16px;
-            padding: 10px 12px;
-            line-height: 1.5;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
-        .me {
-            justify-content: flex-end;
-        }
-
-            .me .bubble {
-                background: rgba(110,231,255,.10);
-                border-color: rgba(110,231,255,.25);
-            }
-
-        .meta {
-            font-size: 12px;
-            color: var(--muted);
-            margin-top: 4px;
-        }
-
-        .composer {
-            display: flex;
-            gap: 10px;
-            border: 1px solid var(--line);
-            background: rgba(255,255,255,.04);
-            border-radius: 18px;
-            padding: 10px;
-        }
-
-        textarea {
-            flex: 1;
-            padding: 10px 12px;
-            border-radius: 14px;
-            border: 1px solid var(--line);
-            background: rgba(0,0,0,.25);
-            color: var(--text);
-            resize: none;
-            min-height: 44px;
-            max-height: 120px;
-            font-family: inherit;
-        }
-
-        #status {
-            font-size: 12px;
-            color: var(--muted);
-            padding: 0 2px;
-        }
-    </style>
+    .audios{ display:flex; flex-direction:column; gap:10px; }
+    .audioWrap{
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(255,255,255,.04);
+      border-radius:14px;
+      padding:10px;
+    }
+    .audioTitle{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:6px;
+    }
+    .audioCtl{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-top:8px;
+    }
+    .audioCtl .lbl{ min-width:90px; font-size:12px; color:var(--muted); }
+    .audioCtl .val{ min-width:34px; text-align:right; font-size:12px; font-weight:900; }
+  </style>
 </head>
+
 <body>
-    <div class="top">
-        <div style="font-weight:900;">💬 個人チャット</div>
-        <div style="display:flex;gap:10px;align-items:center;">
-            <button class="btn" onclick="goBack()">⬅ 戻る</button>
-            <button class="btn" onclick="signOut()">🚪 ログアウト</button>
+  <div class="top">
+    <div style="font-weight:900;">💬 個人チャット</div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <button class="btn" onclick="goBack()">⬅ 戻る</button>
+      <button class="btn" onclick="signOut()">🚪 ログアウト</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div id="status">読み込み中…</div>
+
+    <!-- ✅ DM通話（ルームとは別チャンネル/別テーブル） -->
+    <div class="card" id="callCard">
+      <div class="cardHeader">
+        <b>🎙️ 個人通話</b>
+        <span class="chip">DM Call</span>
+      </div>
+      <div class="cardBody">
+        <div class="callTop">
+          <button class="btn btnPrimary" onclick="joinCall('talk')" id="joinBtn">🎤 話して参加</button>
+          <button class="btn" onclick="joinCall('listen')" id="listenBtn">🎧 聞く専で参加</button>
+          <button class="btn" onclick="toggleMute()" id="muteBtn">ミュート: OFF</button>
+          <button class="btn danger" onclick="leaveCall()" id="leaveBtn">通話退出</button>
         </div>
-    </div>
 
-    <div class="wrap">
-        <div id="status">読み込み中…</div>
-        <div class="log" id="log"></div>
-
-        <div class="composer">
-            <textarea id="text" placeholder="メッセージ…"></textarea>
-            <button class="btn btnPrimary" onclick="send()">送信</button>
+        <div class="rangeRow">
+          <div class="label">
+            <span>自分のマイク音量: <b id="micGainLabel">100</b></span>
+            <span class="hint">※ 送信音量（あなたの声の大きさ）</span>
+          </div>
+          <input id="micGain" type="range" min="1" max="100" value="100" />
+          <div class="hint" style="margin-top:8px;" id="callState">未接続（必要なら通話に参加を押してね）</div>
         </div>
+
+        <div class="divider"></div>
+
+        <div class="grid">
+          <div>
+            <div class="hint" style="margin-bottom:8px;">参加者（通話：チャンネル接続中のみ表示）</div>
+            <div class="list" id="callUsersList"><div class="hint">未接続</div></div>
+          </div>
+
+          <div>
+            <div class="hint" style="margin-bottom:8px;">相手の音声</div>
+            <div class="audios" id="audios"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <script>
-const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM"; // ←他ページと同じ anon key に
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth:{ flowType:"pkce", persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
-});
+    <!-- chat -->
+    <div class="log" id="log"></div>
 
-let authUser = null;
-let roomId = "";
-let ch = null;
-let lastMessageId = 0;
-
-function esc(s){
-  return String(s||"")
-    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
-}
-function setStatus(t){ document.getElementById("status").textContent = t; }
-function getRoomId(){
-  const p = new URLSearchParams(location.search);
-  return String(p.get("room_id") || "").trim();
-}
-function goBack(){
-  // 直前が profile なら戻れるし、ダメなら lobby
-  history.length > 1 ? history.back() : location.replace("./lobby.html");
-}
-async function signOut(){
-  try{ await sb.auth.signOut(); }catch(e){}
-  location.replace("./login.html");
-}
-
-async function requireLogin(){
-  const { data: ses } = await sb.auth.getSession();
-  if (!ses?.session){ location.replace("./login.html"); return false; }
-  const { data: u } = await sb.auth.getUser();
-  if (!u?.user){ location.replace("./login.html"); return false; }
-  authUser = u.user;
-  return true;
-}
-
-function appendMsg(m){
-  const log = document.getElementById("log");
-  const isMe = (m.sender_id === authUser.id);
-  const div = document.createElement("div");
-  div.className = "msg" + (isMe ? " me" : "");
-  div.innerHTML = `
-    <div class="bubble">
-      ${esc(m.body)}
-      <div class="meta">${esc(new Date(m.created_at).toLocaleString())}</div>
+    <!-- ✅ テキスト送信 -->
+    <div class="composer">
+      <textarea id="text" placeholder="メッセージ…"></textarea>
+      <button class="btn btnPrimary" onclick="sendText()">送信</button>
     </div>
-  `;
-  log.appendChild(div);
-  log.scrollTop = log.scrollHeight;
-  lastMessageId = Math.max(lastMessageId, Number(m.id||0));
-}
 
-async function loadLatest(limit=80){
-  setStatus("読み込み中…");
-  document.getElementById("log").innerHTML = "";
+    <!-- ✅ 画像送信（DM専用） -->
+    <div class="composer" style="align-items:center;">
+      <input id="imgFile" type="file" accept="image/*" />
+      <span class="hint" id="imgName">未選択</span>
+      <button class="btn btnPrimary" onclick="sendImage()" id="sendImgBtn">🖼️ 画像送信</button>
+    </div>
 
-  const { data, error } = await sb
-    .from("dm_messages")
-    .select("id, room_id, sender_id, body, created_at")
-    .eq("room_id", roomId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: true })
-    .limit(limit);
+    <div class="hint" id="uploadHint">※ 画像は Storage（public）にアップ→URLをDMに保存するよ（5MBまで）</div>
+  </div>
 
-  if (error){
-    console.error(error);
-    setStatus("読み込み失敗（RLS or room_id不正）");
-    return;
+<script>
+  const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth:{ flowType:"pkce", persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+  });
+
+  /* =====================
+     DM: Chat + Image
+     ===================== */
+  const DM_IMAGE_BUCKET = "dm-images";  // ✅ DM専用バケット
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+  const IMAGE_PLACEHOLDER = "[image]";
+
+  let authUser = null;
+  let roomId = "";
+  let msgChannel = null;
+  let lastMessageId = 0;
+
+  // 自分の表示名/アバター（通話プレゼンスに使う）
+  let myName = "";
+  let myAvatarUrl = "";
+
+  function esc(s){
+    return String(s||"")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+  function setStatus(t){ const el=document.getElementById("status"); if(el) el.textContent=t; }
+  function getRoomId(){
+    const p = new URLSearchParams(location.search);
+    return String(p.get("room_id") || "").trim();
+  }
+  function goBack(){ history.length>1 ? history.back() : location.replace("./lobby.html"); }
+  async function signOut(){ try{ await sb.auth.signOut(); }catch{} location.replace("./login.html"); }
+  function myUid(){ return authUser?.id || ""; }
+
+  function normalizeAvatarUrl(url, ver){
+    const u = String(url||"").trim();
+    if(!u) return "";
+    const v = String(ver||"").trim();
+    if(!v) return u;
+    return u + (u.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(v);
+  }
+  function getPreferredAvatarMeta(){
+    const um = authUser?.user_metadata || {};
+    const hasCustom = !!String(um.custom_avatar_url || "").trim();
+    const url = hasCustom ? String(um.custom_avatar_url||"").trim() : String(um.avatar_url||"").trim();
+    const verRaw = hasCustom ? um.custom_avatar_ver : um.avatar_ver;
+    const ver = String(verRaw ?? "").trim();
+    return { url, ver };
+  }
+  function safeKey(s){
+    return String(s||"").replace(/[^\w\-]+/g,"_").slice(0,80) || "dm";
   }
 
-  for (const m of (data||[])) appendMsg(m);
+  async function requireLogin(){
+    const { data: ses } = await sb.auth.getSession();
+    if (!ses?.session){ location.replace("./login.html"); return false; }
+    const { data: u } = await sb.auth.getUser();
+    if (!u?.user){ location.replace("./login.html"); return false; }
+    authUser = u.user;
 
-  // 既読更新（任意）
-  try{ await sb.rpc("dm_mark_read", { p_room_id: roomId, p_last_id: lastMessageId }); }catch{}
+    const dn = String(authUser?.user_metadata?.display_name || "").trim();
+    const em = String(authUser?.email || "").trim();
+    myName = dn || em || "名無しさん";
+    const av = getPreferredAvatarMeta();
+    myAvatarUrl = normalizeAvatarUrl(av.url, av.ver);
 
-  setStatus("OK");
-}
-
-async function send(){
-  const ta = document.getElementById("text");
-  const body = String(ta.value||"").trim();
-  if (!body) return;
-
-  ta.value = "";
-
-  const { data, error } = await sb
-    .from("dm_messages")
-    .insert({ room_id: roomId, sender_id: authUser.id, body })
-    .select("id, room_id, sender_id, body, created_at")
-    .single();
-
-  if (error){
-    console.error(error);
-    setStatus("送信失敗（RLS/メンバー判定）");
-    ta.value = body;
-    return;
+    return true;
   }
 
-  // 自分の分は即反映（Realtimeも来るけど二重を避けたいならここは省略してもOK）
-  appendMsg(data);
-
-  // 既読更新
-  try{ await sb.rpc("dm_mark_read", { p_room_id: roomId, p_last_id: lastMessageId }); }catch{}
-}
-
-async function startRealtime(){
-  if (ch){
-    try{ await sb.removeChannel(ch); }catch{}
-    ch = null;
-  }
-  ch = sb.channel("dm_" + roomId)
-    .on("postgres_changes", {
-      event:"INSERT",
-      schema:"public",
-      table:"dm_messages",
-      filter:`room_id=eq.${roomId}`
-    }, (payload)=>{
-      const m = payload?.new;
-      if (!m) return;
-
-      // 自分が append 済みなら重複防止
-      if (Number(m.id||0) <= lastMessageId) return;
-
-      appendMsg(m);
-
-      // 既読更新（画面開いてるなら）
-      sb.rpc("dm_mark_read", { p_room_id: roomId, p_last_id: lastMessageId }).catch(()=>{});
-    })
-    .subscribe();
-}
-
-(async()=>{
-  roomId = getRoomId();
-  if (!roomId){
-    setStatus("room_id が無いよ");
-    return;
-  }
-  if (!await requireLogin()) return;
-
-  await loadLatest();
-  await startRealtime();
-})();
-    </script>
-</body>
-</html>
+  function append
