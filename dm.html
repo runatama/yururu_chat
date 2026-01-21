@@ -8,205 +8,117 @@
 
   <style>
     :root{
-      --bg1:#0b1220;
-      --bg2:#0a1a2a;
-      --line:rgba(255,255,255,.10);
-      --text:#eaf2ff;
-      --muted:rgba(234,242,255,.65);
-      --accent:#6ee7ff;
-      --accent2:#a78bfa;
-      --card:rgba(255,255,255,.06);
-      --good:#34d399;
-      --warn:#fbbf24;
-      --bad:#ff6b6b;
+      --bg1:#0b1220; --bg2:#0a1a2a; --line:rgba(255,255,255,.10);
+      --text:#eaf2ff; --muted:rgba(234,242,255,.65);
+      --accent:#6ee7ff; --accent2:#a78bfa; --card:rgba(255,255,255,.06);
+      --good:#34d399; --warn:#fbbf24; --bad:#ff6b6b;
     }
     *{ box-sizing:border-box; }
     body{
-      margin:0;
-      font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;
+      margin:0; font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;
       color:var(--text);
       background:linear-gradient(180deg,var(--bg1),var(--bg2));
-      min-height:100vh;
-      display:flex;
-      flex-direction:column;
+      min-height:100vh; display:flex; flex-direction:column;
     }
     .top{
-      padding:14px;
-      border-bottom:1px solid var(--line);
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:10px;
+      padding:14px; border-bottom:1px solid var(--line);
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
       background:rgba(0,0,0,.18);
     }
     .wrap{
-      max-width:860px;
-      width:100%;
-      margin:0 auto;
-      padding:12px;
-      display:flex;
-      flex-direction:column;
-      flex:1;
-      gap:10px;
+      max-width:860px; width:100%; margin:0 auto; padding:12px;
+      display:flex; flex-direction:column; flex:1; gap:10px;
     }
     .btn{
-      cursor:pointer;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.08);
-      color:var(--text);
-      padding:10px 12px;
-      font-weight:900;
+      cursor:pointer; border-radius:14px; border:1px solid var(--line);
+      background:rgba(255,255,255,.08); color:var(--text);
+      padding:10px 12px; font-weight:900;
     }
     .btnPrimary{
-      border:none;
-      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      border:none; background:linear-gradient(135deg,var(--accent),var(--accent2));
       color:#08131f;
     }
-    .danger{
-      border-color:rgba(255,107,107,.35);
-      background:rgba(255,107,107,.12);
-    }
+    .danger{ border-color:rgba(255,107,107,.35); background:rgba(255,107,107,.12); }
     .hint{ font-size:12px; color:rgba(234,242,255,.55); }
     #status{ font-size:12px; color:var(--muted); padding:0 2px; }
 
     /* chat */
     .log{
-      flex:1;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      border-radius:18px;
-      padding:12px;
-      overflow:auto;
+      flex:1; border:1px solid var(--line); background:rgba(255,255,255,.04);
+      border-radius:18px; padding:12px; overflow:auto;
     }
     .msg{ margin:8px 0; display:flex; }
     .me{ justify-content:flex-end; }
     .bubble{
       max-width:min(520px,86%);
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.06);
-      border-radius:16px;
-      padding:10px 12px;
-      line-height:1.5;
-      white-space:pre-wrap;
-      word-break:break-word;
+      border:1px solid var(--line); background:rgba(255,255,255,.06);
+      border-radius:16px; padding:10px 12px; line-height:1.5;
+      white-space:pre-wrap; word-break:break-word;
     }
-    .me .bubble{
-      background:rgba(110,231,255,.10);
-      border-color:rgba(110,231,255,.25);
-    }
+    .me .bubble{ background:rgba(110,231,255,.10); border-color:rgba(110,231,255,.25); }
     .meta{ font-size:12px; color:var(--muted); margin-top:6px; }
     .msgImg{
-      margin-top:8px;
-      width:100%;
-      max-width:520px;
-      border-radius:16px;
-      border:1px solid var(--line);
+      margin-top:8px; width:100%; max-width:520px;
+      border-radius:16px; border:1px solid var(--line);
     }
     .expired{
-      margin-top:8px;
-      font-size:13px;
-      color:rgba(234,242,255,.55);
+      margin-top:8px; font-size:13px; color:rgba(234,242,255,.55);
       border:1px dashed rgba(255,255,255,.18);
       background:rgba(255,255,255,.04);
-      padding:10px 12px;
-      border-radius:14px;
+      padding:10px 12px; border-radius:14px;
     }
-
     .composer{
-      display:flex;
-      gap:10px;
-      border:1px solid var(--line);
+      display:flex; gap:10px; border:1px solid var(--line);
       background:rgba(255,255,255,.04);
-      border-radius:18px;
-      padding:10px;
-      align-items:flex-end;
-      flex-wrap:wrap;
+      border-radius:18px; padding:10px; align-items:flex-end; flex-wrap:wrap;
     }
     textarea{
-      flex:1;
-      padding:10px 12px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.25);
-      color:var(--text);
-      resize:none;
-      min-height:44px;
-      max-height:120px;
-      font-family:inherit;
+      flex:1; padding:10px 12px; border-radius:14px; border:1px solid var(--line);
+      background:rgba(0,0,0,.25); color:var(--text); resize:none;
+      min-height:44px; max-height:120px; font-family:inherit;
     }
 
     /* call */
     .card{
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      border-radius:18px;
-      overflow:hidden;
+      border:1px solid var(--line); background:rgba(255,255,255,.04);
+      border-radius:18px; overflow:hidden;
     }
     .cardHeader{
-      padding:12px 14px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
+      padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.08);
+      display:flex; align-items:center; justify-content:space-between;
       background:rgba(255,255,255,.03);
     }
     .chip{
-      font-size:12px;
-      padding:4px 10px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      color:var(--muted);
+      font-size:12px; padding:4px 10px; border-radius:999px;
+      border:1px solid var(--line); color:var(--muted);
       background:rgba(255,255,255,.04);
     }
     .cardBody{ padding:12px 14px; }
-
     .callTop{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
     .rangeRow{
-      margin-top:10px;
-      border:1px solid rgba(255,255,255,.08);
+      margin-top:10px; border:1px solid rgba(255,255,255,.08);
       background:rgba(7,12,24,.30);
-      border-radius:16px;
-      padding:10px 12px;
+      border-radius:16px; padding:10px 12px;
     }
     .rangeRow .label{
-      font-size:12px;
-      color:var(--muted);
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin-bottom:10px;
-      gap:10px;
-      flex-wrap:wrap;
+      font-size:12px; color:var(--muted);
+      display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:10px; gap:10px; flex-wrap:wrap;
     }
     input[type="range"]{ width:100%; accent-color:var(--accent); }
     .divider{ height:1px; background:rgba(255,255,255,.08); margin:12px 0; }
 
-    .grid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:12px;
-      align-items:start;
-    }
-    @media (max-width:720px){
-      .grid{ grid-template-columns:1fr; }
-    }
+    .grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+    @media (max-width:720px){ .grid{ grid-template-columns:1fr; } }
+
     .list{ display:flex; flex-direction:column; gap:8px; }
     .listItem{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      border:1px solid rgba(255,255,255,.08);
-      background:rgba(255,255,255,.04);
-      border-radius:14px;
-      padding:8px 10px;
-      font-size:13px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04);
+      border-radius:14px; padding:8px 10px; font-size:13px;
     }
     .badge{
-      padding:3px 8px;
-      border-radius:999px;
-      font-size:11px;
+      padding:3px 8px; border-radius:999px; font-size:11px;
       border:1px solid rgba(255,255,255,.10);
       background:rgba(255,255,255,.05);
       color:rgba(234,242,255,.80);
@@ -218,25 +130,15 @@
 
     .audios{ display:flex; flex-direction:column; gap:10px; }
     .audioWrap{
-      border:1px solid rgba(255,255,255,.08);
-      background:rgba(255,255,255,.04);
-      border-radius:14px;
-      padding:10px;
+      border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04);
+      border-radius:14px; padding:10px;
     }
     .audioTitle{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:10px;
-      font-size:12px;
-      color:var(--muted);
-      margin-bottom:6px;
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
+      font-size:12px; color:var(--muted); margin-bottom:6px;
     }
     .audioCtl{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      margin-top:8px;
+      display:flex; align-items:center; gap:10px; margin-top:8px;
     }
     .audioCtl .lbl{ min-width:90px; font-size:12px; color:var(--muted); }
     .audioCtl .val{ min-width:34px; text-align:right; font-size:12px; font-weight:900; }
@@ -255,7 +157,7 @@
   <div class="wrap">
     <div id="status">読み込み中…</div>
 
-    <!-- ✅ DM通話（ルームとは別チャンネル/別テーブル） -->
+    <!-- ✅ DM通話（ルームとは別チャンネル） -->
     <div class="card" id="callCard">
       <div class="cardHeader">
         <b>🎙️ 個人通話</b>
@@ -310,13 +212,15 @@
       <button class="btn btnPrimary" onclick="sendImage()" id="sendImgBtn">🖼️ 画像送信</button>
     </div>
 
-    <div class="hint" id="uploadHint">※ 画像は Storage（public）にアップ→URLをDMに保存するよ（5MBまで）</div>
+    <div class="hint" id="uploadHint">※ 画像は Storage にアップ→URLをDMに保存するよ（5MBまで）</div>
   </div>
 
 <script>
+  /* =====================
+     Supabase
+     ===================== */
   const SUPABASE_URL = "https://gqqkjytefyllfomtqcqd.supabase.co";
-  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcWtqeXRlZnlsbGZvbXRxY3FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDM2NDAsImV4cCI6MjA4MjQxOTY0MH0.ve2TXRWgqGK_KT1i_ZjvCBf6wOxNjp127xeQgC3tjWM";
-
+  const SUPABASE_KEY = "YOUR_ANON_KEY_HERE"; // ★あなたの anon key に置き換え
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     auth:{ flowType:"pkce", persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
   });
@@ -324,7 +228,7 @@
   /* =====================
      DM: Chat + Image
      ===================== */
-  const DM_IMAGE_BUCKET = "dm-images";  // ✅ DM専用バケット
+  const DM_IMAGE_BUCKET = "dm-images"; // ★作ってないなら作る（後で説明）
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
   const IMAGE_PLACEHOLDER = "[image]";
 
@@ -333,7 +237,6 @@
   let msgChannel = null;
   let lastMessageId = 0;
 
-  // 自分の表示名/アバター（通話プレゼンスに使う）
   let myName = "";
   let myAvatarUrl = "";
 
@@ -389,4 +292,843 @@
     return true;
   }
 
-  function append
+  function appendMsg(m){
+    const box = document.getElementById("log");
+    if (!box) return;
+
+    const isMe = (String(m.sender_id||"") === String(myUid()));
+    const wrap = document.createElement("div");
+    wrap.className = "msg" + (isMe ? " me" : "");
+
+    const bodyText = String(m.body||"");
+    const isImagePlaceholder = (bodyText.trim() === IMAGE_PLACEHOLDER);
+    const imgUrl = String(m.image_url||"").trim();
+    const hasImage = !!imgUrl;
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+
+    // text
+    if (bodyText && !isImagePlaceholder){
+      const t = document.createElement("div");
+      t.textContent = bodyText;
+      bubble.appendChild(t);
+    }
+
+    // image
+    if (hasImage){
+      const img = document.createElement("img");
+      img.className = "msgImg";
+      img.src = imgUrl;
+      img.loading = "lazy";
+      img.alt = "image";
+      img.onerror = ()=>{
+        try{ img.remove(); }catch{}
+        const ex = document.createElement("div");
+        ex.className = "expired";
+        ex.textContent = "🗑️ 画像はサーバー側から削除されました";
+        bubble.appendChild(ex);
+      };
+      bubble.appendChild(img);
+    }
+
+    // placeholder but url missing (期限切れ等)
+    if (isImagePlaceholder && !hasImage){
+      const ex = document.createElement("div");
+      ex.className = "expired";
+      ex.textContent = "🗑️ 画像は期限切れで削除されました";
+      bubble.appendChild(ex);
+    }
+
+    // meta
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = new Date(m.created_at || Date.now()).toLocaleString();
+    bubble.appendChild(meta);
+
+    wrap.appendChild(bubble);
+    box.appendChild(wrap);
+    box.scrollTop = box.scrollHeight;
+
+    lastMessageId = Math.max(lastMessageId, Number(m.id||0));
+  }
+
+  async function loadLatest(limit=80){
+    setStatus("読み込み中…");
+    const box = document.getElementById("log");
+    if (box) box.innerHTML = "";
+    lastMessageId = 0;
+
+    // ★ dm_messages の想定カラム:
+    // id, room_id, sender_id, body, image_url, created_at
+    const { data, error } = await sb
+      .from("dm_messages")
+      .select("id, room_id, sender_id, body, image_url, created_at")
+      .eq("room_id", roomId)
+      .order("created_at", { ascending:true })
+      .limit(limit);
+
+    if (error){
+      console.error(error);
+      setStatus("読み込み失敗（RLS/room_id/テーブル定義）: " + (error.message||""));
+      return;
+    }
+
+    for (const m of (data||[])) appendMsg(m);
+    setStatus("OK");
+  }
+
+  async function startRealtime(){
+    if (msgChannel){
+      try{ await sb.removeChannel(msgChannel); }catch{}
+      msgChannel = null;
+    }
+    msgChannel = sb.channel("dm_msg_" + roomId)
+      .on("postgres_changes", {
+        event:"INSERT",
+        schema:"public",
+        table:"dm_messages",
+        filter:`room_id=eq.${roomId}`
+      }, (payload)=>{
+        const m = payload?.new;
+        if (!m) return;
+        if (Number(m.id||0) <= lastMessageId) return; // 重複防止
+        appendMsg(m);
+      })
+      .subscribe();
+  }
+
+  async function sendText(){
+    const ta = document.getElementById("text");
+    const body = String(ta?.value||"").trim();
+    if (!body) return;
+    ta.value = "";
+
+    const { data, error } = await sb
+      .from("dm_messages")
+      .insert({
+        room_id: roomId,
+        sender_id: myUid(),
+        body,
+        image_url: null
+      })
+      .select("id, room_id, sender_id, body, image_url, created_at")
+      .single();
+
+    if (error){
+      console.error(error);
+      setStatus("送信失敗（RLS/メンバー判定）: " + (error.message||""));
+      ta.value = body;
+      return;
+    }
+
+    // 自分分は即表示（Realtime来るが重複は lastMessageId で防げる）
+    appendMsg(data);
+  }
+
+  // ファイル名表示
+  document.addEventListener("change", (ev)=>{
+    const t = ev.target;
+    if (t && t.id === "imgFile"){
+      const f = t.files?.[0];
+      const name = document.getElementById("imgName");
+      if (name) name.textContent = f ? f.name : "未選択";
+    }
+  });
+
+  async function sendImage(){
+    const btn = document.getElementById("sendImgBtn");
+    const fileInput = document.getElementById("imgFile");
+    const hintEl = document.getElementById("uploadHint");
+    const oldHint = hintEl?.textContent || "";
+
+    try{
+      btn.disabled = true;
+      if (hintEl) hintEl.textContent = "アップロード中…";
+
+      const file = fileInput?.files?.[0];
+      if (!file){
+        if (hintEl) hintEl.textContent = oldHint;
+        btn.disabled = false;
+        return;
+      }
+      if (file.size > MAX_IMAGE_BYTES){
+        alert("5MBを超えてるよ（今は5MBまで）");
+        if (hintEl) hintEl.textContent = oldHint;
+        btn.disabled = false;
+        return;
+      }
+
+      // パス: dm/{roomId}/{uid}/{timestamp}_{filename}
+      const path = `dm/${safeKey(roomId)}/${safeKey(myUid())}/${Date.now()}_${safeKey(file.name)}`;
+
+      const up = await sb.storage.from(DM_IMAGE_BUCKET).upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || "application/octet-stream"
+      });
+
+      if (up.error){
+        console.error(up.error);
+        alert("画像アップロード失敗: " + up.error.message);
+        if (hintEl) hintEl.textContent = oldHint;
+        btn.disabled = false;
+        return;
+      }
+
+      // public bucket想定（privateなら signed url に変える必要あり）
+      const pub = sb.storage.from(DM_IMAGE_BUCKET).getPublicUrl(path);
+      const url = pub?.data?.publicUrl || "";
+      if (!url){
+        alert("公開URLが取れなかった（bucketがpublicじゃない/設定）");
+        if (hintEl) hintEl.textContent = oldHint;
+        btn.disabled = false;
+        return;
+      }
+
+      // DMに保存（本文は [image] で統一）
+      const { data, error } = await sb
+        .from("dm_messages")
+        .insert({
+          room_id: roomId,
+          sender_id: myUid(),
+          body: IMAGE_PLACEHOLDER,
+          image_url: url
+        })
+        .select("id, room_id, sender_id, body, image_url, created_at")
+        .single();
+
+      if (error){
+        console.error(error);
+        alert("画像メッセージ保存失敗: " + error.message);
+        if (hintEl) hintEl.textContent = oldHint;
+        btn.disabled = false;
+        return;
+      }
+
+      appendMsg(data);
+
+      // リセット
+      try{ fileInput.value = ""; }catch{}
+      const name = document.getElementById("imgName");
+      if (name) name.textContent = "未選択";
+
+      if (hintEl) hintEl.textContent = "送信OK！";
+      setTimeout(()=>{ if (hintEl) hintEl.textContent = oldHint; }, 1200);
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  /* =====================
+     DM Call (Realtime only)
+     - presence: dm-call-presence-${roomId}
+     - signal  : dm-call-signal-${roomId}
+     ===================== */
+
+  // STUN（最低限）
+  const ICE_SERVERS = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" }
+  ];
+
+  // call states
+  let joinedCall = false;
+  let callMode = "talk"; // "talk" | "listen"
+  let micMuted = false;
+
+  let callPresenceChannel = null;
+  let callSignalChannel = null;
+
+  // WebRTC
+  const pcs = new Map();            // peerId -> RTCPeerConnection
+  const makingOffer = new Map();    // peerId -> bool
+  const ignoreOffer = new Map();    // peerId -> bool
+  const politeCache = new Map();    // peerId -> bool
+
+  // local stream / audio process
+  let localStream = null;       // raw mic stream
+  let processedStream = null;   // processed stream (gain)
+  let audioCtx = null;
+  let micSource = null;
+  let micGainNode = null;
+  let myMicGain = 1.0;
+
+  // remote audio
+  const remoteAudioEls = new Map(); // peerId -> HTMLAudioElement
+
+  function log(...a){ console.log("[dm-call]", ...a); }
+
+  function isListener(){ return callMode === "listen"; }
+  function setCallState(t){
+    const el = document.getElementById("callState");
+    if (el) el.textContent = t;
+  }
+  function setMuteBtn(){
+    const b = document.getElementById("muteBtn");
+    if (!b) return;
+
+    if (joinedCall && isListener()){
+      b.textContent = "ミュート: 固定(聞く専)";
+      b.disabled = true;
+      return;
+    }
+    b.disabled = false;
+    b.textContent = "ミュート: " + (micMuted ? "ON" : "OFF");
+  }
+  function setMicGainEnabled(){
+    const r = document.getElementById("micGain");
+    if (!r) return;
+    r.disabled = (joinedCall && isListener());
+  }
+
+  function getIsPolite(peerId){
+    // Perfect Negotiation: UUIDの大小で固定（必ず片方だけがpolite）
+    if (politeCache.has(peerId)) return politeCache.get(peerId);
+    const polite = String(myUid()) > String(peerId);
+    politeCache.set(peerId, polite);
+    return polite;
+  }
+
+  function ensureAudioEl(peerId){
+    if (remoteAudioEls.has(peerId)) return remoteAudioEls.get(peerId);
+
+    const wrap = document.createElement("div");
+    wrap.className = "audioWrap";
+
+    const title = document.createElement("div");
+    title.className = "audioTitle";
+    title.innerHTML = `<span>相手 (${esc(peerId).slice(0,8)}…)</span><span class="badge good">接続</span>`;
+    wrap.appendChild(title);
+
+    const audio = document.createElement("audio");
+    audio.autoplay = true;
+    audio.playsInline = true;
+    audio.controls = true;
+    wrap.appendChild(audio);
+
+    const audios = document.getElementById("audios");
+    if (audios) audios.appendChild(wrap);
+
+    remoteAudioEls.set(peerId, audio);
+    return audio;
+  }
+
+  function removeAudioEl(peerId){
+    const audio = remoteAudioEls.get(peerId);
+    if (!audio) return;
+    const wrap = audio.parentElement;
+    try{ wrap?.remove(); }catch{}
+    remoteAudioEls.delete(peerId);
+  }
+
+  async function ensureAudioContextRunning(){
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended"){
+      try{ await audioCtx.resume(); }catch{}
+    }
+  }
+
+  function buildProcessedMicStreamIfNeeded(){
+    if (!localStream) return;
+    if (processedStream && micGainNode && audioCtx) return;
+
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    micSource = audioCtx.createMediaStreamSource(localStream);
+    micGainNode = audioCtx.createGain();
+    micGainNode.gain.value = myMicGain;
+
+    const dest = audioCtx.createMediaStreamDestination();
+    micSource.connect(micGainNode);
+    micGainNode.connect(dest);
+
+    processedStream = dest.stream;
+  }
+
+  function applyMicGain(){
+    const v = Math.max(0.01, Math.min(1.0, myMicGain));
+    if (micGainNode) micGainNode.gain.value = v;
+  }
+
+  function getSendStream(){
+    return processedStream || localStream;
+  }
+
+  async function sendSignal(to, data){
+    if (!callSignalChannel) return;
+    try{
+      await callSignalChannel.send({
+        type: "broadcast",
+        event: "signal",
+        payload: {
+          from: myUid(),
+          to,
+          data
+        }
+      });
+    }catch(e){
+      log("sendSignal error", e);
+    }
+  }
+
+  async function safeTrackPresence(){
+    try{
+      if (!callPresenceChannel) return;
+      await callPresenceChannel.track({
+        user_id: myUid(),
+        name: myName,
+        avatar_url: myAvatarUrl,
+        muted: micMuted,
+        listener: isListener(),
+        joined_at: new Date().toISOString()
+      });
+    }catch(e){
+      log("presence track warn", e);
+    }
+  }
+
+  function renderPresenceList(presences){
+    const box = document.getElementById("callUsersList");
+    if (!box) return;
+
+    const entries = [];
+    for (const key in presences){
+      for (const p of (presences[key]||[])){
+        entries.push(p);
+      }
+    }
+
+    if (!entries.length){
+      box.innerHTML = `<div class="hint">誰もいないよ（未接続）</div>`;
+      return;
+    }
+
+    box.innerHTML = "";
+    for (const p of entries){
+      const uid = String(p.user_id||"");
+      const nm = String(p.name||uid||"unknown");
+      const muted = !!p.muted;
+      const listener = !!p.listener;
+
+      const item = document.createElement("div");
+      item.className = "listItem";
+      item.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <b>${esc(nm)}</b>
+          <span class="hint">${esc(uid)}</span>
+        </div>
+        <span class="badge ${listener ? "warn" : (muted ? "bad" : "good")}">
+          ${listener ? "聞く専" : (muted ? "ミュート" : "会話中")}
+        </span>
+      `;
+      box.appendChild(item);
+    }
+  }
+
+  async function refreshPresenceList(){
+    if (!callPresenceChannel) return;
+    try{
+      const state = callPresenceChannel.presenceState();
+      renderPresenceList(state);
+    }catch(e){
+      log("presence state error", e);
+    }
+  }
+
+  async function startCallChannels(){
+    if (callPresenceChannel && callSignalChannel) return;
+
+    callPresenceChannel = sb.channel(`dm-call-presence-${roomId}`, {
+      config: { presence: { key: myUid() } }
+    });
+
+    callPresenceChannel
+      .on("presence", { event:"sync" }, async ()=>{
+        await refreshPresenceList();
+        await maybeConnectToPeers();
+      })
+      .on("presence", { event:"join" }, async ()=>{
+        await refreshPresenceList();
+        await maybeConnectToPeers();
+      })
+      .on("presence", { event:"leave" }, async ()=>{
+        await refreshPresenceList();
+        await maybeConnectToPeers();
+      });
+
+    callSignalChannel = sb.channel(`dm-call-signal-${roomId}`, {
+      config: { broadcast: { self:false } }
+    });
+
+    callSignalChannel.on("broadcast", { event:"signal" }, async ({ payload })=>{
+      await onSignal(payload);
+    });
+
+    await Promise.all([
+      callPresenceChannel.subscribe(async (status)=>{
+        log("presence channel status:", status);
+        if (status === "SUBSCRIBED"){
+          await safeTrackPresence();
+          await refreshPresenceList();
+          await maybeConnectToPeers();
+        }
+      }),
+      callSignalChannel.subscribe((status)=>{
+        log("signal channel status:", status);
+      })
+    ]);
+  }
+
+  function listPeerIdsFromPresence(){
+    if (!callPresenceChannel) return [];
+    const st = callPresenceChannel.presenceState();
+    const ids = new Set();
+    for (const key in st){
+      for (const p of (st[key]||[])){
+        const uid = String(p.user_id||"");
+        if (uid && uid !== myUid()){
+          ids.add(uid);
+        }
+      }
+    }
+    return [...ids];
+  }
+
+  async function maybeConnectToPeers(){
+    if (!joinedCall) return;
+    const peers = listPeerIdsFromPresence();
+
+    // DMは基本1:1なので「1人だけ」想定だけど、複数来ても壊れないようにする
+    for (const peerId of peers){
+      await ensurePC(peerId);
+    }
+
+    // いなくなった peer の掃除
+    for (const peerId of [...pcs.keys()]){
+      if (!peers.includes(peerId)){
+        await closePC(peerId);
+      }
+    }
+  }
+
+  async function ensurePC(peerId){
+    if (!peerId || peerId === myUid()) return;
+    if (pcs.has(peerId)) return;
+
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    pcs.set(peerId, pc);
+
+    makingOffer.set(peerId, false);
+    ignoreOffer.set(peerId, false);
+
+    pc.onicecandidate = async (ev)=>{
+      if (ev.candidate){
+        await sendSignal(peerId, { kind:"ice", candidate: ev.candidate });
+      }
+    };
+
+    pc.ontrack = (ev)=>{
+      const el = ensureAudioEl(peerId);
+      el.srcObject = ev.streams[0];
+    };
+
+    pc.onconnectionstatechange = ()=>{
+      log("pc state", peerId, pc.connectionState);
+      if (pc.connectionState === "failed" || pc.connectionState === "disconnected" || pc.connectionState === "closed"){
+        // UI掃除（閉じるのは leaveCall 側にもあるので軽く）
+      }
+    };
+
+    // negotiation (Perfect Negotiation)
+    pc.onnegotiationneeded = async ()=>{
+      try{
+        makingOffer.set(peerId, true);
+        const offer = await pc.createOffer();
+        if (pc.signalingState !== "stable") return;
+        await pc.setLocalDescription(offer);
+        await sendSignal(peerId, { kind:"sdp", description: pc.localDescription });
+      }catch(e){
+        log("onnegotiationneeded error", e);
+      }finally{
+        makingOffer.set(peerId, false);
+      }
+    };
+
+    // ローカルトラック追加
+    await attachLocalTracksTo(pc);
+
+    // 初回接続を起こすために、politeじゃない側が「軽くping」して negotiation を促進
+    // (setLocalDescription までは onnegotiationneeded が勝手に走る)
+  }
+
+  async function attachLocalTracksTo(pc){
+    // 聞く専なら送信トラックを持たない
+    if (isListener()) return;
+
+    if (!localStream){
+      await ensureAudioContextRunning();
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation:true,
+          noiseSuppression:true,
+          autoGainControl:false
+        }
+      });
+      // mute反映
+      for (const t of localStream.getAudioTracks()) t.enabled = !micMuted;
+
+      buildProcessedMicStreamIfNeeded();
+      applyMicGain();
+    }
+
+    const sendStream = getSendStream();
+    const tracks = sendStream?.getAudioTracks?.() || [];
+    for (const track of tracks){
+      pc.addTrack(track, sendStream);
+    }
+  }
+
+  async function closePC(peerId){
+    const pc = pcs.get(peerId);
+    if (!pc) return;
+    try{
+      pc.ontrack = null;
+      pc.onicecandidate = null;
+      pc.onnegotiationneeded = null;
+      pc.onconnectionstatechange = null;
+      pc.getSenders().forEach(s=>{
+        try{ pc.removeTrack(s); }catch{}
+      });
+      pc.close();
+    }catch{}
+    pcs.delete(peerId);
+    makingOffer.delete(peerId);
+    ignoreOffer.delete(peerId);
+    politeCache.delete(peerId);
+    removeAudioEl(peerId);
+  }
+
+  async function onSignal(payload){
+    try{
+      if (!payload) return;
+      const from = String(payload.from||"");
+      const to = String(payload.to||"");
+      if (to !== myUid()) return; // 自分宛てだけ処理
+      if (!from || from === myUid()) return;
+
+      const data = payload.data || {};
+      await ensurePC(from);
+
+      const pc = pcs.get(from);
+      if (!pc) return;
+
+      if (data.kind === "ice"){
+        try{
+          await pc.addIceCandidate(data.candidate);
+        }catch(e){
+          // offer衝突中などは無視する場合がある
+          log("addIceCandidate warn", e);
+        }
+        return;
+      }
+
+      if (data.kind === "sdp"){
+        const desc = data.description;
+        if (!desc) return;
+
+        const offerCollision =
+          (desc.type === "offer") &&
+          (makingOffer.get(from) || pc.signalingState !== "stable");
+
+        const polite = getIsPolite(from);
+        ignoreOffer.set(from, !polite && offerCollision);
+
+        if (ignoreOffer.get(from)){
+          log("ignored offer from", from);
+          return;
+        }
+
+        await pc.setRemoteDescription(desc);
+
+        if (desc.type === "offer"){
+          // 返答
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await sendSignal(from, { kind:"sdp", description: pc.localDescription });
+        }
+        return;
+      }
+    }catch(e){
+      log("onSignal error", e);
+    }
+  }
+
+  async function joinCall(mode){
+    try{
+      if (joinedCall){
+        // モード切り替えは一旦抜けて入り直す（安全）
+        await leaveCall();
+      }
+
+      callMode = (mode === "listen") ? "listen" : "talk";
+      joinedCall = true;
+
+      // UI
+      micMuted = (callMode === "listen") ? true : false;
+      setMuteBtn();
+      setMicGainEnabled();
+      setCallState(callMode === "listen" ? "聞く専で接続中…" : "通話に接続中…");
+
+      // チャンネル開始
+      await startCallChannels();
+
+      // presence 更新（ミュート/聞く専含む）
+      await safeTrackPresence();
+      await refreshPresenceList();
+
+      // 聞く専じゃないならマイク取得（ユーザー操作の中で取得しないと弾かれやすい）
+      if (!isListener()){
+        await ensureAudioContextRunning();
+        if (!localStream){
+          localStream = await navigator.mediaDevices.getUserMedia({
+            audio:{
+              echoCancellation:true,
+              noiseSuppression:true,
+              autoGainControl:false
+            }
+          });
+          for (const t of localStream.getAudioTracks()) t.enabled = !micMuted;
+          buildProcessedMicStreamIfNeeded();
+          applyMicGain();
+        }
+      }else{
+        // 聞く専ならマイク不要
+        stopLocalStream();
+      }
+
+      // 既にいる相手と接続
+      await maybeConnectToPeers();
+
+      setCallState(callMode === "listen" ? "✅ 聞く専で接続" : "✅ 通話中");
+    }catch(e){
+      console.error(e);
+      setCallState("❌ 通話参加失敗: " + (e?.message || ""));
+      // 失敗時は軽く掃除
+      joinedCall = false;
+      callMode = "talk";
+      setMuteBtn();
+      setMicGainEnabled();
+    }
+  }
+
+  function stopLocalStream(){
+    try{
+      localStream?.getTracks?.().forEach(t=>{ try{ t.stop(); }catch{} });
+    }catch{}
+    localStream = null;
+
+    processedStream = null;
+    try{
+      micSource?.disconnect?.();
+      micGainNode?.disconnect?.();
+    }catch{}
+    micSource = null;
+    micGainNode = null;
+  }
+
+  async function leaveCall(){
+    try{
+      joinedCall = false;
+      setCallState("未接続（必要なら通話に参加を押してね）");
+
+      // peer close
+      for (const peerId of [...pcs.keys()]){
+        await closePC(peerId);
+      }
+
+      // stream stop
+      stopLocalStream();
+
+      // realtime channels close（DM専用）
+      try{
+        if (callPresenceChannel){
+          await sb.removeChannel(callPresenceChannel);
+        }
+      }catch{}
+      try{
+        if (callSignalChannel){
+          await sb.removeChannel(callSignalChannel);
+        }
+      }catch{}
+
+      callPresenceChannel = null;
+      callSignalChannel = null;
+
+      // UI
+      const box = document.getElementById("callUsersList");
+      if (box) box.innerHTML = `<div class="hint">未接続</div>`;
+      const audios = document.getElementById("audios");
+      if (audios) audios.innerHTML = "";
+      remoteAudioEls.clear();
+
+      micMuted = false;
+      callMode = "talk";
+      setMuteBtn();
+      setMicGainEnabled();
+    }catch(e){
+      console.error(e);
+    }
+  }
+
+  async function toggleMute(){
+    if (!joinedCall) return;
+    if (isListener()) return; // 聞く専は固定
+
+    micMuted = !micMuted;
+
+    // local track enable
+    try{
+      localStream?.getAudioTracks?.().forEach(t=>{ t.enabled = !micMuted; });
+      processedStream?.getAudioTracks?.().forEach(t=>{ t.enabled = !micMuted; });
+    }catch{}
+
+    setMuteBtn();
+    await safeTrackPresence(); // presenceに反映
+    await refreshPresenceList();
+  }
+
+  // mic gain UI
+  (function(){
+    const r = document.getElementById("micGain");
+    const lab = document.getElementById("micGainLabel");
+    if (!r) return;
+    r.addEventListener("input", ()=>{
+      const v = Number(r.value||100);
+      if (lab) lab.textContent = String(v);
+      myMicGain = Math.max(0.01, Math.min(1.0, v/100));
+      applyMicGain();
+    });
+  })();
+
+  /* =====================
+     Boot
+     ===================== */
+  (async ()=>{
+    roomId = getRoomId();
+    if (!roomId){
+      setStatus("room_id が無いよ");
+      return;
+    }
+    if (!await requireLogin()) return;
+
+    await loadLatest();
+    await startRealtime();
+
+    // 初期UI
+    setMuteBtn();
+    setMicGainEnabled();
+    setCallState("未接続（必要なら通話に参加を押してね）");
+  })();
+</script>
+</body>
+</html>
